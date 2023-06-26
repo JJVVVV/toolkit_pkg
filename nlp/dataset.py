@@ -24,14 +24,14 @@ class MyDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         input_text_format_func: Callable[[str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool], tuple[list, list]],
         padding_side: str = "right",
-        max_length_input: int = 0,
-        max_length_label: int = 0,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
         is_train: bool = True,
         **kargs,
     ) -> None:
         super().__init__()
-        max_length_input = tokenizer.model_max_length if max_length_input == 0 else max_length_input
-        max_length_label = tokenizer.model_max_length if max_length_label == 0 else max_length_label
+        max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
+        max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
 
         # get input and label texts
         self.padding_side = padding_side
@@ -65,13 +65,20 @@ class MyDataset(Dataset):
             self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_labels)
             self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
         else:
-            if isinstance(self.splited_texts_label[0], tuple):
-                raise ValueError("Sequence-to-sequence tasks typically require raw text for validation or testing")
-            # TODO 如果原任务本来就是生成任务, label 一般为原始文本
-            if isinstance(self.splited_texts_label[0], str):
-                raise NotImplementedError
-            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
-            self.max_length_labels = self.tokens_labels.shape[-1]
+            if isinstance(self.splited_texts_label[0], str):  # 如果原任务本来就是生成任务, label 一般为原始文本
+                self.tokens_labels = self.splited_texts_label
+                self.max_length_labels = -1
+            elif isinstance(self.splited_texts_label[0], list):  # 否则无论是生成式或是直接分类, label都为类别标签
+                self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
+                self.max_length_labels = self.tokens_labels.shape[-1]
+            else:
+                t = str(type(self.splited_texts_label[0]))
+                print(type(t))
+                raise ValueError(
+                    "\nSequence-to-sequence tasks typically require raw text (str) for validation or testing.\n"
+                    "Classification tasks typically require class label (list[int]) for validation or testing.\n"
+                    f"But get type: {type(self.splited_texts_label[0])}"
+                )
         # if "roberta" in self.model_type:
         #     inputs_ids = self.tokenized_dict["input_ids"]
         #     self.cls_sep_indexes = (
@@ -86,7 +93,7 @@ class MyDataset(Dataset):
         else:
             ret_dict["first_not_pad_index_input"] = self.first_not_pad_indexes_input[item]
 
-        if self.splited_texts_label:
+        if self.tokens_labels is not None:
             ret_dict["labels"] = self.tokens_labels[item]
         return ret_dict
 
