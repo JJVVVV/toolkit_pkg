@@ -5,7 +5,7 @@ from typing import Callable, Optional
 import jsonlines
 import numpy as np
 import torch
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, default_collate
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
@@ -24,51 +24,54 @@ class MyDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         input_text_format_func: Callable[[str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool], tuple[list, list]],
         padding_side: str = "right",
-        max_input_length: int = 0,
-        max_label_length: int = 0,
+        max_length_input: int = 0,
+        max_length_label: int = 0,
         is_train: bool = True,
         **kargs,
     ) -> None:
         super().__init__()
-        max_input_length = tokenizer.model_max_length if max_input_length == 0 else max_input_length
-        max_label_length = tokenizer.model_max_length if max_label_length == 0 else max_label_length
+        max_length_input = tokenizer.model_max_length if max_length_input == 0 else max_length_input
+        max_length_label = tokenizer.model_max_length if max_length_label == 0 else max_length_label
 
         # get input and label texts
         self.padding_side = padding_side
-        self.input_texts, self.label_texts = input_text_format_func(
+        self.splited_texts_input, self.splited_texts_label = input_text_format_func(
             data_file_path, model_type=model_type, tokenizer=tokenizer, is_train=is_train, **kargs
         )  # * kargs: text_type, is_train, max_word_num
 
         # tokenize input texts
         tokenizer.padding_side = padding_side
-        self.tokenized_dict_inputs = self.__tokenize(self.input_texts, tokenizer, max_input_length, desc="Tokenize input texts")
-        # print(self.tokenized_dict_inputs)
-        self.tokenized_dict_inputs = {key: torch.tensor(value) for key, value in self.tokenized_dict_inputs.items()}
+        self.batch_model_input = self.__tokenize(self.splited_texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
+        self.batch_model_input = {key: torch.tensor(value) for key, value in self.batch_model_input.items()}
         if self.padding_side == "right":
-            self.first_pad_indexes_input = torch.argmax(torch.eq(self.tokenized_dict_inputs["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
-            self.first_pad_indexes_input[self.first_pad_indexes_input == 0] = max_input_length
+            self.first_pad_indexes_input = torch.argmax(torch.eq(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
+            self.first_pad_indexes_input[self.first_pad_indexes_input == 0] = max_length_input
             self.max_length_inputs = torch.max(self.first_pad_indexes_input).item()
-            self.tokenized_dict_inputs = {key: value[..., : self.max_length_inputs] for key, value in self.tokenized_dict_inputs.items()}
+            self.batch_model_input = {key: value[..., : self.max_length_inputs] for key, value in self.batch_model_input.items()}
         elif self.padding_side == "left":
-            self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.tokenized_dict_inputs["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
-            self.max_length_inputs = max_input_length - torch.min(self.first_not_pad_indexes_input).item()
-            self.tokenized_dict_inputs = {key: value[..., -self.max_length_inputs - 1 :] for key, value in self.tokenized_dict_inputs.items()}
-            self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.tokenized_dict_inputs["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
+            self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
+            self.max_length_inputs = max_length_input - torch.min(self.first_not_pad_indexes_input).item()
+            self.batch_model_input = {key: value[..., -self.max_length_inputs :] for key, value in self.batch_model_input.items()}
+            self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
 
         # tokenize label texts
         tokenizer.padding_side = "right"
-        if is_train and isinstance(self.label_texts[0], tuple):
-            self.tokenized_labels = self.__tokenize(self.label_texts, tokenizer, max_label_length, desc="Tokenize label texts")["input_ids"]
-            self.tokenized_labels = torch.tensor(self.tokenized_labels)
-            self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokenized_labels, tokenizer.pad_token_id).int(), dim=-1)
-            self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_label_length
+        if is_train and isinstance(self.splited_texts_label[0], tuple):
+            self.tokens_labels = self.__tokenize(self.splited_texts_label, tokenizer, max_length_label, desc="Tokenize label texts")["input_ids"]
+            self.tokens_labels = torch.tensor(self.tokens_labels)
+            self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
+            self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
             self.max_length_labels = torch.max(self.first_pad_indexes_label).item()
-            self.tokenized_labels = torch.narrow(self.tokenized_labels, -1, 0, self.max_length_labels)
-            self.tokenized_labels[self.tokenized_labels == tokenizer.pad_token_id] = -100
-        # TODO 如果原任务本来就是生成任务, label 无法转化成 tensor
+            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_labels)
+            self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
         else:
-            self.tokenized_labels = torch.tensor(self.label_texts, dtype=torch.int)
-            self.max_length_labels = 1
+            if isinstance(self.splited_texts_label[0], tuple):
+                raise ValueError("Sequence-to-sequence tasks typically require raw text for validation or testing")
+            # TODO 如果原任务本来就是生成任务, label 一般为原始文本
+            if isinstance(self.splited_texts_label[0], str):
+                raise NotImplementedError
+            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
+            self.max_length_labels = self.tokens_labels.shape[-1]
         # if "roberta" in self.model_type:
         #     inputs_ids = self.tokenized_dict["input_ids"]
         #     self.cls_sep_indexes = (
@@ -77,18 +80,18 @@ class MyDataset(Dataset):
 
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
-        ret_dict["tokenized_dict_inputs"] = {key: value[item] for key, value in self.tokenized_dict_inputs.items()}
+        ret_dict["model_input"] = {key: value[item] for key, value in self.batch_model_input.items()}
         if self.padding_side == "right":
             ret_dict["first_pad_index_input"] = self.first_pad_indexes_input[item]
         else:
             ret_dict["first_not_pad_index_input"] = self.first_not_pad_indexes_input[item]
 
-        if self.label_texts:
-            ret_dict["labels"] = self.tokenized_labels[item]
+        if self.splited_texts_label:
+            ret_dict["labels"] = self.tokens_labels[item]
         return ret_dict
 
     def __len__(self):
-        return len(self.input_texts)
+        return len(self.splited_texts_input)
 
     @staticmethod
     def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
@@ -175,20 +178,22 @@ class MyDataset(Dataset):
 
     @staticmethod
     def collate_fn_padding_right(batch: list[dict]):
-        batch = MyDataset.stack_tensor_in_dicts(batch)
+        # batch = MyDataset.stack_tensor_in_dicts(batch)
+        batch = default_collate(batch)
         first_pad_index_input = batch.pop("first_pad_index_input")
         batch_max_length = torch.max(first_pad_index_input).item()
-        tokenized_dict_inputs = batch.pop("tokenized_dict_inputs")
-        batch.update({key: value[..., :batch_max_length] for key, value in tokenized_dict_inputs.items()})
+        model_input = batch.pop("model_input")
+        batch.update({key: value[..., :batch_max_length] for key, value in model_input.items()})
         return batch
 
     @staticmethod
     def collate_fn_padding_left(batch: list[dict]):
-        batch = MyDataset.stack_tensor_in_dicts(batch)
+        # batch = MyDataset.stack_tensor_in_dicts(batch)
+        batch = default_collate(batch)
         first_not_pad_index_input = batch.pop("first_not_pad_index_input")
         min_start = torch.min(first_not_pad_index_input).item()
-        tokenized_dict_inputs = batch.pop("tokenized_dict_inputs")
-        batch.update({key: value[..., min_start:] for key, value in tokenized_dict_inputs.items()})
+        model_input = batch.pop("model_input")
+        batch.update({key: value[..., min_start:] for key, value in model_input.items()})
         return batch
 
     # # ? 递归改循环, 貌似对速度没影响?
