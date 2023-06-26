@@ -9,11 +9,15 @@ from torch.utils.data import Dataset, default_collate
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
+from ..logger import _getLogger
+
 Tokens = list[int]
 BatchTokens = list[Tokens]
 ModelInput = dict[str, Tokens]
 ModelInputSplited = dict[str, list[Tokens]]
 BatchModelInput = dict[str, BatchTokens]
+
+logger = _getLogger(__name__)
 
 
 class MyDataset(Dataset):
@@ -149,6 +153,9 @@ class MyDataset(Dataset):
 
     @staticmethod
     def __tokenize(istrunc_texts: list[tuple[tuple[bool, str]]], tokenizer: PreTrainedTokenizer, max_length, desc="", **kargs) -> BatchModelInput:
+        # TODO: bug: token_type_ids全为0
+        if "token_type_ids" in tokenizer.model_input_names:
+            logger.warning(f"model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be zeros")
         tokenized_dict = defaultdict(list)
         waiting_to_trunc_idxs = [idx for idx in range(len(istrunc_texts[0])) if istrunc_texts[0][idx][0]]
         for text in tqdm(istrunc_texts, desc=desc, colour="RED"):
@@ -156,7 +163,6 @@ class MyDataset(Dataset):
             cur_dict: ModelInputSplited = defaultdict(list)
             origin_length = 0
             for _, text_part in text:
-                # TODO: bug: token_type_ids全为0
                 cur_dict_ = tokenizer(text=text_part, padding=False, truncation=False, max_length=None, add_special_tokens=False, **kargs)
                 origin_length += len(cur_dict_["input_ids"])
                 for key, value in cur_dict_.items():
@@ -180,7 +186,7 @@ class MyDataset(Dataset):
             elif isinstance(value, dict):
                 ret_dict[key] = MyDataset.stack_tensor_in_dicts([it_dict[key] for it_dict in batch])
             else:
-                raise Exception(f"data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
+                raise Exception(f"Data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
         return ret_dict
 
     @staticmethod
@@ -222,43 +228,3 @@ class MyDataset(Dataset):
     #             else:
     #                 raise Exception(f"data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
     #     return ret_dict
-
-    # def __tokenize(self, texts: list[str] | list[list[tuple[bool, str]]], tokenizer: PreTrainedTokenizer, max_length, desc="", **kargs):
-    #     tokenized_dict = defaultdict(list)
-    #     model_max_length = tokenizer.model_max_length
-    #     if not isinstance(texts[0], str):
-    #         waiting_to_trunc_idxs = [idx for idx in range(len(texts[0])) if texts[0][idx][0]]
-    #     for text in tqdm(texts, desc=desc, colour="RED"):
-    #         if isinstance(text, str):
-    #             cur_dict = tokenizer(text=text, padding="max_length", truncation=True, max_length=max_length, **kargs)
-    #             for key, value in cur_dict.items():
-    #                 tokenized_dict[key].append(value)
-    #         else:  # input_text: list[tuple[bool, str]]
-    #             cur_dict = defaultdict(list)
-    #             for truncation, text_part in text:
-    #                 cur_dict_ = tokenizer(text=text_part, padding=False, truncation=False, max_length=None, add_special_tokens=False, **kargs)
-    #                 for key, value in cur_dict_.items():
-    #                     cur_dict[key].append(value)
-    #             origin_length = sum([len(ids_part) for ids_part in cur_dict["input_ids"]])
-    #             num_tokens_to_remove = origin_length - max_length
-    #             for key, value in cur_dict.items():
-    #                 # if num_tokens_to_remove:
-    #                 #     print(origin_length, num_tokens_to_remove)
-    #                 #     print(value)
-    #                 ids, ids_pair, _ = tokenizer.truncate_sequences(
-    #                     ids=value[waiting_to_trunc_idxs[0]],
-    #                     pair_ids=value[waiting_to_trunc_idxs[1]] if len(waiting_to_trunc_idxs) == 2 else None,
-    #                     num_tokens_to_remove=num_tokens_to_remove,
-    #                     truncation_strategy="longest_first",
-    #                 )
-    #                 cur_dict[key][waiting_to_trunc_idxs[0]] = ids
-    #                 if len(waiting_to_trunc_idxs) == 2:
-    #                     cur_dict[key][waiting_to_trunc_idxs[1]] = ids_pair
-    #                 # if num_tokens_to_remove:
-    #                 #     print(value)
-    #             cur_dict = {key: sum(value, []) for key, value in cur_dict.items()}
-    #             tokenizer.pad(cur_dict, padding="max_length", max_length=model_max_length)
-    #             # print(cur_dict)
-    #             for key, value in cur_dict.items():
-    #                 tokenized_dict[key].append(value)
-    #     return tokenized_dict
