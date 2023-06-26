@@ -17,7 +17,7 @@ BatchModelInput = dict[str, BatchTokens]
 logger = _getLogger(__name__)
 
 
-class MyDataset(Dataset):
+class TextDataset(Dataset):
     def __init__(
         self,
         data_file_path: str,
@@ -166,10 +166,10 @@ class MyDataset(Dataset):
                     cur_dict[key].append(value)
             num_tokens_to_remove = origin_length - max_length
             if num_tokens_to_remove > 0:
-                MyDataset.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
+                TextDataset.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
             cur_dict: ModelInput = {key: sum(value, []) for key, value in cur_dict.items()}
             # tokenizer.pad(cur_dict, padding="max_length", max_length=model_max_length)
-            MyDataset.__pad(cur_dict, tokenizer, max_length)
+            TextDataset.__pad(cur_dict, tokenizer, max_length)
             for key, value in cur_dict.items():
                 tokenized_dict[key].append(value)
         return tokenized_dict
@@ -181,7 +181,7 @@ class MyDataset(Dataset):
             if isinstance(value, torch.Tensor):
                 ret_dict[key] = torch.stack([it_dict[key] for it_dict in batch])
             elif isinstance(value, dict):
-                ret_dict[key] = MyDataset.stack_tensor_in_dicts([it_dict[key] for it_dict in batch])
+                ret_dict[key] = TextDataset.stack_tensor_in_dicts([it_dict[key] for it_dict in batch])
             else:
                 raise Exception(f"Data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
         return ret_dict
