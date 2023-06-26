@@ -9,17 +9,17 @@ logger = _getLogger(__name__)
 class TrainConfig:
     model_type: str = ""
     is_composition: bool = False
-    attribute_map: Dict[str, str] = {}
+    attribute_alias_map: Dict[str, str] = dict()
     _auto_class: Optional[str] = None
 
     def __setattr__(self, key, value):
-        if key in super().__getattribute__("attribute_map"):
-            key = super().__getattribute__("attribute_map")[key]
+        if key in super().__getattribute__("attribute_alias_map"):
+            key = super().__getattribute__("attribute_alias_map")[key]
         super().__setattr__(key, value)
 
     def __getattribute__(self, key):
-        if key != "attribute_map" and key in super().__getattribute__("attribute_map"):
-            key = super().__getattribute__("attribute_map")[key]
+        if key != "attribute_alias_map" and key in super().__getattribute__("attribute_alias_map"):
+            key = super().__getattribute__("attribute_alias_map")[key]
         return super().__getattribute__(key)
 
     def __init__(self, **kwargs):
