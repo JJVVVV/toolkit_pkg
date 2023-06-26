@@ -1,11 +1,26 @@
+# pip install --editable .
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+
 [project]
 name = "toolkit"
 version = "0.0.1"
+authors = [
+    {name = "JJVV", email = "junjiewvv@gmail.com"},
+]
+description = "a toolkit of training neural network model"
+keywords = []
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.11"
 dependencies = [
     "colorlog",
-    "logging",
+    # "logging",
     "jsonlines",
-    'importlib-metadata; python_version>="3.11.3"',
+    'importlib-metadata; python_version<"3.12"',
 ]
 
 
