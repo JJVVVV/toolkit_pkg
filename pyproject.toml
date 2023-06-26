@@ -1,0 +1,20 @@
+[project]
+name = "toolkit"
+version = "0.0.1"
+dependencies = [
+    "colorlog",
+    "logging",
+    "jsonlines",
+    'importlib-metadata; python_version>="3.11.3"',
+]
+
+
+# [tool.setuptools.packages]
+# find = {}  # Scan the project directory with the default parameters
+# OR
+# [tool.setuptools.packages.find]
+# # All the following settings are optional:
+# where = ["."]       # ["."] by default
+# include = ["*"]     # ["*"] by default
+# exclude = ["test*"] # empty by default
+# namespaces = true   # true by default

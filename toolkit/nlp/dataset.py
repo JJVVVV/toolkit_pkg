@@ -1,9 +1,6 @@
 from collections import defaultdict
-from enum import Enum, auto
-from typing import Callable, Optional
+from typing import Callable
 
-import jsonlines
-import numpy as np
 import torch
 from torch.utils.data import Dataset, default_collate
 from tqdm.auto import tqdm
