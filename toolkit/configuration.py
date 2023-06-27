@@ -1,7 +1,7 @@
 import json
 from typing import Any, Dict, Optional, Tuple, Union
 
-from ..logger import _getLogger
+from logger import _getLogger
 
 logger = _getLogger(__name__)
 
@@ -223,7 +223,7 @@ class TrainConfig:
             self._upload_modified_files(save_directory, repo_id, files_timestamps, commit_message=commit_message, token=kwargs.get("use_auth_token"))
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs) -> "PretrainedConfig":
+    def from_pretrained(cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs) -> "TrainConfig":
         r"""
         Instantiate a [`PretrainedConfig`] (or a derived class) from a pretrained model configuration.
 
@@ -416,7 +416,7 @@ class TrainConfig:
         return config_dict, kwargs
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "PretrainedConfig":
+    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "TrainConfig":
         """
         Instantiates a [`PretrainedConfig`] from a Python dictionary of parameters.
 
@@ -470,7 +470,7 @@ class TrainConfig:
             return config
 
     @classmethod
-    def from_json_file(cls, json_file: Union[str, os.PathLike]) -> "PretrainedConfig":
+    def from_json_file(cls, json_file: Union[str, os.PathLike]) -> "TrainConfig":
         """
         Instantiates a [`PretrainedConfig`] from the path to a JSON file of parameters.
 
@@ -492,7 +492,7 @@ class TrainConfig:
         return json.loads(text)
 
     def __eq__(self, other):
-        return isinstance(other, PretrainedConfig) and (self.__dict__ == other.__dict__)
+        return isinstance(other, TrainConfig) and (self.__dict__ == other.__dict__)
 
     def __repr__(self):
         return f"{self.__class__.__name__} {self.to_json_string()}"
@@ -508,7 +508,7 @@ class TrainConfig:
         config_dict = self.to_dict()
 
         # get the default config dict
-        default_config_dict = PretrainedConfig().to_dict()
+        default_config_dict = TrainConfig().to_dict()
 
         # get class specific config dict
         class_config_dict = self.__class__().to_dict() if not self.is_composition else {}
