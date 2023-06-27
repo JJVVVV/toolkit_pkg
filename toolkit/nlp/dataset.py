@@ -1,4 +1,5 @@
 from collections import defaultdict
+from pathlib import Path
 from typing import Callable
 
 import torch
@@ -20,7 +21,7 @@ logger = _getLogger(__name__)
 class TextDataset(Dataset):
     def __init__(
         self,
-        data_file_path: str,
+        data_file_path: Path,
         model_type: str,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         input_text_format_func: Callable[[str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool], tuple[list, list]],
@@ -39,7 +40,7 @@ class TextDataset(Dataset):
         self.splited_texts_input, self.splited_texts_label = input_text_format_func(
             data_file_path, model_type=model_type, tokenizer=tokenizer, is_train=is_train, **kargs
         )  # * kargs: text_type, is_train, max_word_num
-
+        
         # tokenize input texts
         tokenizer.padding_side = padding_side
         self.batch_model_input = self.__tokenize(self.splited_texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
