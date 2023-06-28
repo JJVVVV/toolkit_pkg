@@ -1,12 +1,16 @@
+import copy
 import json
+import os
+from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
+import jsonlines
 from logger import _getLogger
 
 logger = _getLogger(__name__)
 
 
-class TrainConfig:
+class Config:
     model_type: str = ""
     is_composition: bool = False
     attribute_alias_map: Dict[str, str] = dict()
@@ -32,86 +36,6 @@ class TrainConfig:
         self.use_bfloat16 = kwargs.pop("use_bfloat16", False)
         self.tf_legacy_loss = kwargs.pop("tf_legacy_loss", False)  # Only used by TensorFlow models
         self.pruned_heads = kwargs.pop("pruned_heads", {})
-        self.tie_word_embeddings = kwargs.pop(
-            "tie_word_embeddings", True
-        )  # Whether input and output word embeddings should be tied for all MLM, LM and Seq2Seq models.
-
-        # Is decoder is used in encoder-decoder models to differentiate encoder from decoder
-        self.is_encoder_decoder = kwargs.pop("is_encoder_decoder", False)
-        self.is_decoder = kwargs.pop("is_decoder", False)
-        self.cross_attention_hidden_size = kwargs.pop("cross_attention_hidden_size", None)
-        self.add_cross_attention = kwargs.pop("add_cross_attention", False)
-        self.tie_encoder_decoder = kwargs.pop("tie_encoder_decoder", False)
-
-        # Parameters for sequence generation
-        self.max_length = kwargs.pop("max_length", 20)
-        self.min_length = kwargs.pop("min_length", 0)
-        self.do_sample = kwargs.pop("do_sample", False)
-        self.early_stopping = kwargs.pop("early_stopping", False)
-        self.num_beams = kwargs.pop("num_beams", 1)
-        self.num_beam_groups = kwargs.pop("num_beam_groups", 1)
-        self.diversity_penalty = kwargs.pop("diversity_penalty", 0.0)
-        self.temperature = kwargs.pop("temperature", 1.0)
-        self.top_k = kwargs.pop("top_k", 50)
-        self.top_p = kwargs.pop("top_p", 1.0)
-        self.typical_p = kwargs.pop("typical_p", 1.0)
-        self.repetition_penalty = kwargs.pop("repetition_penalty", 1.0)
-        self.length_penalty = kwargs.pop("length_penalty", 1.0)
-        self.no_repeat_ngram_size = kwargs.pop("no_repeat_ngram_size", 0)
-        self.encoder_no_repeat_ngram_size = kwargs.pop("encoder_no_repeat_ngram_size", 0)
-        self.bad_words_ids = kwargs.pop("bad_words_ids", None)
-        self.num_return_sequences = kwargs.pop("num_return_sequences", 1)
-        self.chunk_size_feed_forward = kwargs.pop("chunk_size_feed_forward", 0)
-        self.output_scores = kwargs.pop("output_scores", False)
-        self.return_dict_in_generate = kwargs.pop("return_dict_in_generate", False)
-        self.forced_bos_token_id = kwargs.pop("forced_bos_token_id", None)
-        self.forced_eos_token_id = kwargs.pop("forced_eos_token_id", None)
-        self.remove_invalid_values = kwargs.pop("remove_invalid_values", False)
-        self.exponential_decay_length_penalty = kwargs.pop("exponential_decay_length_penalty", None)
-        self.suppress_tokens = kwargs.pop("suppress_tokens", None)
-        self.begin_suppress_tokens = kwargs.pop("begin_suppress_tokens", None)
-
-        # Fine-tuning task arguments
-        self.architectures = kwargs.pop("architectures", None)
-        self.finetuning_task = kwargs.pop("finetuning_task", None)
-        self.id2label = kwargs.pop("id2label", None)
-        self.label2id = kwargs.pop("label2id", None)
-        if self.label2id is not None and not isinstance(self.label2id, dict):
-            raise ValueError("Argument label2id should be a dictionary.")
-        if self.id2label is not None:
-            if not isinstance(self.id2label, dict):
-                raise ValueError("Argument id2label should be a dictionary.")
-            num_labels = kwargs.pop("num_labels", None)
-            if num_labels is not None and len(self.id2label) != num_labels:
-                logger.warning(
-                    f"You passed along `num_labels={num_labels}` with an incompatible id to label map: "
-                    f"{self.id2label}. The number of labels wil be overwritten to {self.num_labels}."
-                )
-            self.id2label = {int(key): value for key, value in self.id2label.items()}
-            # Keys are always strings in JSON so convert ids to int here.
-        else:
-            self.num_labels = kwargs.pop("num_labels", 2)
-
-        if self.torch_dtype is not None and isinstance(self.torch_dtype, str):
-            # we will start using self.torch_dtype in v5, but to be consistent with
-            # from_pretrained's torch_dtype arg convert it to an actual torch.dtype object
-            if is_torch_available():
-                import torch
-
-                self.torch_dtype = getattr(torch, self.torch_dtype)
-
-        # Tokenizer arguments TODO: eventually tokenizer and models should share the same config
-        self.tokenizer_class = kwargs.pop("tokenizer_class", None)
-        self.prefix = kwargs.pop("prefix", None)
-        self.bos_token_id = kwargs.pop("bos_token_id", None)
-        self.pad_token_id = kwargs.pop("pad_token_id", None)
-        self.eos_token_id = kwargs.pop("eos_token_id", None)
-        self.sep_token_id = kwargs.pop("sep_token_id", None)
-
-        self.decoder_start_token_id = kwargs.pop("decoder_start_token_id", None)
-
-        # task specific arguments
-        self.task_specific_params = kwargs.pop("task_specific_params", None)
 
         # regression / multi-label classification
         self.problem_type = kwargs.pop("problem_type", None)
@@ -122,13 +46,6 @@ class TrainConfig:
                 "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
             )
 
-        # TPU arguments
-        if kwargs.pop("xla_device", None) is not None:
-            logger.warning(
-                "The `xla_device` argument has been deprecated in v4.4.0 of Transformers. It is ignored and you can "
-                "safely remove it from your `config.json` file."
-            )
-
         # Name or path to the pretrained checkpoint
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
         # Config hash
@@ -136,14 +53,6 @@ class TrainConfig:
 
         # Drop the transformers version info
         self.transformers_version = kwargs.pop("transformers_version", None)
-
-        # Deal with gradient checkpointing
-        if kwargs.get("gradient_checkpointing", False):
-            warnings.warn(
-                "Passing `gradient_checkpointing` to a config initialization is deprecated and will be removed in v5 "
-                "Transformers. Using `model.gradient_checkpointing_enable()` instead, or if you are using the "
-                "`Trainer` API, pass `gradient_checkpointing=True` in your `TrainingArguments`."
-            )
 
         # Additional attributes without default values
         for key, value in kwargs.items():
@@ -223,7 +132,7 @@ class TrainConfig:
             self._upload_modified_files(save_directory, repo_id, files_timestamps, commit_message=commit_message, token=kwargs.get("use_auth_token"))
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs) -> "TrainConfig":
+    def from_pretrained(cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs) -> "Config":
         r"""
         Instantiate a [`PretrainedConfig`] (or a derived class) from a pretrained model configuration.
 
@@ -416,7 +325,7 @@ class TrainConfig:
         return config_dict, kwargs
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "TrainConfig":
+    def from_dict(cls, config_dict: Dict[str, Any], **kwargs) -> "Config":
         """
         Instantiates a [`PretrainedConfig`] from a Python dictionary of parameters.
 
@@ -470,7 +379,7 @@ class TrainConfig:
             return config
 
     @classmethod
-    def from_json_file(cls, json_file: Union[str, os.PathLike]) -> "TrainConfig":
+    def from_json_file(cls, json_file: Union[str, os.PathLike]) -> "Config":
         """
         Instantiates a [`PretrainedConfig`] from the path to a JSON file of parameters.
 
@@ -492,7 +401,7 @@ class TrainConfig:
         return json.loads(text)
 
     def __eq__(self, other):
-        return isinstance(other, TrainConfig) and (self.__dict__ == other.__dict__)
+        return isinstance(other, Config) and (self.__dict__ == other.__dict__)
 
     def __repr__(self):
         return f"{self.__class__.__name__} {self.to_json_string()}"
@@ -508,7 +417,7 @@ class TrainConfig:
         config_dict = self.to_dict()
 
         # get the default config dict
-        default_config_dict = TrainConfig().to_dict()
+        default_config_dict = Config().to_dict()
 
         # get class specific config dict
         class_config_dict = self.__class__().to_dict() if not self.is_composition else {}
