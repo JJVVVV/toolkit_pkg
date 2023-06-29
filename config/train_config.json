@@ -1,0 +1,21 @@
+{
+  "accumulate_step": 1,
+  "adam_epsilon": 1e-08,
+  "batch_size": 32,
+  "dataset": "QQP",
+  "early_stop": false,
+  "early_stop_metric": "acc",
+  "epochs": 5,
+  "fp16": false,
+  "learning_rate": 3e-05,
+  "max_length_input": null,
+  "max_length_label": null,
+  "model_name": "baseline",
+  "model_type": "bert-base-uncase",
+  "problem_type": null,
+  "seed": 0,
+  "test_in_epoch": false,
+  "warmup": false,
+  "warmup_ratio": -1,
+  "weight_decay": 0.01
+}

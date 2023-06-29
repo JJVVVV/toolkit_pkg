@@ -26,15 +26,6 @@ class Config:
     def __init__(self, **kwargs):
         # Attributes with defaults
 
-        # regression / multi-label classification
-        self.problem_type = kwargs.pop("problem_type", None)
-        allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
-        if self.problem_type is not None and self.problem_type not in allowed_problem_types:
-            raise ValueError(
-                f"The config parameter `problem_type` was not understood: received {self.problem_type} "
-                "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
-            )
-
         # Name or path to the pretrained checkpoint
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
 
@@ -74,7 +65,7 @@ class Config:
             raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
         save_directory.mkdir(parents=True, exist_ok=True)
 
-        config_name = kwargs.pop("config_name", CONFIG_NAME)
+        config_name = kwargs.pop("config_file_name", CONFIG_NAME)
         # If we save using the predefined names, we can load using `from_pretrained`
         output_config_file_path = save_directory / config_name
 
@@ -93,7 +84,7 @@ class Config:
         return config
 
     @classmethod
-    def get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Dict[str, Any]:
         """
         From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
         [`PretrainedConfig`] using `from_dict`.
@@ -115,7 +106,7 @@ class Config:
             # The another config file must be a path or be in the same folder as the first
             config_dict = cls._get_config_dict(config_dict["configuration_files"], **original_kwargs)
 
-        return config_dict, kwargs
+        return config_dict
 
     @classmethod
     def _get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Dict[str, Any]:
@@ -174,6 +165,21 @@ class Config:
     def __repr__(self):
         return f"{self.__class__.__name__} {self.to_json_string()}"
 
+    def to_dict(self) -> Dict[str, Any]:
+        """
+        Serializes this instance to a Python dictionary.
+
+        Returns:
+            `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
+        """
+        output = copy.deepcopy(self.__dict__)
+        if not hasattr(self, "model_type") and hasattr(self.__class__, "model_type"):
+            output["model_type"] = self.__class__.model_type
+
+        self.dict_torch_dtype_to_str(output)
+
+        return output
+
     def to_diff_dict(self) -> Dict[str, Any]:
         """
         Removes all attributes from config which correspond to the default config attributes for better readability and
@@ -183,39 +189,32 @@ class Config:
             `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance,
         """
         config_dict = self.to_dict()
+        # print(config_dict)
 
         # get the default config dict
         base_config_dict = Config().to_dict()
-        print(f"base:        {base_config_dict}")
+        # print(f"base:        {base_config_dict}")
         # get class specific config dict (including attributes defined in subclass)
-        class_config_dict = self.__class__().to_dict()
-        print(f"class specific: {class_config_dict}")
+        # class_config_dict = self.__class__().to_dict()
+        # print(f"class specific: {class_config_dict}")
         serializable_config_dict = {}
 
         # only serialize values that differ from the default config
-        #
+        serializable_config_dict = {}
         for key, value in config_dict.items():
-            if key not in base_config_dict or value != base_config_dict[key] or (key in class_config_dict and value != class_config_dict[key]):
+            if (
+                key not in base_config_dict
+                or value != base_config_dict[key]
+                # not (key in base_config_dict and value != base_config_dict[key])
+                # or (key in class_config_dict and value != class_config_dict[key])
+                # or key not in class_config_dict
+                # or (key in class_config_dict and key not in base_config_dict)
+            ):
                 serializable_config_dict[key] = value
 
         self.dict_torch_dtype_to_str(serializable_config_dict)
 
         return serializable_config_dict
-
-    def to_dict(self) -> Dict[str, Any]:
-        """
-        Serializes this instance to a Python dictionary.
-
-        Returns:
-            `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
-        """
-        output = copy.deepcopy(self.__dict__)
-        if hasattr(self.__class__, "model_type"):
-            output["model_type"] = self.__class__.model_type
-
-        self.dict_torch_dtype_to_str(output)
-
-        return output
 
     def to_json_string(self, only_diff: bool = True) -> str:
         if only_diff is True:
