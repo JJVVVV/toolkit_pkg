@@ -40,7 +40,7 @@ class TextDataset(Dataset):
         self.splited_texts_input, self.splited_texts_label = input_text_format_func(
             data_file_path, model_type=model_type, tokenizer=tokenizer, is_train=is_train, **kargs
         )  # * kargs: text_type, is_train, max_word_num
-        
+
         # tokenize input texts
         tokenizer.padding_side = padding_side
         self.batch_model_input = self.__tokenize(self.splited_texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
@@ -149,8 +149,10 @@ class TextDataset(Dataset):
         else:
             raise ValueError("Invalid padding strategy:" + str(tokenizer.padding_side))
 
-    @staticmethod
-    def __tokenize(istrunc_texts: list[tuple[tuple[bool, str]]], tokenizer: PreTrainedTokenizer, max_length, desc="", **kargs) -> BatchModelInput:
+    @classmethod
+    def __tokenize(
+        cls, istrunc_texts: list[tuple[tuple[bool, str]]], tokenizer: PreTrainedTokenizer, max_length, desc="", **kargs
+    ) -> BatchModelInput:
         # TODO: bug: token_type_ids全为0
         if "token_type_ids" in tokenizer.model_input_names:
             logger.warning(f"model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be zeros")
@@ -167,10 +169,10 @@ class TextDataset(Dataset):
                     cur_dict[key].append(value)
             num_tokens_to_remove = origin_length - max_length
             if num_tokens_to_remove > 0:
-                TextDataset.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
+                cls.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
             cur_dict: ModelInput = {key: sum(value, []) for key, value in cur_dict.items()}
             # tokenizer.pad(cur_dict, padding="max_length", max_length=model_max_length)
-            TextDataset.__pad(cur_dict, tokenizer, max_length)
+            cls.__pad(cur_dict, tokenizer, max_length)
             for key, value in cur_dict.items():
                 tokenized_dict[key].append(value)
         return tokenized_dict
