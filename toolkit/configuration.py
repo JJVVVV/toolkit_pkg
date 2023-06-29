@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
-import jsonlines
 from logger import _getLogger
 
 logger = _getLogger(__name__)
@@ -12,9 +11,7 @@ logger = _getLogger(__name__)
 
 class Config:
     model_type: str = ""
-    is_composition: bool = False
     attribute_alias_map: Dict[str, str] = dict()
-    _auto_class: Optional[str] = None
 
     def __setattr__(self, key, value):
         if key in super().__getattribute__("attribute_alias_map"):
@@ -48,11 +45,6 @@ class Config:
 
         # Name or path to the pretrained checkpoint
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
-        # Config hash
-        self._commit_hash = kwargs.pop("_commit_hash", None)
-
-        # Drop the transformers version info
-        self.transformers_version = kwargs.pop("transformers_version", None)
 
         # Additional attributes without default values
         for key, value in kwargs.items():
@@ -69,14 +61,6 @@ class Config:
     @name_or_path.setter
     def name_or_path(self, value):
         self._name_or_path = str(value)  # Make sure that name_or_path is a string (for JSON encoding)
-
-    @property
-    def use_return_dict(self) -> bool:
-        """
-        `bool`: Whether or not return [`~utils.ModelOutput`] instead of tuples.
-        """
-        # If torchscript is set, force `return_dict=False` to avoid jit errors
-        return self.return_dict and not self.torchscript
 
     @property
     def num_labels(self) -> int:
@@ -132,7 +116,7 @@ class Config:
             self._upload_modified_files(save_directory, repo_id, files_timestamps, commit_message=commit_message, token=kwargs.get("use_auth_token"))
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Path|str, **kwargs) -> "Config":
+    def from_pretrained(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "Config":
         config_dict, kwargs = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
         if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
             logger.warning(
@@ -143,7 +127,7 @@ class Config:
         return cls.from_dict(config_dict, **kwargs)
 
     @classmethod
-    def get_config_dict(cls, pretrained_model_name_or_path: Path|str, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """
         From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
         [`PretrainedConfig`] using `from_dict`.
@@ -167,18 +151,18 @@ class Config:
         return config_dict, kwargs
 
     @classmethod
-    def _get_config_dict(cls, pretrained_model_name_or_path: Union[str, os.PathLike], **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
+    def _get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if isinstance(pretrained_model_name_or_path, str):
             pretrained_model_name_or_path = Path(pretrained_model_name_or_path)
-        
+
         # if name are provided, find the file in default folder "config"
         if pretrained_model_name_or_path.is_file():
             resolved_config_file = pretrained_model_name_or_path
         else:
-            resolved_config_file = 'config'/pretrained_model_name_or_path
-        
+            resolved_config_file = "config" / pretrained_model_name_or_path
+
+        # Load config dict
         try:
-            # Load config dict
             config_dict = cls._dict_from_json_file(resolved_config_file)
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
@@ -211,7 +195,7 @@ class Config:
             return config
 
     @classmethod
-    def from_json_file(cls, json_file: Union[str, os.PathLike]) -> "Config":
+    def from_json_file(cls, json_file: Path | str) -> "Config":
         """
         Instantiates a [`PretrainedConfig`] from the path to a JSON file of parameters.
 
@@ -227,7 +211,7 @@ class Config:
         return cls(**config_dict)
 
     @staticmethod
-    def _dict_from_json_file(json_file: Path|str):
+    def _dict_from_json_file(json_file: Path | str):
         with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         return json.loads(text)
@@ -251,19 +235,15 @@ class Config:
         # get the default config dict
         default_config_dict = Config().to_dict()
 
-        # get class specific config dict
-        class_config_dict = self.__class__().to_dict() if not self.is_composition else {}
+        # get class specific config dict (including attributes defined in subclass)
+        class_config_dict = self.__class__().to_dict()
 
         serializable_config_dict = {}
 
         # only serialize values that differ from the default config
+        # 
         for key, value in config_dict.items():
-            if (
-                key not in default_config_dict
-                or key == "transformers_version"
-                or value != default_config_dict[key]
-                or (key in class_config_dict and value != class_config_dict[key])
-            ):
+            if key not in default_config_dict or value != default_config_dict[key] or (key in class_config_dict and value != class_config_dict[key]):
                 serializable_config_dict[key] = value
 
         self.dict_torch_dtype_to_str(serializable_config_dict)
@@ -280,62 +260,23 @@ class Config:
         output = copy.deepcopy(self.__dict__)
         if hasattr(self.__class__, "model_type"):
             output["model_type"] = self.__class__.model_type
-        if "_auto_class" in output:
-            del output["_auto_class"]
-        if "_commit_hash" in output:
-            del output["_commit_hash"]
-
-        # Transformers version when serializing the model
-        output["transformers_version"] = __version__
-
-        if hasattr(self, "quantization_config"):
-            output["quantization_config"] = (
-                self.quantization_config.to_dict() if not isinstance(self.quantization_config, dict) else self.quantization_config
-            )
 
         self.dict_torch_dtype_to_str(output)
 
         return output
 
-    def to_json_string(self, use_diff: bool = True) -> str:
-        """
-        Serializes this instance to a JSON string.
-
-        Args:
-            use_diff (`bool`, *optional*, defaults to `True`):
-                If set to `True`, only the difference between the config instance and the default `PretrainedConfig()`
-                is serialized to JSON string.
-
-        Returns:
-            `str`: String containing all the attributes that make up this configuration instance in JSON format.
-        """
-        if use_diff is True:
+    def to_json_string(self, only_diff: bool = True) -> str:
+        if only_diff is True:
             config_dict = self.to_diff_dict()
         else:
             config_dict = self.to_dict()
         return json.dumps(config_dict, indent=2, sort_keys=True) + "\n"
 
-    def to_json_file(self, json_file_path: Union[str, os.PathLike], use_diff: bool = True):
-        """
-        Save this instance to a JSON file.
-
-        Args:
-            json_file_path (`str` or `os.PathLike`):
-                Path to the JSON file in which this configuration instance's parameters will be saved.
-            use_diff (`bool`, *optional*, defaults to `True`):
-                If set to `True`, only the difference between the config instance and the default `PretrainedConfig()`
-                is serialized to JSON file.
-        """
+    def to_json_file(self, json_file_path: Path | str, use_diff: bool = True):
         with open(json_file_path, "w", encoding="utf-8") as writer:
-            writer.write(self.to_json_string(use_diff=use_diff))
+            writer.write(self.to_json_string(only_diff=use_diff))
 
     def update(self, config_dict: Dict[str, Any]):
-        """
-        Updates attributes of this class with attributes from `config_dict`.
-
-        Args:
-            config_dict (`Dict[str, Any]`): Dictionary of attributes that should be updated for this class.
-        """
         for key, value in config_dict.items():
             setattr(self, key, value)
 
@@ -345,15 +286,9 @@ class Config:
 
         The expected format is ints, floats and strings as is, and for booleans use `true` or `false`. For example:
         "n_embd=10,resid_pdrop=0.2,scale_attn_weights=false,summary_type=cls_index"
-
-        The keys to change have to already exist in the config object.
-
-        Args:
-            update_str (`str`): String with attributes that should be updated for this class.
-
         """
 
-        d = dict(x.split("=") for x in update_str.split(","))
+        d = dict(x.strip().split("=") for x in update_str.split(","))
         for k, v in d.items():
             if not hasattr(self, k):
                 raise ValueError(f"key {k} isn't in the original config dict")
@@ -375,40 +310,15 @@ class Config:
 
             setattr(self, k, v)
 
-    def dict_torch_dtype_to_str(self, d: Dict[str, Any]) -> None:
+    @staticmethod
+    def dict_torch_dtype_to_str(d: Dict[str, Any]) -> None:
         """
-        Checks whether the passed dictionary and its nested dicts have a *torch_dtype* key and if it's not None,
-        converts torch.dtype to a string of just the type. For example, `torch.float32` get converted into *"float32"*
+        Checks whether the passed dictionary and its nested dicts have a `torch_dtype` key and if it's not None,
+        converts torch.dtype to a string of just the type. For example, `torch.float32` get converted into `float32`
         string, which can then be stored in the json format.
         """
         if d.get("torch_dtype", None) is not None and not isinstance(d["torch_dtype"], str):
             d["torch_dtype"] = str(d["torch_dtype"]).split(".")[1]
         for value in d.values():
             if isinstance(value, dict):
-                self.dict_torch_dtype_to_str(value)
-
-    @classmethod
-    def register_for_auto_class(cls, auto_class="AutoConfig"):
-        """
-        Register this class with a given auto class. This should only be used for custom configurations as the ones in
-        the library are already mapped with `AutoConfig`.
-
-        <Tip warning={true}>
-
-        This API is experimental and may have some slight breaking changes in the next releases.
-
-        </Tip>
-
-        Args:
-            auto_class (`str` or `type`, *optional*, defaults to `"AutoConfig"`):
-                The auto class to register this new configuration with.
-        """
-        if not isinstance(auto_class, str):
-            auto_class = auto_class.__name__
-
-        import transformers.models.auto as auto_module
-
-        if not hasattr(auto_module, auto_class):
-            raise ValueError(f"{auto_class} is not a valid auto class.")
-
-        cls._auto_class = auto_class
+                Config.dict_torch_dtype_to_str(value)
