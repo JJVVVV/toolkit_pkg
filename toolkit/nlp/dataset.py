@@ -10,11 +10,11 @@ from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..logger import _getLogger
 
-Tokens = list[int]
-BatchTokens = list[Tokens]
-ModelInput = dict[str, Tokens]
-ModelInputSplited = dict[str, list[Tokens]]
-BatchModelInput = dict[str, BatchTokens]
+Tokens = List[int]
+BatchTokens = List[Tokens]
+ModelInput = Dict[str, Tokens]
+ModelInputSplited = Dict[str, List[Tokens]]
+BatchModelInput = Dict[str, BatchTokens]
 BoolStrings = Tuple[Tuple[bool, str], ...]
 TextPair = Tuple[str, str | None]
 ClassificationID = List[int]
@@ -269,7 +269,7 @@ class TextDataset(Dataset):
                 raise Exception(f"Data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
         return ret_dict
 
-    # TODO clip the label
+    # TODO: clip the label
     @staticmethod
     def collate_fn_padding_right(batch: list[dict]):
         # batch = MyDataset.stack_tensor_in_dicts(batch)
@@ -331,29 +331,3 @@ class TextDataset(Dataset):
 #     pair[0] = " ".join(pair[0])
 #     pair[1] = " ".join(pair[1])
 #     return pair
-
-
-# Demo
-# def myfun(file_path, tokenizer, model_type, **kargs):
-#     special_tokens_map = tokenizer.special_tokens_map
-#     BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
-#     EOS = special_tokens_map["eos_token"] if "eos_token" in special_tokens_map.keys() else None
-#     SEP = special_tokens_map["sep_token"] if "sep_token" in special_tokens_map.keys() else None
-#     MASK = special_tokens_map["mask_token"] if "mask_token" in special_tokens_map.keys() else None
-#     CLS = special_tokens_map["cls_token"] if "cls_token" in special_tokens_map.keys() else None
-#     sep_num = 1
-
-#     with jsonlines.open(file_path, "r") as jlReader:
-#         dict_objs = list(jlReader)
-#         if isinstance(dict_objs[0], str):
-#             dict_objs = dict_objs[1:]
-
-#     input_texts = []
-#     labels = []
-#     for dict_obj in dict_objs:
-#         # input_texts.append(f"{BOS}{dict_obj['question1']}{SEP*sep_num}{dict_obj['question2']}{EOS}")
-#         input_texts.append(((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP)))
-#         labels.append([dict_obj["label"]])
-#         # labels.append(((False, CLS), (True, dict_obj["question1"])))
-#         # labels.append(dict_obj["question1"])
-#     return input_texts, labels
