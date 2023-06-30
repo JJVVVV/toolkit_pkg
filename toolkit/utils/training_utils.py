@@ -1,7 +1,9 @@
 import itertools
 import os
+import random
 from typing import Generator, Tuple
 
+import numpy as np
 import torch
 from torch import Generator
 from torch.utils.data import DataLoader, Dataset, DistributedSampler, Subset
@@ -26,7 +28,7 @@ def accumulate_dataloader(dataloader: DataLoader, accumulate_step: int) -> Gener
 
 def get_dataloader(
     dataset: Dataset, train_config: TrainConfig, local_rank=0, world_size=1, is_train: bool = True, desc: str = "training", **dataloader_kwargs
-) -> tuple[DataLoader, DistributedSampler] | DataLoader:
+) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
     """Getting the dataloader when using multiple GPUs, which is also compatible with a single GPU"""
 
     def split_batch(x, n):
@@ -77,14 +79,14 @@ def get_dataloader(
 
 
 # torch申请显存
-def check_mem(cuda_device_id: int) -> tuple[int, int]:
+def check_mem(cuda_device_id: int) -> Tuple[int, int]:
     """Get total and used memory (unit: `MB`) of GPU with the corresponding ID."""
     devices_info = os.popen('"/usr/bin/nvidia-smi" --query-gpu=memory.total,memory.used --format=csv,nounits,noheader').read().strip().split("\n")
     total, used = devices_info[int(cuda_device_id)].split(",")
     return int(total), int(used)
 
 
-def allocate_gpu_memory(ratio=0.8, local_rank=0):
+def allocate_gpu_memory(ratio=0.8, local_rank=0) -> None:
     """Allocate GPU memory.\n
     Support multiple GPUs, but the GPU used by the current process must be specified by `torch.cuda.set_device(local_rank)`"""
     cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
@@ -94,3 +96,28 @@ def allocate_gpu_memory(ratio=0.8, local_rank=0):
     block_mem = int((int(total) - int(used)) * ratio)
     x = torch.cuda.FloatTensor(256, 1024, block_mem)
     del x
+
+
+def setup_seed(seed: int) -> None:
+    """Set random seed"""
+    # 如果读取数据的过程采用了随机预处理(如RandomCrop、RandomHorizontalFlip等)，那么对Python、Numpy的随机数生成器也需要设置种子。
+    random.seed(seed)
+    np.random.seed(seed)
+    # 为了禁止hash随机化，使得实验可复现
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    # torch中的随机种子
+    torch.manual_seed(seed)  # 为CPU设置随机种子
+    torch.cuda.manual_seed(seed)  # 为当前GPU设置随机种子
+    # if you are using multi-GPU. 为所有GPU设置随机种子
+    torch.cuda.manual_seed_all(seed)
+
+
+def setup_parallel() -> Tuple[int, int]:
+    """Initial parallel backend"""
+    local_rank = int(os.environ.get("LOCAL_RANK", -1))
+    world_size = int(os.environ.get("WORLD_SIZE", -1))
+
+    torch.distributed.init_process_group("nccl")
+    torch.cuda.set_device(local_rank)
+
+    return local_rank, world_size
