@@ -178,9 +178,7 @@ class Config:
         # if not hasattr(self, "model_type") and hasattr(self.__class__, "model_type"):
         # if hasattr(self.__class__, "model_type"):
         #     output["model_type"] = self.__class__.model_type
-
         self.dict_torch_dtype_to_str(output)
-
         return output
 
     def to_diff_dict(self) -> Dict[str, Any]:
@@ -246,7 +244,6 @@ class Config:
         for k, v in d.items():
             if not hasattr(self, k):
                 raise ValueError(f"key {k} isn't in the original config dict")
-
             old_v = getattr(self, k)
             if isinstance(old_v, bool):
                 if v.lower() in ["true", "1", "y", "yes"]:

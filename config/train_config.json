@@ -1,4 +1,5 @@
 {
+  "a_unknow": "aaa",
   "accumulate_step": 1,
   "adam_epsilon": 1e-08,
   "batch_size": 32,
