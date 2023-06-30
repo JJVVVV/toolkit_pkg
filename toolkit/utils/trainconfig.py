@@ -1,7 +1,5 @@
 from pathlib import Path
 
-from toolkit.configuration import Config
-
 from ..configuration import Config
 
 CONFIG_NAME = "train_config.json"
@@ -12,11 +10,11 @@ class TrainConfig(Config):
         self,
         dataset,
         early_stop_metric,
-        model_type,
-        model_name,
         epochs,
         batch_size,
         learning_rate,
+        model_type="",
+        model_name="",
         problem_type=None,
         seed=0,
         early_stop=False,
@@ -24,8 +22,6 @@ class TrainConfig(Config):
         continue_train_more_patience=False,
         warmup=False,
         test_in_epoch=False,
-        max_length_input=None,
-        max_length_label=None,
         weight_decay=0.01,
         adam_epsilon=1e-8,
         accumulate_step=1,
@@ -57,8 +53,6 @@ class TrainConfig(Config):
         # optimization hyperparameter
         self.epochs = epochs
         self.batch_size = batch_size
-        self.max_length_input = max_length_input
-        self.max_length_label = max_length_label
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.adam_epsilon = adam_epsilon
