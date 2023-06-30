@@ -8,12 +8,36 @@ CONFIG_NAME = "train_config.json"
 
 
 class TrainConfig(Config):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        dataset,
+        early_stop_metric,
+        model_type,
+        model_name,
+        epochs,
+        batch_size,
+        learning_rate,
+        problem_type=None,
+        seed=0,
+        early_stop=False,
+        patience=5,
+        continue_train_more_patience=False,
+        warmup=False,
+        test_in_epoch=False,
+        max_length_input=None,
+        max_length_label=None,
+        weight_decay=0.01,
+        adam_epsilon=1e-8,
+        accumulate_step=1,
+        warmup_ratio=-1,
+        fp16=False,
+        **kwargs,
+    ):
+        super().__init__(model_type=model_type, model_name=model_name, **kwargs)
         # attributes related to the task
-        self.dataset = kwargs.pop("dataset")
-        self.early_stop_metric = kwargs.pop("early_stop_metric")
-        self.problem_type = kwargs.pop("problem_type", None)
+        self.dataset = dataset
+        self.early_stop_metric = early_stop_metric
+        self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
         if self.problem_type is not None and self.problem_type not in allowed_problem_types:
             raise ValueError(
@@ -21,30 +45,26 @@ class TrainConfig(Config):
                 "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
             )
 
-        # attributes related to the model
-        self.model_type = kwargs.pop("model_type")
-        self.model_name = kwargs.pop("model_name")
-
         # attributes related to training
-        self.seed = kwargs.pop("seed", 0)
-        self.early_stop = kwargs.pop("early_stop", False)
+        self.seed = seed
+        self.early_stop = early_stop
         if self.early_stop:
-            self.patience = kwargs.pop("patience", 5)
-            self.continue_train_more_patience = kwargs.pop("continue_train_more_patience", False)
-        self.warmup = kwargs.pop("warmup", False)
-        self.test_in_epoch = kwargs.pop("test_in_epoch", False)
+            self.patience = patience
+            self.continue_train_more_patience = continue_train_more_patience
+        self.warmup = warmup
+        self.test_in_epoch = test_in_epoch
 
         # optimization hyperparameter
-        self.epochs = kwargs.pop("epochs")
-        self.batch_size = kwargs.pop("batch_size")
-        self.max_length_input = kwargs.pop("max_length_input", None)
-        self.max_length_label = kwargs.pop("max_length_label", None)
-        self.learning_rate = kwargs.pop("learning_rate")
-        self.weight_decay = kwargs.pop("weight_decay", 1e-2)
-        self.adam_epsilon = kwargs.pop("adam_epsilon", 1e-8)
-        self.accumulate_step = kwargs.pop("accumulate_step", 1)
-        self.warmup_ratio = kwargs.pop("warmup_ratio", (0.1 if self.warmup else -1))
-        self.fp16 = kwargs.pop("fp16", False)
+        self.epochs = epochs
+        self.batch_size = batch_size
+        self.max_length_input = max_length_input
+        self.max_length_label = max_length_label
+        self.learning_rate = learning_rate
+        self.weight_decay = weight_decay
+        self.adam_epsilon = adam_epsilon
+        self.accumulate_step = accumulate_step
+        self.warmup_ratio = warmup_ratio
+        self.fp16 = fp16
 
     def save_pretrained(self, save_directory: Path | str, **kwargs):
         kwargs["config_file_name"] = CONFIG_NAME

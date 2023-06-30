@@ -10,7 +10,7 @@ logger = _getLogger(__name__)
 
 
 class Config:
-    model_type: str = ""
+    # model_type: str = ""
     attribute_alias_map: Dict[str, str] = dict()
 
     def __setattr__(self, key, value):
@@ -25,6 +25,8 @@ class Config:
 
     def __init__(self, **kwargs):
         # Attributes with defaults
+        self.model_type = kwargs.pop("model_type", "")
+        self.model_name = kwargs.pop("model_name", "")
 
         # Name or path to the pretrained checkpoint
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
@@ -75,11 +77,11 @@ class Config:
     @classmethod
     def from_pretrained(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "Config":
         config_dict = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
-        if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
-            logger.warning(
-                f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
-                f"{cls.model_type}. This is not supported for all configurations of models and can yield errors."
-            )
+        # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
+        #     logger.warning(
+        #         f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
+        #         f"{cls.model_type}. This is not supported for all configurations of models and can yield errors."
+        #     )
         config = cls.from_dict(config_dict)
         return config
 
@@ -173,8 +175,9 @@ class Config:
             `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
         """
         output = copy.deepcopy(self.__dict__)
-        if not hasattr(self, "model_type") and hasattr(self.__class__, "model_type"):
-            output["model_type"] = self.__class__.model_type
+        # if not hasattr(self, "model_type") and hasattr(self.__class__, "model_type"):
+        # if hasattr(self.__class__, "model_type"):
+        #     output["model_type"] = self.__class__.model_type
 
         self.dict_torch_dtype_to_str(output)
 
