@@ -42,7 +42,7 @@ class EarlyStopping:
         self.best_checkpoint = None
 
         self.metric_used_to_comp = metric
-        MetricDict.metric_used_to_comp = metric  # ? loss, acc,  f1
+        MetricDict.metric_used_to_comp = self.metric_used_to_comp  # ? loss, acc,  f1
         # * 保证 MetricDict 中的值越大越好
         match metric:
             case "loss":
@@ -101,7 +101,7 @@ class EarlyStopping:
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
-        configs.save_pretrained(output_dir)
+        configs.save(output_dir)
         logger.debug(f"Save successfully.")
 
     def save(self, save_directory: Path | str, **kwargs):
@@ -113,7 +113,7 @@ class EarlyStopping:
         data_file_name = kwargs.pop("config_file_name", EARLYSTOPPING_DATA_NAME)
         output_config_file_path = save_directory / data_file_name
 
-        self.to_json_file(output_config_file_path, use_diff=True)
+        self.to_json_file(output_config_file_path)
         logger.info(f"EarlyStopping data saved in {output_config_file_path}")
 
     @classmethod
@@ -134,21 +134,26 @@ class EarlyStopping:
 
         logger.info(f"loading configuration file {resolved_config_file}")
         attributes_dict.update(kwargs)
-        earlystopping = cls.from_dict(attributes_dict)
-        MetricDict.scale = earlystopping.scale
-        return earlystopping
+        early_stopping = cls.from_dict(attributes_dict)
+        MetricDict.scale = early_stopping.scale
+        MetricDict.metric_used_to_comp = early_stopping.metric_used_to_comp
+        return early_stopping
 
     @staticmethod
     def _dict_from_json_file(json_file: Path | str) -> Dict:
         with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
-        return json.loads(text)
+        attributes_dict = json.loads(text)
+        for key, value in attributes_dict.items():
+            if isinstance(value, MetricDict):
+                attributes_dict[key] = MetricDict(value)
+        return attributes_dict
 
     @classmethod
     def from_dict(cls, attributes_dict: Dict[str, Any]) -> "EarlyStopping":
-        earlystopping = cls()
-        earlystopping._update(attributes_dict)
-        return earlystopping
+        early_stopping = cls()
+        early_stopping._update(attributes_dict)
+        return early_stopping
 
     def _update(self, attributes_dict: Dict[str, Any]):
         for key, value in attributes_dict.items():
@@ -160,6 +165,9 @@ class EarlyStopping:
 
     def to_json_string(self) -> str:
         attributes_dict = self.to_dict()
+        for key, value in attributes_dict.items():
+            if isinstance(value, MetricDict):
+                attributes_dict[key] = dict(value)
         return json.dumps(attributes_dict, indent=2, sort_keys=False) + "\n"
 
     def to_dict(self) -> Dict[str, Any]:
