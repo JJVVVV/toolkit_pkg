@@ -172,7 +172,8 @@ class TextDataset(Dataset):
         return ret_dict
 
     def __len__(self):
-        return len(self.splited_texts_input)
+        # return len(self.splited_texts_input)
+        return self.batch_model_input["input_ids"].shape[0]
 
     @staticmethod
     def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
