@@ -1,21 +1,21 @@
 import itertools
 import os
 import random
-from typing import Generator, Tuple
+from typing import Generator, List, Tuple
 
 import numpy as np
 import torch
-from torch import Generator
+import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, DistributedSampler, Subset
-from trainconfig import TrainConfig
 
 from ..logger import _getLogger
+from .trainconfig import TrainConfig
 
 logger = _getLogger(__name__)
 
 
 # TODO: If the batches in one epoch is not divisible by accumulate_step, the last few batches will be discarded.
-def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generator[list, None, None]:
+def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generator[List, None, None]:
     """Get a generator used for gradient accumulate. \n
     yield a `list` of batches where the batches will be used for gradient accumulate"""
     batch_in_accumulate = []
@@ -27,23 +27,25 @@ def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generat
 
 
 def get_dataloader(
-    dataset: Dataset, train_config: TrainConfig, local_rank=0, world_size=1, is_train: bool = True, desc: str = "training", **dataloader_kwargs
+    dataset: Dataset, configs: TrainConfig, is_train: bool = True, **dataloader_kwargs
 ) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
     """Getting the dataloader when using multiple GPUs, which is also compatible with a single GPU"""
+    local_rank = dist.get_rank()
+    world_size = dist.get_world_size()
 
     def split_batch(x, n):
         quotient, remainder = divmod(x, n)  # 计算每一份的基础值和剩余的单位数
         return [(quotient + 1 if i < remainder else quotient) for i in range(n)]
 
-    batch_size_per_prog = split_batch(train_config.batch_size, world_size)
+    batch_size_per_prog = split_batch(configs.batch_size, world_size)
 
     if is_train:
-        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=train_config.seed)
-        g = Generator()
-        g.manual_seed(train_config.seed)
+        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=configs.seed)
+        g = torch.Generator()
+        g.manual_seed(configs.seed)
         dataloader = DataLoader(
             dataset=dataset,
-            batch_size=batch_size_per_prog[local_rank] // train_config.accumulate_step,
+            batch_size=batch_size_per_prog[local_rank] // configs.accumulate_step,
             shuffle=(sampler is None),
             pin_memory=True,
             #   worker_init_fn=seed_worker,
@@ -55,7 +57,7 @@ def get_dataloader(
         sampler = DistributedSampler(dataset, shuffle=False, drop_last=True) if world_size != 1 else None
         dataloader = DataLoader(
             dataset=dataset,
-            batch_size=batch_size_per_prog[local_rank] // train_config.accumulate_step,
+            batch_size=batch_size_per_prog[local_rank] // configs.accumulate_step,
             shuffle=False,
             pin_memory=True,
             sampler=sampler,
@@ -67,7 +69,7 @@ def get_dataloader(
     if local_rank == 0 and not is_train and len(dataloader.sampler) * world_size < len(dataset):
         dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
         dataloader_tail = DataLoader(
-            dataset=dataset_tail, batch_size=batch_size_per_prog[local_rank] // train_config.accumulate_step, shuffle=False, **dataloader_kwargs
+            dataset=dataset_tail, batch_size=batch_size_per_prog[local_rank] // configs.accumulate_step, shuffle=False, **dataloader_kwargs
         )
         logger.debug(f"Tail batch num: {len(dataloader_tail)}")
         dataloader = DataLoader(

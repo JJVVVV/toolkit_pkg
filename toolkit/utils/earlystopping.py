@@ -5,9 +5,11 @@ from functools import reduce
 from heapq import nlargest
 
 import torch
+from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..logger import _getLogger
 from .metricdict import MetricDict
+from .trainconfig import TrainConfig
 
 logger = _getLogger(__name__)
 
@@ -49,19 +51,28 @@ class EarlyStopping:
         self.optimal_test_metrics_dict = None
         self.cheat_test_metrics_dict = None
 
-    def __call__(self, dev_metrics_dict: MetricDict, test_metrics_dict: MetricDict | None, curCheckpoint: int, curStep: int, model, tokenizer, args):
+    def __call__(
+        self,
+        dev_metrics_dict: MetricDict,
+        test_metrics_dict: MetricDict | None,
+        curCheckpoint: int,
+        curStep: int,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+        configs: TrainConfig,
+    ):
         if self.optimal_dev_metrics_dict is None:
             self.best_checkpoint = curCheckpoint
             self.optimal_dev_metrics_dict = MetricDict(dev_metrics_dict)
             if test_metrics_dict is not None:
                 self.optimal_test_metrics_dict = MetricDict(test_metrics_dict)
-            self.save_checkpoint(model, tokenizer, args, logger)
+            self.save_checkpoint(model, tokenizer, configs)
         elif dev_metrics_dict > self.optimal_dev_metrics_dict:
             self.best_checkpoint = curCheckpoint
             self.optimal_dev_metrics_dict.update(dev_metrics_dict)
             if test_metrics_dict is not None:
                 self.optimal_test_metrics_dict.update(test_metrics_dict)
-            self.save_checkpoint(model, tokenizer, args, logger)
+            self.save_checkpoint(model, tokenizer, configs)
             self.counter = 0
         else:
             self.counter += 1
@@ -75,8 +86,8 @@ class EarlyStopping:
             elif test_metrics_dict > self.cheat_test_metrics_dict:
                 self.cheat_test_metrics_dict.update(test_metrics_dict)
 
-    def save_checkpoint(self, model, tokenizer, args, logger):
-        output_dir = args.checkpoints_dir + "/best_checkpoint"
+    def save_checkpoint(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, configs: TrainConfig):
+        output_dir = configs.checkpoints_dir + "/best_checkpoint"
         if os.path.exists(output_dir):
             shutil.rmtree(output_dir)
         os.makedirs(output_dir)
@@ -85,7 +96,7 @@ class EarlyStopping:
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
-        torch.save(args, os.path.join(output_dir, "training_args.bin"))
+        configs.save_pretrained(output_dir)
         logger.debug(f"Save successfully.")
 
 

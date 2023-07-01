@@ -1,40 +1,43 @@
+from pathlib import Path
+
 from ..utils.trainconfig import TrainConfig
 
 
 class NLPTrainConfig(TrainConfig):
     def __init__(
         self,
-        dataset,
-        early_stop_metric,
-        model_type,
-        model_name,
-        epochs,
-        batch_size,
-        learning_rate,
-        problem_type=None,
-        seed=0,
-        early_stop=False,
-        patience=5,
-        continue_train_more_patience=False,
-        warmup=False,
-        test_in_epoch=False,
-        weight_decay=0.01,
-        adam_epsilon=1e-8,
-        accumulate_step=1,
-        warmup_ratio=-1,
-        fp16=False,
-        max_length_input=None,
-        max_length_label=None,
+        dataset_name: str,
+        early_stop_metric: str,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        model_type: str = "",
+        model_name: str = "",
+        problem_type: str | None = None,
+        seed: int = 0,
+        early_stop: bool = False,
+        patience: int = 5,
+        continue_train_more_patience: bool = False,
+        warmup: bool = False,
+        test_in_epoch: bool = False,
+        weight_decay: float = 0.01,
+        adam_epsilon: float = 1e-8,
+        accumulate_step: int = 1,
+        warmup_ratio: float = -1,
+        fp16: bool = False,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
+        pretrained_model_path: Path | str = "",
         **kwargs,
     ):
         super().__init__(
-            dataset,
+            dataset_name,
             early_stop_metric,
-            model_type,
-            model_name,
             epochs,
             batch_size,
             learning_rate,
+            model_type,
+            model_name,
             problem_type,
             seed,
             early_stop,
@@ -51,3 +54,4 @@ class NLPTrainConfig(TrainConfig):
         )
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
+        self.pretrained_model_path = pretrained_model_path

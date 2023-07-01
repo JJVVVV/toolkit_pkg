@@ -102,11 +102,11 @@ class TextDataset(Dataset):
         if self.padding_side == "right":
             self.first_pad_indexes_input = torch.argmax(torch.eq(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_input[self.first_pad_indexes_input == 0] = max_length_input
-            self.max_length_inputs = torch.max(self.first_pad_indexes_input).item()
-            self.batch_model_input = {key: value[..., : self.max_length_inputs] for key, value in self.batch_model_input.items()}
+            self.max_length_input = torch.max(self.first_pad_indexes_input).item()
+            self.batch_model_input = {key: value[..., : self.max_length_input] for key, value in self.batch_model_input.items()}
         elif self.padding_side == "left":
             self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
-            self.max_length_inputs = max_length_input - torch.min(self.first_not_pad_indexes_input).item()
+            self.max_length_input = max_length_input - torch.min(self.first_not_pad_indexes_input).item()
             self.batch_model_input = {key: value[..., -self.max_length_inputs :] for key, value in self.batch_model_input.items()}
             self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
 
@@ -123,8 +123,8 @@ class TextDataset(Dataset):
             self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
-            self.max_length_labels = torch.max(self.first_pad_indexes_label).item()
-            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_labels)
+            self.max_length_label = torch.max(self.first_pad_indexes_label).item()
+            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
             self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
         elif (
             isinstance(self.splited_texts_label[0], tuple)
@@ -136,15 +136,15 @@ class TextDataset(Dataset):
             self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
-            self.max_length_labels = torch.max(self.first_pad_indexes_label).item()
-            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_labels)
+            self.max_length_label = torch.max(self.first_pad_indexes_label).item()
+            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
             self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
         elif isinstance(self.splited_texts_label[0], str):  # if the label type is `str`
             self.tokens_labels = self.splited_texts_label
-            self.max_length_labels = -1
+            self.max_length_label = -1
         elif isinstance(self.splited_texts_label[0], list):  # if the label type is `ClassificationID`, i.e. `List[int]`
             self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
-            self.max_length_labels = self.tokens_labels.shape[-1]
+            self.max_length_label = self.tokens_labels.shape[-1]
         else:
             raise ValueError(
                 (
