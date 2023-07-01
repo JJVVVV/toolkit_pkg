@@ -117,7 +117,7 @@ class EarlyStopping:
         logger.info(f"EarlyStopping data saved in {output_config_file_path}")
 
     @classmethod
-    def load(cls, pretrained_model_dir_or_path: Path | str, **kwargs) -> "EarlyStopping":
+    def load(cls, pretrained_model_dir_or_path: Path | str, silence=False, **kwargs) -> "EarlyStopping":
         json_file_name = kwargs.pop("json_file_name", EARLYSTOPPING_DATA_NAME)
         if isinstance(pretrained_model_dir_or_path, str):
             pretrained_model_dir_or_path = Path(pretrained_model_dir_or_path)
@@ -131,8 +131,8 @@ class EarlyStopping:
             attributes_dict = cls._dict_from_json_file(resolved_config_file)
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
-
-        logger.info(f"loading configuration file {resolved_config_file}")
+        if not silence:
+            logger.info(f"loading configuration file {resolved_config_file}")
         attributes_dict.update(kwargs)
         early_stopping = cls.from_dict(attributes_dict)
         MetricDict.scale = early_stopping.scale
@@ -145,7 +145,7 @@ class EarlyStopping:
             text = reader.read()
         attributes_dict = json.loads(text)
         for key, value in attributes_dict.items():
-            if isinstance(value, MetricDict):
+            if isinstance(value, dict):
                 attributes_dict[key] = MetricDict(value)
         return attributes_dict
 
@@ -197,7 +197,7 @@ def load_metric_dicts_from_earlystopping(seeds_dir, json_file_name=EARLYSTOPPING
             if "checkpoint-" in earlyStopping_path[0]:
                 print(seed_dir)
                 continue
-            earlyStopping = EarlyStopping.load(earlyStopping_path[0])
+            earlyStopping = EarlyStopping.load(earlyStopping_path[0], silence=True)
             dev_metrics_dicts.append(earlyStopping.optimal_dev_metrics_dict)
             test_metrics_dicts.append(earlyStopping.optimal_test_metrics_dict)
             cheat_metrics_dicts.append(earlyStopping.cheat_test_metrics_dict)
