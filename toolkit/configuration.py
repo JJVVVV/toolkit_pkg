@@ -60,7 +60,7 @@ class Config:
     #         self.id2label = {i: f"LABEL_{i}" for i in range(num_labels)}
     #         self.label2id = dict(zip(self.id2label.values(), self.id2label.keys()))
 
-    def save_pretrained(self, save_directory: Path | str, **kwargs):
+    def save(self, save_directory: Path | str, **kwargs):
         if isinstance(save_directory, str):
             save_directory = Path(save_directory)
         if save_directory.is_file():
@@ -75,7 +75,7 @@ class Config:
         logger.info(f"Configuration saved in {output_config_file_path}")
 
     @classmethod
-    def from_pretrained(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "Config":
+    def load(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "Config":
         config_dict = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
         # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
         #     logger.warning(

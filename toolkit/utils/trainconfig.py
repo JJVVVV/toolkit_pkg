@@ -64,6 +64,6 @@ class TrainConfig(Config):
         self.warmup_ratio = warmup_ratio
         self.fp16 = fp16
 
-    def save_pretrained(self, save_directory: Path | str, **kwargs):
+    def save(self, save_directory: Path | str, **kwargs):
         kwargs["config_file_name"] = CONFIG_NAME
-        return super().save_pretrained(save_directory, **kwargs)
+        return super().save(save_directory, **kwargs)
