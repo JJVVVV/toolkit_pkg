@@ -25,8 +25,8 @@ class Config:
 
     def __init__(self, **kwargs):
         # Attributes with defaults
-        self.model_type = kwargs.pop("model_type", "")
-        self.model_name = kwargs.pop("model_name", "")
+        # self.model_type = kwargs.pop("model_type", "")
+        # self.model_name = kwargs.pop("model_name", "")
 
         # Name or path to the pretrained checkpoint
         self._name_or_path = str(kwargs.pop("name_or_path", ""))

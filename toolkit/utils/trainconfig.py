@@ -8,30 +8,30 @@ CONFIG_NAME = "train_config.json"
 class TrainConfig(Config):
     def __init__(
         self,
-        dataset,
-        early_stop_metric,
-        epochs,
-        batch_size,
-        learning_rate,
-        model_type="",
-        model_name="",
-        problem_type=None,
-        seed=0,
-        early_stop=False,
-        patience=5,
-        continue_train_more_patience=False,
-        warmup=False,
-        test_in_epoch=False,
-        weight_decay=0.01,
-        adam_epsilon=1e-8,
-        accumulate_step=1,
-        warmup_ratio=-1,
-        fp16=False,
+        dataset_name: str,
+        early_stop_metric: str,
+        epochs: int,
+        batch_size: int,
+        learning_rate: float,
+        model_type: str = "",
+        model_name: str = "",
+        problem_type: str | None = None,
+        seed: int = 0,
+        early_stop: bool = False,
+        patience: int = 5,
+        continue_train_more_patience: bool = False,
+        warmup: bool = False,
+        test_in_epoch: bool = False,
+        weight_decay: float = 0.01,
+        adam_epsilon: float = 1e-8,
+        accumulate_step: int = 1,
+        warmup_ratio: float = -1,
+        fp16: bool = False,
         **kwargs,
     ):
-        super().__init__(model_type=model_type, model_name=model_name, **kwargs)
+        super().__init__(**kwargs)
         # attributes related to the task
-        self.dataset = dataset
+        self.dataset_name = dataset_name
         self.early_stop_metric = early_stop_metric
         self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
@@ -40,6 +40,10 @@ class TrainConfig(Config):
                 f"The config parameter `problem_type` was not understood: received {self.problem_type} "
                 "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
             )
+
+        # attributes related to the model
+        self.model_type = model_type
+        self.model_name = model_name
 
         # attributes related to training
         self.seed = seed
