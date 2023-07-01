@@ -1,10 +1,13 @@
+import copy
 import glob
+import json
 import os
 import shutil
 from functools import reduce
 from heapq import nlargest
+from pathlib import Path
+from typing import Any, Dict
 
-import torch
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..logger import _getLogger
@@ -13,11 +16,13 @@ from .trainconfig import TrainConfig
 
 logger = _getLogger(__name__)
 
+EARLYSTOPPING_DATA_NAME = "earlystopping_data.json"
+
 
 class EarlyStopping:
     """Early stops the training if validation loss doesn't improve after a given patience."""
 
-    def __init__(self, patience, metric="acc"):
+    def __init__(self, patience=5, metric="acc"):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -42,10 +47,10 @@ class EarlyStopping:
         match metric:
             case "loss":
                 self.scale = -1
-                MetricDict.scale = -1
             case _:
                 self.scale = 1
-                MetricDict.scale = 1
+
+        MetricDict.scale = self.scale
 
         self.optimal_dev_metrics_dict = None
         self.optimal_test_metrics_dict = None
@@ -99,6 +104,68 @@ class EarlyStopping:
         configs.save_pretrained(output_dir)
         logger.debug(f"Save successfully.")
 
+    def save(self, save_directory: Path | str, **kwargs):
+        if isinstance(save_directory, str):
+            save_directory = Path(save_directory)
+        if save_directory.is_file():
+            raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
+        save_directory.mkdir(parents=True, exist_ok=True)
+        data_file_name = kwargs.pop("config_file_name", EARLYSTOPPING_DATA_NAME)
+        output_config_file_path = save_directory / data_file_name
+
+        self.to_json_file(output_config_file_path, use_diff=True)
+        logger.info(f"EarlyStopping data saved in {output_config_file_path}")
+
+    @classmethod
+    def load(cls, pretrained_model_dir_or_path: Path | str, **kwargs) -> "EarlyStopping":
+        json_file_name = kwargs.pop("json_file_name", EARLYSTOPPING_DATA_NAME)
+        if isinstance(pretrained_model_dir_or_path, str):
+            pretrained_model_dir_or_path = Path(pretrained_model_dir_or_path)
+
+        if pretrained_model_dir_or_path.is_file():
+            resolved_config_file = pretrained_model_dir_or_path
+        else:
+            resolved_config_file = pretrained_model_dir_or_path / json_file_name
+        # Load config dict
+        try:
+            attributes_dict = cls._dict_from_json_file(resolved_config_file)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            raise EnvironmentError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
+
+        logger.info(f"loading configuration file {resolved_config_file}")
+        attributes_dict.update(kwargs)
+        earlystopping = cls.from_dict(attributes_dict)
+        MetricDict.scale = earlystopping.scale
+        return earlystopping
+
+    @staticmethod
+    def _dict_from_json_file(json_file: Path | str) -> Dict:
+        with open(json_file, "r", encoding="utf-8") as reader:
+            text = reader.read()
+        return json.loads(text)
+
+    @classmethod
+    def from_dict(cls, attributes_dict: Dict[str, Any]) -> "EarlyStopping":
+        earlystopping = cls()
+        earlystopping._update(attributes_dict)
+        return earlystopping
+
+    def _update(self, attributes_dict: Dict[str, Any]):
+        for key, value in attributes_dict.items():
+            setattr(self, key, value)
+
+    def to_json_file(self, json_file_path: Path | str):
+        with open(json_file_path, "w", encoding="utf-8") as writer:
+            writer.write(self.to_json_string())
+
+    def to_json_string(self) -> str:
+        attributes_dict = self.to_dict()
+        return json.dumps(attributes_dict, indent=2, sort_keys=False) + "\n"
+
+    def to_dict(self) -> Dict[str, Any]:
+        output = copy.deepcopy(self.__dict__)
+        return output
+
 
 def search_file(directory, filename):
     file_paths = []
@@ -110,19 +177,19 @@ def search_file(directory, filename):
     return file_paths
 
 
-def load_metric_dicts_from_earlystopping(seeds_dir):
+def load_metric_dicts_from_earlystopping(seeds_dir, json_file_name=EARLYSTOPPING_DATA_NAME):
     seed_dirs = glob.glob(seeds_dir + "/*")
     success = 0
     dev_metrics_dicts = []
     test_metrics_dicts = []
     cheat_metrics_dicts = []
     for seed_dir in seed_dirs:
-        earlyStopping_path = search_file(seed_dir, "earlyStopping.bin")
+        earlyStopping_path = search_file(seed_dir, json_file_name)
         if earlyStopping_path:
             if "checkpoint-" in earlyStopping_path[0]:
                 print(seed_dir)
                 continue
-            earlyStopping: EarlyStopping = torch.load(earlyStopping_path[0])
+            earlyStopping = EarlyStopping.load(earlyStopping_path[0])
             dev_metrics_dicts.append(earlyStopping.optimal_dev_metrics_dict)
             test_metrics_dicts.append(earlyStopping.optimal_test_metrics_dict)
             cheat_metrics_dicts.append(earlyStopping.cheat_test_metrics_dict)
