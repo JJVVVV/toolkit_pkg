@@ -15,7 +15,7 @@ logger = _getLogger(__name__)
 
 
 # TODO: If the batches in one epoch is not divisible by accumulate_step, the last few batches will be discarded.
-def accumulate_dataloader(dataloader: DataLoader, accumulate_step: int) -> Generator[list, None, None]:
+def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generator[list, None, None]:
     """Get a generator used for gradient accumulate. \n
     yield a `list` of batches where the batches will be used for gradient accumulate"""
     batch_in_accumulate = []

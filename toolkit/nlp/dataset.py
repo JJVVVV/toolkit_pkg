@@ -9,6 +9,7 @@ from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..logger import _getLogger
+from ..utils.misc import get_data_types
 
 Tokens = List[int]
 BatchTokens = List[Tokens]
@@ -82,8 +83,8 @@ class TextDataset(Dataset):
         tokenizer.padding_side = padding_side
         if (
             isinstance(self.splited_texts_input[0], tuple)
-            and isinstance(self.splited_texts_input[0][0], str)
-            and isinstance(self.splited_texts_input[0][1], str | NoneType)
+            and isinstance(self.splited_texts_input[0][0], list | str)
+            and isinstance(self.splited_texts_input[0][1], list | str | NoneType)
         ):  # if the input type is `TextPair`, i.e. `tuple[str, str | None]`
             self.batch_model_input = self.transformers_tokenizer_tqdm(
                 tokenizer, self.splited_texts_input, max_length_input, desc="Tokenize input texts"
