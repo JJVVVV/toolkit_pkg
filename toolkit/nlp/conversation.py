@@ -1,12 +1,7 @@
 import dataclasses
-from enum import Enum, auto
 from typing import Optional
 
-
-class ConversationStyle(Enum):
-    SINGLE = auto()
-    INSTRUCTION = auto()
-    BLANK = auto()
+from .enums import ConversationStyle
 
 
 @dataclasses.dataclass
