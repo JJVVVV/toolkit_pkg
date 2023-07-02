@@ -12,7 +12,7 @@ from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokeniz
 
 from ..logger import _getLogger
 from .metricdict import MetricDict
-from .trainconfig import TrainConfig
+from ..config.trainconfig import TrainConfig
 
 logger = _getLogger(__name__)
 

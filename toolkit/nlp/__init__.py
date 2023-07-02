@@ -1,3 +1,4 @@
-from .conversation import Conversation, ConversationStyle
+from .conversation import Conversation
 from .dataset import TextDataset
 from .nlptrainingconfig import NLPTrainingConfig
+
