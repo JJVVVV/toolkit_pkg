@@ -1,15 +1,20 @@
+import time
+from abc import abstractmethod
 from collections import defaultdict
 from pathlib import Path
 from types import NoneType
 from typing import Callable, Dict, List, Tuple
 
 import torch
+import torch.distributed as dist
 from torch.utils.data import Dataset, default_collate
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..logger import _getLogger
 from ..utils.misc import get_data_types
+from .enums import Split
+from .nlptrainingconfig import NLPTrainingConfig
 
 Tokens = List[int]
 BatchTokens = List[Tokens]
@@ -17,7 +22,7 @@ ModelInput = Dict[str, Tokens]
 ModelInputSplited = Dict[str, List[Tokens]]
 BatchModelInput = Dict[str, BatchTokens]
 BoolStrings = Tuple[Tuple[bool, str], ...]
-TextPair = Tuple[str, str | None]
+TextPair = Tuple[str | List[str], str | List[str] | None]
 ClassificationID = List[int]
 
 logger = _getLogger(__name__)
@@ -27,7 +32,7 @@ class TextDataset(Dataset):
     """
     A demo of get_data_from_file:
     ```
-    def get_data_from_file(data_file_path, model_type, tokenizer, is_train, **kargs):
+    def get_data_from_file_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
         special_tokens_map = tokenizer.special_tokens_map
         BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
         EOS = special_tokens_map["eos_token"] if "eos_token" in special_tokens_map.keys() else None
@@ -59,14 +64,14 @@ class TextDataset(Dataset):
         data_file_path: Path | str,
         model_type: str,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
-        get_data_from_file: Callable[
-            [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
+        get_data_from_file_fn: Callable[
+            [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
             Tuple[List[BoolStrings] | list[TextPair], List[BoolStrings] | list[TextPair] | List[ClassificationID]],
         ],
         padding_side: str = "right",
         max_length_input: int | None = None,
         max_length_label: int | None = None,
-        is_train: bool = True,
+        split: Split = Split.ANY,
         **kargs,
     ) -> None:
         super().__init__()
@@ -75,8 +80,8 @@ class TextDataset(Dataset):
 
         # get input and label texts
         self.padding_side = padding_side
-        self.splited_texts_input, self.splited_texts_label = get_data_from_file(
-            data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, is_train=is_train, **kargs
+        self.splited_texts_input, self.splited_texts_label = get_data_from_file_fn(
+            data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kargs
         )
 
         # tokenize input texts
@@ -291,6 +296,45 @@ class TextDataset(Dataset):
         model_input = batch.pop("model_input")
         batch.update({key: value[..., min_start:] for key, value in model_input.items()})
         return batch
+
+    @classmethod
+    def from_file(
+        cls,
+        data_file_path: Path | str,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+        split: Split,
+        configs: NLPTrainingConfig,
+        get_data_from_file_fn: Callable[
+            [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
+            Tuple[List[BoolStrings] | list[TextPair], List[BoolStrings] | list[TextPair] | List[ClassificationID]],
+        ],
+        **kwargs,
+    ) -> "TextDataset":
+        """Load dataset from file."""
+        local_rank = dist.get_rank()
+        start = time.time()
+        if local_rank == 0:
+            logger.debug(f"Loading {Split} dataset...")
+
+        if "tokenized" in data_file_path:
+            dataset = torch.load(data_file_path)
+        else:
+            dataset = cls(
+                data_file_path=data_file_path,
+                model_type=configs.model_type,
+                tokenizer=tokenizer,
+                get_data_from_file_fn=get_data_from_file_fn,
+                padding_side=configs.padding_side,
+                max_length_input=configs.max_length_input,
+                max_length_label=configs.max_length_label,
+                split=split,
+            )
+        end = time.time()
+        if local_rank == 0:
+            logger.debug(f"Loading {Split} data takes {end - start:.2f} sec.")
+            logger.debug(f"Total {Split} data = {len(dataset):d}")
+            logger.debug(f"{Split} data max_length: {dataset.max_length_input}")
+        return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?
     # @staticmethod
