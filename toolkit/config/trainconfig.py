@@ -1,18 +1,21 @@
 from pathlib import Path
 
-from ..configuration import Config
+from .config_base import ConfigBase
 
 CONFIG_NAME = "train_config.json"
 
 
-class TrainConfig(Config):
+class TrainConfig(ConfigBase):
     def __init__(
         self,
         dataset_name: str,
+        train_file_path: Path | str,
+        val_file_path: Path | str,
         early_stop_metric: str,
         epochs: int,
         batch_size: int,
         learning_rate: float,
+        test_file_path: Path | str | None = None,
         model_type: str = "",
         model_name: str = "",
         problem_type: str | None = None,
@@ -32,6 +35,9 @@ class TrainConfig(Config):
         super().__init__(**kwargs)
         # attributes related to the task
         self.dataset_name = dataset_name
+        self.train_file_path = train_file_path
+        self.val_file_path = val_file_path
+        self.test_file_path = test_file_path
         self.early_stop_metric = early_stop_metric
         self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")

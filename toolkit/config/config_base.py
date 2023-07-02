@@ -3,13 +3,13 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from .logger import _getLogger
+from ..logger import _getLogger
 
 CONFIG_NAME = "config.json"
 logger = _getLogger(__name__)
 
 
-class Config:
+class ConfigBase:
     # model_type: str = ""
     attribute_alias_map: Dict[str, str] = dict()
 
@@ -75,7 +75,7 @@ class Config:
         logger.info(f"Configuration saved in {output_config_file_path}")
 
     @classmethod
-    def load(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "Config":
+    def load(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "ConfigBase":
         config_dict = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
         # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
         #     logger.warning(
@@ -133,12 +133,12 @@ class Config:
         return config_dict
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "Config":
+    def from_dict(cls, config_dict: Dict[str, Any]) -> "ConfigBase":
         config = cls(**config_dict)
         return config
 
     @classmethod
-    def from_json_file(cls, json_file: Path | str) -> "Config":
+    def from_json_file(cls, json_file: Path | str) -> "ConfigBase":
         config_dict = cls._dict_from_json_file(json_file)
         return cls(**config_dict)
 
@@ -159,10 +159,10 @@ class Config:
             d["torch_dtype"] = str(d["torch_dtype"]).split(".")[1]
         for value in d.values():
             if isinstance(value, dict):
-                Config.dict_torch_dtype_to_str(value)
+                ConfigBase.dict_torch_dtype_to_str(value)
 
     def __eq__(self, other):
-        return isinstance(other, Config) and (self.__dict__ == other.__dict__)
+        return isinstance(other, ConfigBase) and (self.__dict__ == other.__dict__)
 
     def __repr__(self):
         return f"{self.__class__.__name__} {self.to_json_string()}"
@@ -193,7 +193,7 @@ class Config:
         # print(config_dict)
 
         # get the default config dict
-        base_config_dict = Config().to_dict()
+        base_config_dict = ConfigBase().to_dict()
         # print(f"base:        {base_config_dict}")
         # get class specific config dict (including attributes defined in subclass)
         # class_config_dict = self.__class__().to_dict()

@@ -32,7 +32,7 @@ class TextDataset(Dataset):
     """
     A demo of get_data_from_file:
     ```
-    def get_data_from_file_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
+    def load_data_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
         special_tokens_map = tokenizer.special_tokens_map
         BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
         EOS = special_tokens_map["eos_token"] if "eos_token" in special_tokens_map.keys() else None
@@ -64,7 +64,7 @@ class TextDataset(Dataset):
         data_file_path: Path | str,
         model_type: str,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
-        get_data_from_file_fn: Callable[
+        load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
             Tuple[List[BoolStrings] | list[TextPair], List[BoolStrings] | list[TextPair] | List[ClassificationID]],
         ],
@@ -72,7 +72,7 @@ class TextDataset(Dataset):
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         split: Split = Split.ANY,
-        **kargs,
+        **kwargs_load_data,
     ) -> None:
         super().__init__()
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
@@ -80,8 +80,8 @@ class TextDataset(Dataset):
 
         # get input and label texts
         self.padding_side = padding_side
-        self.splited_texts_input, self.splited_texts_label = get_data_from_file_fn(
-            data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kargs
+        self.splited_texts_input, self.splited_texts_label = load_data_fn(
+            data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
 
         # tokenize input texts
@@ -304,11 +304,11 @@ class TextDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         split: Split,
         configs: NLPTrainingConfig,
-        get_data_from_file_fn: Callable[
+        load_data_fn: Callable[
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
             Tuple[List[BoolStrings] | list[TextPair], List[BoolStrings] | list[TextPair] | List[ClassificationID]],
         ],
-        **kwargs,
+        **kwargs_load_data,
     ) -> "TextDataset":
         """Load dataset from file."""
         local_rank = dist.get_rank()
@@ -323,11 +323,12 @@ class TextDataset(Dataset):
                 data_file_path=data_file_path,
                 model_type=configs.model_type,
                 tokenizer=tokenizer,
-                get_data_from_file_fn=get_data_from_file_fn,
+                load_data_fn=load_data_fn,
                 padding_side=configs.padding_side,
                 max_length_input=configs.max_length_input,
                 max_length_label=configs.max_length_label,
                 split=split,
+                **kwargs_load_data,
             )
         end = time.time()
         if local_rank == 0:

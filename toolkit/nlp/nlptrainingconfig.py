@@ -1,18 +1,19 @@
 from pathlib import Path
 
-from ..utils.trainconfig import TrainConfig
+from ..config.trainconfig import TrainConfig
 
 
 class NLPTrainingConfig(TrainConfig):
     def __init__(
         self,
+        dataset_name: str,
         train_file_path: Path | str,
         val_file_path: Path | str,
-        dataset_name: str,
         early_stop_metric: str,
         epochs: int,
         batch_size: int,
         learning_rate: float,
+        test_file_path: Path | str | None = None,
         model_type: str = "",
         model_name: str = "",
         problem_type: str | None = None,
@@ -30,16 +31,18 @@ class NLPTrainingConfig(TrainConfig):
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         pretrained_model_path: Path | str = "",
-        test_file_path: Path | str | None = None,
         padding_side: str = "right",
         **kwargs,
     ):
         super().__init__(
             dataset_name,
+            train_file_path,
+            val_file_path,
             early_stop_metric,
             epochs,
             batch_size,
             learning_rate,
+            test_file_path,
             model_type,
             model_name,
             problem_type,
@@ -60,6 +63,3 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
         self.pretrained_model_path = pretrained_model_path
-        self.train_file_path = train_file_path
-        self.val_file_path = val_file_path
-        self.test_file_path = test_file_path

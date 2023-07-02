@@ -9,7 +9,7 @@ import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, DistributedSampler, Subset
 
 from ..logger import _getLogger
-from .trainconfig import TrainConfig
+from ..config.trainconfig import TrainConfig
 
 logger = _getLogger(__name__)
 
