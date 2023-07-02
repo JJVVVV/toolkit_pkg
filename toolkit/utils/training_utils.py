@@ -1,15 +1,16 @@
 import itertools
 import os
 import random
-from typing import Generator, List, Tuple
+import re
+from typing import Any, Dict, Generator, List, Tuple
 
 import numpy as np
 import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, DistributedSampler, Subset
 
-from ..logger import _getLogger
 from ..config.trainconfig import TrainConfig
+from ..logger import _getLogger
 
 logger = _getLogger(__name__)
 
@@ -123,3 +124,22 @@ def setup_parallel() -> Tuple[int, int]:
     torch.cuda.set_device(local_rank)
 
     return local_rank, world_size
+
+
+def get_optimizer_grouped_parameters(model: torch.nn.Module, configs: TrainConfig) -> List[Dict[str, Any]]:
+    """Get optimizer grouped parameters with setting weight decay of some parameters (i.e. `bias`, `LayerNorm.weight`) to `0` and others to `weight_dacay: float`"""
+    names_str = " ".join([name for name, para in model.named_parameters()])
+    no_decay = ["bias"]
+    if re.search(r"LayerNorm.weight", names_str):
+        no_decay.append("LayerNorm.weight")
+    if re.search(r"layer_norm.weight", names_str):
+        no_decay.append("layer_norm.weight")
+    logger.debug(f"no_dacay: {no_decay}")
+    optimizer_grouped_parameters = [
+        {
+            "params": [param for name, param in model.named_parameters() if not any(nd in name for nd in no_decay)],
+            "weight_decay": configs.weight_decay,
+        },
+        {"params": [param for name, param in model.named_parameters() if any(nd in name for nd in no_decay)], "weight_decay": 0.0},
+    ]
+    return optimizer_grouped_parameters
