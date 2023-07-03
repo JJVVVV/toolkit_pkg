@@ -126,7 +126,7 @@ def setup_parallel() -> Tuple[int, int]:
     return local_rank, world_size
 
 
-def get_optimizer_grouped_parameters(model: torch.nn.Module, configs: TrainConfig) -> List[Dict[str, Any]]:
+def set_weight_decay(model: torch.nn.Module, weight_decay: float) -> List[Dict[str, Any]]:
     """Get optimizer grouped parameters with setting weight decay of some parameters (i.e. `bias`, `LayerNorm.weight`) to `0` and others to `weight_dacay: float`"""
     names_str = " ".join([name for name, para in model.named_parameters()])
     no_decay = ["bias"]
@@ -136,10 +136,7 @@ def get_optimizer_grouped_parameters(model: torch.nn.Module, configs: TrainConfi
         no_decay.append("layer_norm.weight")
     logger.debug(f"no_dacay: {no_decay}")
     optimizer_grouped_parameters = [
-        {
-            "params": [param for name, param in model.named_parameters() if not any(nd in name for nd in no_decay)],
-            "weight_decay": configs.weight_decay,
-        },
+        {"params": [param for name, param in model.named_parameters() if not any(nd in name for nd in no_decay)], "weight_decay": weight_decay},
         {"params": [param for name, param in model.named_parameters() if any(nd in name for nd in no_decay)], "weight_decay": 0.0},
     ]
     return optimizer_grouped_parameters
