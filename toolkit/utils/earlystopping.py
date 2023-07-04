@@ -104,7 +104,7 @@ class EarlyStopping:
         configs.save(output_dir)
         logger.debug(f"Save successfully.")
 
-    def save(self, save_dir: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, **kwargs):
+    def save(self, save_dir: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, silence=True, **kwargs):
         if isinstance(save_dir, str):
             save_dir = Path(save_dir)
         if save_dir.is_file():
@@ -113,10 +113,11 @@ class EarlyStopping:
         json_file_path = save_dir / json_file_name
 
         self.to_json_file(json_file_path)
-        logger.info(f"EarlyStopping data saved in {json_file_path}")
+        if not silence:
+            logger.debug(f"Earlystopping data saved in {json_file_path}")
 
     @classmethod
-    def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, silence=False, **kwargs) -> "EarlyStopping":
+    def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, silence=True, **kwargs) -> "EarlyStopping":
         if isinstance(json_file_dir_or_path, str):
             json_file_dir_or_path = Path(json_file_dir_or_path)
 
@@ -130,7 +131,7 @@ class EarlyStopping:
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{json_file_path}' is not a valid JSON file.")
         if not silence:
-            logger.info(f"loading configuration file {json_file_path}")
+            logger.debug(f"Loading earlystopping data file from: {json_file_path}")
         attributes_dict.update(kwargs)
         early_stopping = cls.from_dict(attributes_dict)
         MetricDict.scale = early_stopping.scale

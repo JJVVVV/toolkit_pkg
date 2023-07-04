@@ -9,6 +9,7 @@ import torch
 import torch.distributed as dist
 
 from ..logger import _getLogger
+from .misc import type_to_str
 
 logger = _getLogger(__name__)
 
@@ -75,16 +76,22 @@ def set_weight_decay(model: torch.nn.Module, weight_decay: float) -> List[Dict[s
 
 
 class StateDictMixin:
+    default_file_name: str = ""
+
     def __init__(self, object_with_state_dict) -> None:
         self.object_with_state_dict = object_with_state_dict
+        try:
+            self.local_rank = dist.get_rank()
+            self.world_size = dist.get_world_size()
+        except:
+            self.local_rank = 0
+            self.world_size = 1
+        logger.debug(f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Initialize {type_to_str(self)} successfully.")
 
     def __getattr__(self, name):
         return getattr(self.object_with_state_dict, name)
 
-    def save(self, file_dir_or_path: Path | str, file_name: str | None = None) -> None:
-        local_rank = dist.get_rank()
-        world_size = dist.get_world_size()
-
+    def save(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
         if file_name is None:
             file_name = self.default_file_name
         if isinstance(file_dir_or_path, str):
@@ -94,17 +101,16 @@ class StateDictMixin:
             file_path = file_dir_or_path
         else:
             file_path = file_dir_or_path / file_name
+        try:
+            torch.save(self.object_with_state_dict.state_dict(), file_path)
+            if not silence:
+                logger.debug(
+                    f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Save {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
+                )
+        except RuntimeError as e:
+            logger.error(f"Failed to save {type_to_str(self)}. {e}")
 
-        torch.save(self.object_with_state_dict.state_dict(), file_path)
-        logger.debug(
-            f"{f'local rank {local_rank}: ' if world_size!=1 else ''}Save {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
-        )
-
-    def load(self, file_dir_or_path: Path | str, file_name: str | None = None) -> None:
-        # local_rank = dist.get_rank()
-        # world_size = dist.get_world_size()
-        local_rank = 0
-        world_size = 1
+    def load(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
         if file_name is None:
             file_name = self.default_file_name
         if isinstance(file_dir_or_path, str):
@@ -114,11 +120,14 @@ class StateDictMixin:
             file_path = file_dir_or_path
         else:
             file_path = file_dir_or_path / file_name
-
-        self.object_with_state_dict.load_state_dict(torch.load(file_path))
-        logger.debug(
-            f"{f'local rank {local_rank}: ' if world_size!=1 else ''}Load {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
-        )
+        try:
+            self.object_with_state_dict.load_state_dict(torch.load(file_path))
+            if not silence:
+                logger.debug(
+                    f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Load {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
+                )
+        except FileNotFoundError:
+            logger.warning(f"Failed to load {type_to_str(self)}. {file_path} dose not exist! ")
 
 
 class Optimizer(StateDictMixin):
