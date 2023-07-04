@@ -6,12 +6,13 @@ import shutil
 from functools import reduce
 from heapq import nlargest
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List, Tuple
 
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..config.trainconfig import TrainConfig
 from ..logger import _getLogger
+from ..utils.misc import search_file
 from .metricdict import MetricDict
 
 logger = _getLogger(__name__)
@@ -22,7 +23,7 @@ WATCHDOG_DATA_NAME = "watchdog_data.json"
 class WatchDog:
     """Early stops the training if validation loss doesn't improve after a given patience."""
 
-    def __init__(self, patience=5, metric="acc"):
+    def __init__(self, patience: int = 5, metric: str = "acc"):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -173,44 +174,27 @@ class WatchDog:
         output = copy.deepcopy(self.__dict__)
         return output
 
-
-def search_file(directory, filename):
-    file_paths = []
-    # warkos.walk遍历目录下的所有子目录和文件: root为某个目录, dirs为root下的目录, files为root下的文件
-    for root, dirs, files in os.walk(directory):
-        if filename in files:
-            file_path = os.path.join(root, filename)
-            file_paths.append(file_path)
-    return file_paths
-
-
-def load_metric_dicts_from_earlystopping(seeds_dir, json_file_name=WATCHDOG_DATA_NAME):
-    seed_dirs = glob.glob(seeds_dir + "/*")
-    success = 0
-    dev_metrics_dicts = []
-    test_metrics_dicts = []
-    cheat_metrics_dicts = []
-    for seed_dir in seed_dirs:
-        earlyStopping_path = search_file(seed_dir, json_file_name)
-        if earlyStopping_path:
-            if "checkpoint-" in earlyStopping_path[0]:
-                print(seed_dir)
-                continue
-            earlyStopping = WatchDog.load(earlyStopping_path[0], silence=True)
-            dev_metrics_dicts.append(earlyStopping.optimal_dev_metrics_dict)
-            test_metrics_dicts.append(earlyStopping.optimal_test_metrics_dict)
-            cheat_metrics_dicts.append(earlyStopping.cheat_test_metrics_dict)
-            success += 1
-        else:
-            print(seed_dir)
-    print(f"success/total: {success}/{len(seed_dirs)}")
-    return dev_metrics_dicts, test_metrics_dicts, cheat_metrics_dicts
-
-
-def top_k_mean_in_metric_dicts(metric_dicts: list[MetricDict], top_k=None):
-    if not metric_dicts:
-        print("No metric dict.")
-    if top_k is None:
-        return reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
-    metric_dicts_topk = nlargest(top_k, metric_dicts)
-    return reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
+    @classmethod
+    def metric_dicts_from_diff_seeds(
+        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME
+    ) -> Tuple[List[MetricDict], List[MetricDict], List[MetricDict]]:
+        """
+        Get a list of validation metricdict, test metricdict and cheat test metricdict from different seed.
+        """
+        seed_dirs = glob.glob(seeds_dir + "/*")
+        success = 0
+        dev_metrics_dicts = []
+        test_metrics_dicts = []
+        cheat_metrics_dicts = []
+        for seed_dir in seed_dirs:
+            watchdog_data_path = search_file(seed_dir, json_file_name)
+            if watchdog_data_path and "checkpoint-" not in watchdog_data_path[0]:
+                earlyStopping = cls.load(watchdog_data_path[0], silence=True)
+                dev_metrics_dicts.append(earlyStopping.optimal_dev_metrics_dict)
+                test_metrics_dicts.append(earlyStopping.optimal_test_metrics_dict)
+                cheat_metrics_dicts.append(earlyStopping.cheat_test_metrics_dict)
+                success += 1
+            else:
+                logger.debug(seed_dir)
+        logger.info(f"success/total: {success}/{len(seed_dirs)}")
+        return dev_metrics_dicts, test_metrics_dicts, cheat_metrics_dicts
