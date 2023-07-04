@@ -16,10 +16,10 @@ from .metricdict import MetricDict
 
 logger = _getLogger(__name__)
 
-EARLYSTOPPING_DATA_NAME = "earlystopping_data.json"
+WATCHDOG_DATA_NAME = "watchdog_data.json"
 
 
-class EarlyStopping:
+class WatchDog:
     """Early stops the training if validation loss doesn't improve after a given patience."""
 
     def __init__(self, patience=5, metric="acc"):
@@ -104,7 +104,7 @@ class EarlyStopping:
         configs.save(output_dir)
         logger.debug(f"Save successfully.")
 
-    def save(self, save_dir: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, silence=True, **kwargs):
+    def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
         if isinstance(save_dir, str):
             save_dir = Path(save_dir)
         if save_dir.is_file():
@@ -117,7 +117,7 @@ class EarlyStopping:
             logger.debug(f"Earlystopping data saved in {json_file_path}")
 
     @classmethod
-    def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, silence=True, **kwargs) -> "EarlyStopping":
+    def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs) -> "WatchDog":
         if isinstance(json_file_dir_or_path, str):
             json_file_dir_or_path = Path(json_file_dir_or_path)
 
@@ -149,7 +149,7 @@ class EarlyStopping:
         return attributes_dict
 
     @classmethod
-    def from_dict(cls, attributes_dict: Dict[str, Any]) -> "EarlyStopping":
+    def from_dict(cls, attributes_dict: Dict[str, Any]) -> "WatchDog":
         early_stopping = cls()
         early_stopping._update(attributes_dict)
         return early_stopping
@@ -184,7 +184,7 @@ def search_file(directory, filename):
     return file_paths
 
 
-def load_metric_dicts_from_earlystopping(seeds_dir, json_file_name=EARLYSTOPPING_DATA_NAME):
+def load_metric_dicts_from_earlystopping(seeds_dir, json_file_name=WATCHDOG_DATA_NAME):
     seed_dirs = glob.glob(seeds_dir + "/*")
     success = 0
     dev_metrics_dicts = []
@@ -196,7 +196,7 @@ def load_metric_dicts_from_earlystopping(seeds_dir, json_file_name=EARLYSTOPPING
             if "checkpoint-" in earlyStopping_path[0]:
                 print(seed_dir)
                 continue
-            earlyStopping = EarlyStopping.load(earlyStopping_path[0], silence=True)
+            earlyStopping = WatchDog.load(earlyStopping_path[0], silence=True)
             dev_metrics_dicts.append(earlyStopping.optimal_dev_metrics_dict)
             test_metrics_dicts.append(earlyStopping.optimal_test_metrics_dict)
             cheat_metrics_dicts.append(earlyStopping.cheat_test_metrics_dict)

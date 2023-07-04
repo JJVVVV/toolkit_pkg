@@ -321,7 +321,7 @@ class TextDataset(Dataset):
         local_rank = dist.get_rank()
         start = time.time()
         if local_rank == 0:
-            logger.debug(f"Loading {Split} dataset...")
+            logger.debug(f"Loading {split.name} dataset...")
 
         if "tokenized" in data_file_path.name:
             dataset = torch.load(data_file_path)
@@ -339,9 +339,9 @@ class TextDataset(Dataset):
             )
         end = time.time()
         if local_rank == 0:
-            logger.debug(f"Loading {Split} data takes {end - start:.2f} sec.")
-            logger.debug(f"Total {Split} data = {len(dataset):d}")
-            logger.debug(f"{Split} data max_length: {dataset.max_length_input}")
+            logger.debug(f"Loading {split.name} data takes {end - start:.2f} sec.")
+            logger.debug(f"Total {split.name} data = {len(dataset):d}")
+            logger.debug(f"{split.name} data max_length: {dataset.max_length_input}")
         return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?
