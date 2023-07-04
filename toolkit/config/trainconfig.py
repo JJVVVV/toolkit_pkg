@@ -35,9 +35,9 @@ class TrainConfig(ConfigBase):
         super().__init__(**kwargs)
         # attributes related to the task
         self.dataset_name = dataset_name
-        self.train_file_path = train_file_path
-        self.val_file_path = val_file_path
-        self.test_file_path = test_file_path
+        self.train_file_path = Path(train_file_path)
+        self.val_file_path = Path(val_file_path)
+        self.test_file_path = Path(test_file_path) if test_file_path is not None else None
         self.early_stop_metric = early_stop_metric
         self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
