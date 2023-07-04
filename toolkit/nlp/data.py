@@ -318,7 +318,17 @@ class TextDataset(Dataset):
         **kwargs_load_data,
     ) -> "TextDataset":
         """Load dataset from file."""
-        local_rank = dist.get_rank()
+        if data_file_path is None:
+            raise TypeError("Fail to load test data. The test file path is not specified (received NoneType).")
+        try:
+            local_rank = dist.get_rank()
+        except:
+            local_rank = 0
+        if isinstance(data_file_path, str):
+            data_file_path = Path(data_file_path)
+        if not data_file_path.exists():
+            raise FileNotFoundError(f"Fail to load test data. {data_file_path} does not exists.")
+
         start = time.time()
         if local_rank == 0:
             logger.debug(f"Loading {split.name} dataset...")

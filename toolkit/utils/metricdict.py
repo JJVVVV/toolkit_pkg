@@ -1,4 +1,7 @@
 from collections import UserDict
+from functools import reduce
+from heapq import nlargest
+from typing import List
 
 
 class MetricDict(UserDict):
@@ -66,3 +69,12 @@ class MetricDict(UserDict):
                 result[key] = value * multiplier
             return result
         return NotImplemented
+
+    @staticmethod
+    def mean_top_k(metric_dicts: List["MetricDict"], top_k: int | None = None):
+        if not metric_dicts:
+            print("No metric dict.")
+        if top_k is None:
+            return reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
+        metric_dicts_topk = nlargest(top_k, metric_dicts)
+        return reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
