@@ -53,7 +53,7 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
         sampler = DistributedSampler(dataset, shuffle=False, drop_last=True) if world_size != 1 else None
         dataloader = DataLoader(
             dataset=dataset,
-            batch_size=batch_size_per_prog[local_rank] // configs.accumulate_step,
+            batch_size=configs.batch_size_infer // world_size // configs.accumulate_step,
             shuffle=False,
             pin_memory=True,
             sampler=sampler,
@@ -65,7 +65,7 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
     if local_rank == 0 and not split == Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
         dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
         dataloader_tail = DataLoader(
-            dataset=dataset_tail, batch_size=batch_size_per_prog[local_rank] // configs.accumulate_step, shuffle=False, **dataloader_kwargs
+            dataset=dataset_tail, batch_size=configs.batch_size_infer // world_size // configs.accumulate_step, shuffle=False, **dataloader_kwargs
         )
         logger.debug(f"Tail batch num: {len(dataloader_tail)}")
         dataloader = DataLoader(
