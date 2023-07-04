@@ -1,4 +1,4 @@
 from .conversation import Conversation
-from .dataset import TextDataset
-from .nlptrainingconfig import NLPTrainingConfig
+from .data import TextDataset
+from .config import NLPTrainingConfig
 

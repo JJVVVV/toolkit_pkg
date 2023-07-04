@@ -1,7 +1,7 @@
 import dataclasses
 from typing import Optional
 
-from .enums import ConversationStyle
+from ..enums import ConversationStyle
 
 
 @dataclasses.dataclass

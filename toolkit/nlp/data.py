@@ -1,5 +1,4 @@
 import time
-from abc import abstractmethod
 from collections import defaultdict
 from pathlib import Path
 from types import NoneType
@@ -11,10 +10,10 @@ from torch.utils.data import Dataset, default_collate
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
+# from ..utils.misc import get_data_types
+from ..enums import Split
 from ..logger import _getLogger
-from ..utils.misc import get_data_types
-from .enums import Split
-from .nlptrainingconfig import NLPTrainingConfig
+from .config import NLPTrainingConfig
 
 Tokens = List[int]
 BatchTokens = List[Tokens]
@@ -49,12 +48,20 @@ class TextDataset(Dataset):
         inputs = []
         labels = []
         for dict_obj in dict_objs:
-            inputs.append((dict_obj["question1"], dict_obj["question2"]))
-            # input_texts.append(((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP)))
-            labels.append([dict_obj["label"]])
-            # labels.append(((False, CLS), (True, dict_obj["question1"])))
-            # labels.append((dict_obj["question1"], None))
-            # labels.append(dict_obj["question1"])
+            a_sample = (dict_obj["question1"], dict_obj["question2"])
+            a_sample = (
+                [dict_obj["question1"], dict_obj["question1"], dict_obj["rephrase1"], dict_obj["rephrase1"]],
+                [dict_obj["question2"], dict_obj["question2"], dict_obj["question2"], dict_obj["question2"]],
+            )
+            a_sample = ((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
+            a_label = ((False, CLS), (True, dict_obj["question1"]))
+            a_label = (dict_obj["question1"], None)
+            a_label = dict_obj["question1"]
+            a_label = [dict_obj["label"]]
+
+            inputs.append(a_sample)
+            labels.append(a_label)
+
         return inputs, labels
     ```
     """
