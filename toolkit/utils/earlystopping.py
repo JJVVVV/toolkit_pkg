@@ -92,10 +92,10 @@ class EarlyStopping:
                 self.cheat_test_metrics_dict.update(test_metrics_dict)
 
     def save_checkpoint(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, configs: TrainConfig):
-        output_dir = configs.checkpoints_dir + "/best_checkpoint"
-        if os.path.exists(output_dir):
+        output_dir = Path(configs.checkpoints_dir, "best_checkpoint")
+        if output_dir.exists():
             shutil.rmtree(output_dir)
-        os.makedirs(output_dir)
+        output_dir.mkdir()
 
         logger.debug(f"Saving the optimal model and tokenizer to {output_dir}.")
         model_to_save = model.module if hasattr(model, "module") else model
