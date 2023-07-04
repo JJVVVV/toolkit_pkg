@@ -1,5 +1,6 @@
 import logging
 import sys
+from pathlib import Path
 
 import colorlog
 
@@ -30,7 +31,7 @@ def _getLogger(name: str) -> logging.Logger:
     return logger
 
 
-def getLogger(name: str, file_path: str) -> logging.Logger:
+def getLogger(name: str, file_path: Path | str) -> logging.Logger:
     logger = logging.getLogger(name)
     logger.setLevel(level=logging.DEBUG)
 
