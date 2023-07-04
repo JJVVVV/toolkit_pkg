@@ -16,33 +16,39 @@ class MetricDict(UserDict):
     def __eq__(self, other):
         if isinstance(other, MetricDict):
             return self.get(MetricDict.metric_used_to_comp) * MetricDict.scale == other.get(MetricDict.metric_used_to_comp) * MetricDict.scale
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __ne__(self, other):
-        result = self.__eq__(other)
-        if result is NotImplemented:
-            return result
+        try:
+            result = self.__eq__(other)
+        except NotImplementedError as e:
+            raise e
         return not result
 
     def __lt__(self, other):
         if isinstance(other, MetricDict):
             return self.get(MetricDict.metric_used_to_comp) * MetricDict.scale < other.get(MetricDict.metric_used_to_comp) * MetricDict.scale
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __le__(self, other):
         if isinstance(other, MetricDict):
             return self.get(MetricDict.metric_used_to_comp) * MetricDict.scale <= other.get(MetricDict.metric_used_to_comp) * MetricDict.scale
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __gt__(self, other):
         if isinstance(other, MetricDict):
             return self.get(MetricDict.metric_used_to_comp) * MetricDict.scale > other.get(MetricDict.metric_used_to_comp) * MetricDict.scale
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __ge__(self, other):
         if isinstance(other, MetricDict):
             return self.get(MetricDict.metric_used_to_comp) * MetricDict.scale >= other.get(MetricDict.metric_used_to_comp) * MetricDict.scale
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __add__(self, other):
         if isinstance(other, MetricDict):
@@ -52,7 +58,8 @@ class MetricDict(UserDict):
             for key, value in self.items():
                 result[key] = value + other[key]
             return result
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __truediv__(self, divisor):
         if isinstance(divisor, (int, float)):
@@ -60,7 +67,8 @@ class MetricDict(UserDict):
             for key, value in self.items():
                 result[key] = value / divisor
             return result
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     def __mul__(self, multiplier):
         if isinstance(multiplier, (int, float)):
@@ -68,10 +76,11 @@ class MetricDict(UserDict):
             for key, value in self.items():
                 result[key] = value * multiplier
             return result
-        return NotImplemented
+        raise NotImplementedError()
+        # return NotImplemented
 
     @staticmethod
-    def mean_top_k(metric_dicts: List["MetricDict"], top_k: int | None = None):
+    def mean_top_k(metric_dicts: List["MetricDict"], top_k: int | None = None) -> "MetricDict":
         if not metric_dicts:
             print("No metric dict.")
         if top_k is None:
