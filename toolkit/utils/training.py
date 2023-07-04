@@ -22,9 +22,14 @@ def check_mem(cuda_device_id: int) -> Tuple[int, int]:
     return int(total), int(used)
 
 
-def allocate_gpu_memory(ratio=0.8, local_rank=0) -> None:
+def allocate_gpu_memory(ratio=0.8) -> None:
     """Allocate GPU memory.\n
     Support multiple GPUs, but the GPU used by the current process must be specified by `torch.cuda.set_device(local_rank)`"""
+    try:
+        local_rank = dist.get_rank()
+    except:
+        local_rank = 0
+
     cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
     cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
     local_cuda_device_id = cuda_device_ids[local_rank]

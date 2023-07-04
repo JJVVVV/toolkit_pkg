@@ -351,7 +351,8 @@ class TextDataset(Dataset):
         if local_rank == 0:
             logger.debug(f"Loading {split.name} data takes {end - start:.2f} sec.")
             logger.debug(f"Total {split.name} data = {len(dataset):d}")
-            logger.debug(f"{split.name} data max_length: {dataset.max_length_input}")
+            logger.debug(f"{split.name} data max length of input: {dataset.max_length_input}")
+            logger.debug(f"{split.name} data max length of label: {dataset.max_length_label}")
         return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?
