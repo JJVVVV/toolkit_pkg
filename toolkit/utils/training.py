@@ -109,6 +109,7 @@ class StateDictMixin:
                 )
         except RuntimeError as e:
             logger.error(f"Failed to save {type_to_str(self)}. {e}")
+            exit(1)
 
     def load(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
         if file_name is None:
