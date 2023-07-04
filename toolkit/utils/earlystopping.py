@@ -10,9 +10,9 @@ from typing import Any, Dict
 
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
+from ..config.trainconfig import TrainConfig
 from ..logger import _getLogger
 from .metricdict import MetricDict
-from ..config.trainconfig import TrainConfig
 
 logger = _getLogger(__name__)
 
@@ -104,35 +104,33 @@ class EarlyStopping:
         configs.save(output_dir)
         logger.debug(f"Save successfully.")
 
-    def save(self, save_directory: Path | str, **kwargs):
-        if isinstance(save_directory, str):
-            save_directory = Path(save_directory)
-        if save_directory.is_file():
-            raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
-        save_directory.mkdir(parents=True, exist_ok=True)
-        data_file_name = kwargs.pop("config_file_name", EARLYSTOPPING_DATA_NAME)
-        output_config_file_path = save_directory / data_file_name
+    def save(self, save_dir: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, **kwargs):
+        if isinstance(save_dir, str):
+            save_dir = Path(save_dir)
+        if save_dir.is_file():
+            raise AssertionError(f"Provided path ({save_dir}) should be a directory, not a file")
+        save_dir.mkdir(parents=True, exist_ok=True)
+        json_file_path = save_dir / json_file_name
 
-        self.to_json_file(output_config_file_path)
-        logger.info(f"EarlyStopping data saved in {output_config_file_path}")
+        self.to_json_file(json_file_path)
+        logger.info(f"EarlyStopping data saved in {json_file_path}")
 
     @classmethod
-    def load(cls, pretrained_model_dir_or_path: Path | str, silence=False, **kwargs) -> "EarlyStopping":
-        json_file_name = kwargs.pop("json_file_name", EARLYSTOPPING_DATA_NAME)
-        if isinstance(pretrained_model_dir_or_path, str):
-            pretrained_model_dir_or_path = Path(pretrained_model_dir_or_path)
+    def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = EARLYSTOPPING_DATA_NAME, silence=False, **kwargs) -> "EarlyStopping":
+        if isinstance(json_file_dir_or_path, str):
+            json_file_dir_or_path = Path(json_file_dir_or_path)
 
-        if pretrained_model_dir_or_path.is_file():
-            resolved_config_file = pretrained_model_dir_or_path
+        if json_file_dir_or_path.is_file():
+            json_file_path = json_file_dir_or_path
         else:
-            resolved_config_file = pretrained_model_dir_or_path / json_file_name
+            json_file_path = json_file_dir_or_path / json_file_name
         # Load config dict
         try:
-            attributes_dict = cls._dict_from_json_file(resolved_config_file)
+            attributes_dict = cls._dict_from_json_file(json_file_path)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            raise EnvironmentError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
+            raise EnvironmentError(f"It looks like the config file at '{json_file_path}' is not a valid JSON file.")
         if not silence:
-            logger.info(f"loading configuration file {resolved_config_file}")
+            logger.info(f"loading configuration file {json_file_path}")
         attributes_dict.update(kwargs)
         early_stopping = cls.from_dict(attributes_dict)
         MetricDict.scale = early_stopping.scale
