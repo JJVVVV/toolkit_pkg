@@ -15,6 +15,7 @@ class TrainConfig(ConfigBase):
         epochs: int,
         batch_size: int,
         learning_rate: float,
+        batch_size_infer: int = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
         model_name: str = "",
@@ -70,6 +71,8 @@ class TrainConfig(ConfigBase):
         self.warmup_ratio = warmup_ratio
         self.fp16 = fp16
 
+        # attributes related to validation and test
+        self.batch_size_infer = batch_size_infer if batch_size_infer is not None else batch_size
 
     def save(self, save_directory: Path | str, silence=True, **kwargs):
         kwargs["config_file_name"] = CONFIG_NAME

@@ -91,6 +91,7 @@ class WatchDog:
                 self.cheat_test_metrics_dict = MetricDict(test_metrics_dict)
             elif test_metrics_dict > self.cheat_test_metrics_dict:
                 self.cheat_test_metrics_dict.update(test_metrics_dict)
+        logger.debug(f"EarlyStopping: {self.optimal_dev_metrics_dict[self.metric_used_to_comp]} {self.counter}/{self.patience}")
 
     def save_checkpoint(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, configs: TrainConfig):
         output_dir = Path(configs.checkpoints_dir, "best_checkpoint")
