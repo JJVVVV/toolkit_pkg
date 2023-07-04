@@ -323,7 +323,7 @@ class TextDataset(Dataset):
         if local_rank == 0:
             logger.debug(f"Loading {Split} dataset...")
 
-        if "tokenized" in data_file_path:
+        if "tokenized" in data_file_path.name:
             dataset = torch.load(data_file_path)
         else:
             dataset = cls(

@@ -70,6 +70,7 @@ class TrainConfig(ConfigBase):
         self.warmup_ratio = warmup_ratio
         self.fp16 = fp16
 
-    def save(self, save_directory: Path | str, **kwargs):
+
+    def save(self, save_directory: Path | str, silence=True, **kwargs):
         kwargs["config_file_name"] = CONFIG_NAME
-        return super().save(save_directory, **kwargs)
+        return super().save(save_directory, silence, **kwargs)

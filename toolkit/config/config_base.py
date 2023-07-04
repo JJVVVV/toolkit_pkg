@@ -6,7 +6,7 @@ from typing import Any, Dict
 from ..logger import _getLogger
 
 CONFIG_NAME = "config.json"
-logger = _getLogger(__name__)
+logger = _getLogger("toolkit.config")
 
 
 class ConfigBase:
@@ -60,7 +60,7 @@ class ConfigBase:
     #         self.id2label = {i: f"LABEL_{i}" for i in range(num_labels)}
     #         self.label2id = dict(zip(self.id2label.values(), self.id2label.keys()))
 
-    def save(self, save_directory: Path | str, **kwargs):
+    def save(self, save_directory: Path | str, silence=True, **kwargs):
         if isinstance(save_directory, str):
             save_directory = Path(save_directory)
         if save_directory.is_file():
@@ -72,11 +72,12 @@ class ConfigBase:
         output_config_file_path = save_directory / config_name
 
         self.to_json_file(output_config_file_path, use_diff=True)
-        logger.info(f"Configuration saved in {output_config_file_path}")
+        if not silence:
+            logger.debug(f"Save configuration file in {output_config_file_path}.")
 
     @classmethod
-    def load(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> "ConfigBase":
-        config_dict = cls.get_config_dict(pretrained_model_name_or_path, **kwargs)
+    def load(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> "ConfigBase":
+        config_dict = cls.get_config_dict(pretrained_model_name_or_path, silence, **kwargs)
         # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
         #     logger.warning(
         #         f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
@@ -86,7 +87,7 @@ class ConfigBase:
         return config
 
     @classmethod
-    def get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Dict[str, Any]:
+    def get_config_dict(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> Dict[str, Any]:
         """
         From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
         [`PretrainedConfig`] using `from_dict`.
@@ -101,17 +102,17 @@ class ConfigBase:
         """
         original_kwargs = copy.deepcopy(kwargs)
         # Get config dict associated with the base config file
-        config_dict = cls._get_config_dict(pretrained_model_name_or_path, **kwargs)
+        config_dict = cls._get_config_dict(pretrained_model_name_or_path, silence, **kwargs)
 
         # That config file may point us toward another config file to use.
         if "configuration_files" in config_dict:
             # The another config file must be a path or be in the same folder as the first
-            config_dict = cls._get_config_dict(config_dict["configuration_files"], **original_kwargs)
+            config_dict = cls._get_config_dict(config_dict["configuration_files"], silence, **original_kwargs)
 
         return config_dict
 
     @classmethod
-    def _get_config_dict(cls, pretrained_model_name_or_path: Path | str, **kwargs) -> Dict[str, Any]:
+    def _get_config_dict(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> Dict[str, Any]:
         json_file_dir = kwargs.pop("json_file_dir", "config")
         if isinstance(pretrained_model_name_or_path, str):
             pretrained_model_name_or_path = Path(pretrained_model_name_or_path)
@@ -128,7 +129,9 @@ class ConfigBase:
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
 
-        logger.info(f"loading configuration file {resolved_config_file}")
+        if not silence:
+            logger.debug(f"Load configuration file from {resolved_config_file}.")
+
         config_dict.update(kwargs)
         return config_dict
 
@@ -161,6 +164,16 @@ class ConfigBase:
             if isinstance(value, dict):
                 ConfigBase.dict_torch_dtype_to_str(value)
 
+    @staticmethod
+    def _convert_objects(d: Dict):
+        """
+        Convert objects' type to the types that can be encoded by json.
+        For example: `Path` -> `str`
+        """
+        for key, value in d.items():
+            if isinstance(value, Path):
+                d[key] = str(value)
+
     def __eq__(self, other):
         return isinstance(other, ConfigBase) and (self.__dict__ == other.__dict__)
 
@@ -179,6 +192,7 @@ class ConfigBase:
         # if hasattr(self.__class__, "model_type"):
         #     output["model_type"] = self.__class__.model_type
         self.dict_torch_dtype_to_str(output)
+        self._convert_objects(output)
         return output
 
     def to_diff_dict(self) -> Dict[str, Any]:
@@ -212,8 +226,6 @@ class ConfigBase:
                 # or (key in class_config_dict and key not in base_config_dict)
             ):
                 serializable_config_dict[key] = value
-
-        self.dict_torch_dtype_to_str(serializable_config_dict)
 
         return serializable_config_dict
 
