@@ -5,12 +5,14 @@ import os
 import shutil
 from functools import reduce
 from heapq import nlargest
+from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
 from ..config.trainconfig import TrainConfig
+from ..enums import Split
 from ..logger import _getLogger
 from ..utils.misc import search_file
 from .metricdict import MetricDict
@@ -53,32 +55,42 @@ class WatchDog:
 
         MetricDict.scale = self.scale
 
-        self.optimal_dev_metrics_dict = None
-        self.optimal_test_metrics_dict = None
-        self.cheat_test_metrics_dict = None
+        self.optimal_val_metricdict = None
+        self.optimal_test_metricdict = None
+        self.cheat_test_metricdict = None
 
     def __call__(
         self,
-        dev_metrics_dict: MetricDict,
-        test_metrics_dict: MetricDict | None,
-        curCheckpoint: int,
-        curStep: int,
+        val_metricdict: MetricDict,
+        test_metricdict: MetricDict | None,
+        epoch: int,
+        step_global: int,
         model: PreTrainedModel,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         configs: TrainConfig,
+        file_logger: Logger | None = None,
     ):
-        if self.optimal_dev_metrics_dict is None:
-            self.best_checkpoint = curCheckpoint
-            self.optimal_dev_metrics_dict = MetricDict(dev_metrics_dict)
-            if test_metrics_dict is not None:
-                self.optimal_test_metrics_dict = MetricDict(test_metrics_dict)
-            self.save_checkpoint(model, tokenizer, configs)
-        elif dev_metrics_dict > self.optimal_dev_metrics_dict:
-            self.best_checkpoint = curCheckpoint
-            self.optimal_dev_metrics_dict.update(dev_metrics_dict)
-            if test_metrics_dict is not None:
-                self.optimal_test_metrics_dict.update(test_metrics_dict)
-            self.save_checkpoint(model, tokenizer, configs)
+        # log some information
+        if file_logger is not None:
+            logger = file_logger
+        logger.info(f"epoch={epoch:03d} step={step_global:06d}")
+        self.report(val_metricdict, Split.VALIDATION, file_logger=logger)
+        if test_metricdict is not None:
+            self.report(test_metricdict, Split.TEST, file_logger=logger)
+        logger.info("")
+
+        if self.optimal_val_metricdict is None:
+            self.best_checkpoint = (epoch, step_global)
+            self.optimal_val_metricdict = MetricDict(val_metricdict)
+            if test_metricdict is not None:
+                self.optimal_test_metricdict = MetricDict(test_metricdict)
+            self.save_checkpoint(model, tokenizer, val_metricdict, test_metricdict, configs)
+        elif val_metricdict > self.optimal_val_metricdict:
+            self.best_checkpoint = (epoch, step_global)
+            self.optimal_val_metricdict.update(val_metricdict)
+            if test_metricdict is not None:
+                self.optimal_test_metricdict.update(test_metricdict)
+            self.save_checkpoint(model, tokenizer, val_metricdict, test_metricdict, configs)
             self.counter = 0
         else:
             self.counter += 1
@@ -86,14 +98,37 @@ class WatchDog:
             if self.counter >= self.patience:
                 self.need_to_stop = True
 
-        if test_metrics_dict is not None:
-            if self.cheat_test_metrics_dict is None:
-                self.cheat_test_metrics_dict = MetricDict(test_metrics_dict)
-            elif test_metrics_dict > self.cheat_test_metrics_dict:
-                self.cheat_test_metrics_dict.update(test_metrics_dict)
-        logger.debug(f"EarlyStopping: {self.optimal_dev_metrics_dict[self.metric_used_to_comp]} {self.counter}/{self.patience}")
+        if test_metricdict is not None:
+            if self.cheat_test_metricdict is None:
+                self.cheat_test_metricdict = MetricDict(test_metricdict)
+            elif test_metricdict > self.cheat_test_metricdict:
+                self.cheat_test_metricdict.update(test_metricdict)
+        logger.debug(f"EarlyStopping: {self.optimal_val_metricdict[self.metric_used_to_comp]} {self.counter}/{self.patience}")
 
-    def save_checkpoint(self, model: PreTrainedModel, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, configs: TrainConfig):
+    @staticmethod
+    def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
+        if file_logger is not None:
+            logger = file_logger
+        info = f"<{split.name:^14}>  {metricdict}"
+        logger.info(info)
+
+    def final_report(self, file_logger: Logger | None = None):
+        if file_logger is not None:
+            logger = file_logger
+        logger.info(f"Cheat performance: {str(self.cheat_test_metricdict)}")
+        # logger.info(f"When seed={configs.seed}, After {configs.epochs} epochs, the best model at checkpoint-{self.best_checkpoint:#.1f}")
+        logger.info(f"Dev performance: {str(self.optimal_val_metricdict)}")
+        if self.optimal_test_metricdict is not None:
+            logger.info(f"Test performance: {str(self.optimal_test_metricdict)}")
+
+    def save_checkpoint(
+        self,
+        model: PreTrainedModel,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+        val_metricdict: MetricDict,
+        test_metricdict: MetricDict,
+        configs: TrainConfig,
+    ):
         output_dir = Path(configs.checkpoints_dir, "best_checkpoint")
         if output_dir.exists():
             shutil.rmtree(output_dir)
@@ -104,6 +139,16 @@ class WatchDog:
         model_to_save.save_pretrained(output_dir)
         tokenizer.save_pretrained(output_dir)
         configs.save(output_dir)
+        with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
+            writer.write(
+                json.dumps(
+                    {"Validiton": dict(val_metricdict), "Test": dict(test_metricdict) if test_metricdict is not None else None},
+                    indent=2,
+                    sort_keys=False,
+                )
+                + "\n"
+            )
+
         logger.debug(f"Save successfully.")
 
     def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
@@ -191,9 +236,9 @@ class WatchDog:
             watchdog_data_path = search_file(seed_dir, json_file_name)
             if watchdog_data_path and "checkpoint-" not in watchdog_data_path[0]:
                 earlyStopping = cls.load(watchdog_data_path[0], silence=True)
-                dev_metrics_dicts.append(earlyStopping.optimal_dev_metrics_dict)
-                test_metrics_dicts.append(earlyStopping.optimal_test_metrics_dict)
-                cheat_metrics_dicts.append(earlyStopping.cheat_test_metrics_dict)
+                dev_metrics_dicts.append(earlyStopping.optimal_val_metricdict)
+                test_metrics_dicts.append(earlyStopping.optimal_test_metricdict)
+                cheat_metrics_dicts.append(earlyStopping.cheat_test_metricdict)
                 success += 1
             else:
                 logger.debug(seed_dir)
