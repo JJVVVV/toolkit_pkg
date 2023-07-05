@@ -130,7 +130,7 @@ class WatchDog:
         test_metricdict: MetricDict,
         configs: TrainConfig,
     ):
-        output_dir = Path(configs.checkpoints_dir, "best_checkpoint")
+        output_dir = Path(configs.save_dir, "best_checkpoint")
         if output_dir.exists():
             shutil.rmtree(output_dir)
         output_dir.mkdir()

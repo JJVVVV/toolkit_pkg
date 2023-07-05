@@ -27,7 +27,7 @@ class CheckpointManager:
                 self.latest_checkpoint_id = id_searched
         self.latest_checkpoint = self.id2checkpoint(self.latest_checkpoint_id)
 
-        if self.latest_checkpoint > -1:
+        if self.latest_checkpoint_id > -1:
             logger.debug(f"Find `{self.latest_checkpoint.name}` successfully!")
         else:
             logger.debug("There is no checkpoint.")
