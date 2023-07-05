@@ -161,7 +161,8 @@ class WatchDog:
 
         self.to_json_file(json_file_path)
         if not silence:
-            logger.debug(f"Earlystopping data saved in {json_file_path}")
+            # logger.debug(f"Save WatchDog data in {json_file_path} successfully.")
+            logger.debug(f"Save WatchDog data successfully.")
 
     @classmethod
     def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs) -> "WatchDog":

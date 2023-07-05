@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .config_base import ConfigBase
+from .config_base import ConfigBase, logger
 
 CONFIG_NAME = "train_config.json"
 
@@ -76,4 +76,6 @@ class TrainConfig(ConfigBase):
 
     def save(self, save_directory: Path | str, silence=True, **kwargs):
         kwargs["config_file_name"] = CONFIG_NAME
-        return super().save(save_directory, silence, **kwargs)
+        super().save(save_directory, silence=True, **kwargs)
+        if not silence:
+            logger.debug(f"Save training configuration successfully.")
