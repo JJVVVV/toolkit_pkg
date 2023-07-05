@@ -71,6 +71,15 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
         dataloader = DataLoader(
             list(itertools.chain(dataloader, dataloader_tail)), batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True
         )
-        # for batch in dataloader:
-        #     print(batch)
+
+    # * warning about accumulate
+    if split==split.TRAINING:
+        if (tail_batch_num := len(dataloader) % configs.accumulate_step) != 0 and local_rank == 0:
+            logger.warning(
+                (
+                    "The last batch in training data will be discarded! "
+                    "Because gradient accumulation is enabled. And the last few split batches are less than the accumulate step: "
+                    f"{tail_batch_num} < {configs.accumulate_step}"
+                )
+            )
     return (dataloader, sampler) if split == Split.TRAINING else dataloader
