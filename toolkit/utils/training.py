@@ -88,6 +88,7 @@ def set_weight_decay(model: torch.nn.Module, weight_decay: float) -> List[Dict[s
     return optimizer_grouped_parameters
 
 
+# TODO 多卡的兼容性
 class StateDictMixin:
     default_file_name: str = ""
 
