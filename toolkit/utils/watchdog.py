@@ -116,11 +116,12 @@ class WatchDog:
         if file_logger is not None:
             logger = file_logger
         logger.info(f"Cheat performance: {str(self.cheat_test_metricdict)}")
-        # logger.info(f"When seed={configs.seed}, After {configs.epochs} epochs, the best model at checkpoint-{self.best_checkpoint:#.1f}")
+        logger.info(f"The best model at (epoch={self.best_checkpoint[0]}, step_global={self.best_checkpoint[1]})")
         logger.info(f"Dev performance: {str(self.optimal_val_metricdict)}")
         if self.optimal_test_metricdict is not None:
             logger.info(f"Test performance: {str(self.optimal_test_metricdict)}")
 
+    # TODO 当前只支持 Transformers 中的 model 和 tokenizer
     def save_checkpoint(
         self,
         model: PreTrainedModel,
