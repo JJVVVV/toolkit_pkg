@@ -104,6 +104,7 @@ class StateDictMixin:
     def __getattr__(self, name):
         return getattr(self.object_with_state_dict, name)
 
+    # TODO 多卡并行时, 不同卡上的的state dict可能需要分别存??
     def save(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
         if file_name is None:
             file_name = self.default_file_name
@@ -117,11 +118,13 @@ class StateDictMixin:
         try:
             torch.save(self.object_with_state_dict.state_dict(), file_path)
             if not silence:
-                logger.debug(
-                    f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Save {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
-                )
+                # logger.debug(
+                #     f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Save {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
+                # )
+                logger.debug(f"Save {type_to_str(self).split('.')[-1]} successfully.")
+
         except RuntimeError as e:
-            logger.error(f"Failed to save {type_to_str(self)}. {e}")
+            logger.error(f"Failed to save {type_to_str(self).split('.')[-1]}. {e}")
             exit(1)
 
     def load(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
@@ -137,11 +140,13 @@ class StateDictMixin:
         try:
             self.object_with_state_dict.load_state_dict(torch.load(file_path))
             if not silence:
-                logger.debug(
-                    f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Load {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
-                )
+                # logger.debug(
+                #     f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Load {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
+                # )
+                logger.debug(f"Load {type_to_str(self).split('.')[-1]} successfully.")
         except FileNotFoundError:
-            logger.warning(f"Failed to load {type_to_str(self)}. {file_path} dose not exist! ")
+            logger.warning(f"Failed to load {type_to_str(self).split('.')[-1]}. {file_path} dose not exist! ")
+            exit(1)
 
 
 class Optimizer(StateDictMixin):

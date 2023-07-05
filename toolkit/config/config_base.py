@@ -73,7 +73,7 @@ class ConfigBase:
 
         self.to_json_file(output_config_file_path, use_diff=True)
         if not silence:
-            logger.debug(f"Save configuration file in {output_config_file_path}.")
+            logger.debug(f"Save configuration file in {output_config_file_path} successfully.")
 
     @classmethod
     def load(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> "ConfigBase":
