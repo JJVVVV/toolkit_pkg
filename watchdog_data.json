@@ -1,0 +1,12 @@
+{
+  "patience": 5,
+  "counter": 0,
+  "need_to_stop": false,
+  "best_checkpoint": null,
+  "metric_for_compare": "F1-score",
+  "optimal_val_metricdict": {
+    "Accuracy": 41
+  },
+  "optimal_test_metricdict": null,
+  "cheat_test_metricdict": null
+}

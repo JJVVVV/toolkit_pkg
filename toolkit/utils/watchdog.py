@@ -14,8 +14,8 @@ from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokeniz
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
+from ..metric.metricdict import MetricDict
 from ..utils.misc import search_file
-from .metricdict import MetricDict
 
 logger = _getLogger(__name__)
 
@@ -23,9 +23,9 @@ WATCHDOG_DATA_NAME = "watchdog_data.json"
 
 
 class WatchDog:
-    """Early stops the training if validation loss doesn't improve after a given patience."""
+    """Watch dog monitor the training if validation loss doesn't improve after a given patience."""
 
-    def __init__(self, patience: int = 5, metric: str = "acc"):
+    def __init__(self, patience: int, metric: str):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -44,16 +44,9 @@ class WatchDog:
         self.need_to_stop = False
         self.best_checkpoint = None
 
-        self.metric_used_to_comp = metric
-        MetricDict.metric_used_to_comp = self.metric_used_to_comp  # ? loss, acc,  f1
-        # * 保证 MetricDict 中的值越大越好
-        match metric:
-            case "loss":
-                self.scale = -1
-            case _:
-                self.scale = 1
-
-        MetricDict.scale = self.scale
+        self.metric_for_compare = metric
+        if metric is not None:
+            MetricDict.set_metric_for_compare(metric)
 
         self.optimal_val_metricdict = None
         self.optimal_test_metricdict = None
@@ -90,11 +83,11 @@ class WatchDog:
             self.optimal_val_metricdict.update(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict.update(test_metricdict)
-            self.save_checkpoint(model, tokenizer, val_metricdict, test_metricdict, configs)
             self.counter = 0
+            self.save_checkpoint(model, tokenizer, val_metricdict, test_metricdict, configs)
         else:
             self.counter += 1
-            logger.debug(f"EarlyStopping counter: {self.counter}/{self.patience}")
+            logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")
             if self.counter >= self.patience:
                 self.need_to_stop = True
 
@@ -103,7 +96,7 @@ class WatchDog:
                 self.cheat_test_metricdict = MetricDict(test_metricdict)
             elif test_metricdict > self.cheat_test_metricdict:
                 self.cheat_test_metricdict.update(test_metricdict)
-        logger.debug(f"EarlyStopping: {self.optimal_val_metricdict[self.metric_used_to_comp]} {self.counter}/{self.patience}")
+        logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
 
     @staticmethod
     def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
@@ -120,6 +113,19 @@ class WatchDog:
         logger.info(f"Dev performance: {str(self.optimal_val_metricdict)}")
         if self.optimal_test_metricdict is not None:
             logger.info(f"Test performance: {str(self.optimal_test_metricdict)}")
+
+    def optimal_performance(self) -> Dict[str, float]:
+        """
+        Return a python dict which contain performances of all metrics on test, validation and cheat.
+        """
+        ret = dict()
+        for metricdict, prefix in zip(
+            (self.optimal_test_metricdict, self.optimal_val_metricdict, self.cheat_test_metricdict), ("Test_", "Val_", "Cheat_")
+        ):
+            if metricdict is not None:
+                for key, value in metricdict.items():
+                    ret[prefix + key] = value
+        return ret
 
     # TODO 当前只支持 Transformers 中的 model 和 tokenizer
     def save_checkpoint(
@@ -149,7 +155,7 @@ class WatchDog:
                 )
                 + "\n"
             )
-
+        self.save(output_dir)
         logger.debug(f"Save successfully.")
 
     def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
@@ -180,28 +186,27 @@ class WatchDog:
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{json_file_path}' is not a valid JSON file.")
         if not silence:
-            logger.debug(f"Loading earlystopping data file from: {json_file_path}")
+            logger.debug(f"Loading WatchDog data file from: {json_file_path}")
         attributes_dict.update(kwargs)
-        early_stopping = cls.from_dict(attributes_dict)
-        MetricDict.scale = early_stopping.scale
-        MetricDict.metric_used_to_comp = early_stopping.metric_used_to_comp
-        return early_stopping
+        watch_dog = cls.from_dict(attributes_dict)
+        MetricDict.set_metric_for_compare(watch_dog.metric_for_compare)
+        return watch_dog
 
     @staticmethod
     def _dict_from_json_file(json_file: Path | str) -> Dict:
         with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         attributes_dict = json.loads(text)
-        for key, value in attributes_dict.items():
-            if isinstance(value, dict):
-                attributes_dict[key] = MetricDict(value)
+        for key in ("optimal_val_metricdict", "optimal_test_metricdict", "cheat_test_metricdict"):
+            if attributes_dict[key] is not None:
+                attributes_dict[key] = MetricDict(attributes_dict[key])
         return attributes_dict
 
     @classmethod
     def from_dict(cls, attributes_dict: Dict[str, Any]) -> "WatchDog":
-        early_stopping = cls()
-        early_stopping._update(attributes_dict)
-        return early_stopping
+        watch_dog = cls(None, None)
+        watch_dog._update(attributes_dict)
+        return watch_dog
 
     def _update(self, attributes_dict: Dict[str, Any]):
         for key, value in attributes_dict.items():
@@ -213,9 +218,9 @@ class WatchDog:
 
     def to_json_string(self) -> str:
         attributes_dict = self.to_dict()
-        for key, value in attributes_dict.items():
-            if isinstance(value, MetricDict):
-                attributes_dict[key] = dict(value)
+        for key in ("optimal_val_metricdict", "optimal_test_metricdict", "cheat_test_metricdict"):
+            if attributes_dict[key] is not None:
+                attributes_dict[key] = dict(attributes_dict[key])
         return json.dumps(attributes_dict, indent=2, sort_keys=False) + "\n"
 
     def to_dict(self) -> Dict[str, Any]:
@@ -237,10 +242,10 @@ class WatchDog:
         for seed_dir in seed_dirs:
             watchdog_data_path = search_file(seed_dir, json_file_name)
             if watchdog_data_path and "checkpoint-" not in watchdog_data_path[0]:
-                earlyStopping = cls.load(watchdog_data_path[0], silence=True)
-                dev_metrics_dicts.append(earlyStopping.optimal_val_metricdict)
-                test_metrics_dicts.append(earlyStopping.optimal_test_metricdict)
-                cheat_metrics_dicts.append(earlyStopping.cheat_test_metricdict)
+                watch_dog = cls.load(watchdog_data_path[0], silence=True)
+                dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
+                test_metrics_dicts.append(watch_dog.optimal_test_metricdict)
+                cheat_metrics_dicts.append(watch_dog.cheat_test_metricdict)
                 success += 1
             else:
                 logger.debug(seed_dir)

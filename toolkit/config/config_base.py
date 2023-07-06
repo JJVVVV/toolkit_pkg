@@ -188,6 +188,10 @@ class ConfigBase:
             `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
         """
         output = copy.deepcopy(self.__dict__)
+
+        # * ***************************************************
+        # if hasattr(self, "metric"):
+        #     output["metric"] = output["metric"].name
         # if not hasattr(self, "model_type") and hasattr(self.__class__, "model_type"):
         # if hasattr(self.__class__, "model_type"):
         #     output["model_type"] = self.__class__.model_type
