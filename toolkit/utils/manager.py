@@ -21,7 +21,7 @@ class CheckpointManager:
     def id2checkpoint(self, checkpoint_id: int) -> Path:
         return self.checkpoints_dir / f"checkpoint-{checkpoint_id:03d}"
 
-    def update_latest_checkpoint(self):
+    def search_latest_checkpoint(self):
         for checkpoint_dir in self.checkpoints_dir.glob("checkpoint-*"):
             if self.latest_checkpoint_id < (id_searched := int(checkpoint_dir.name.split("-")[-1])):
                 self.latest_checkpoint_id = id_searched

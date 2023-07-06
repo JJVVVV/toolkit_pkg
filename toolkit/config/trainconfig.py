@@ -1,5 +1,6 @@
 from pathlib import Path
 
+from ..metric.metricdict import MetricDict
 from .config_base import ConfigBase, logger
 
 CONFIG_NAME = "train_config.json"
@@ -11,7 +12,7 @@ class TrainConfig(ConfigBase):
         dataset_name: str,
         train_file_path: Path | str,
         val_file_path: Path | str,
-        early_stop_metric: str,
+        metric: str,
         epochs: int,
         batch_size: int,
         learning_rate: float,
@@ -39,7 +40,12 @@ class TrainConfig(ConfigBase):
         self.train_file_path = Path(train_file_path)
         self.val_file_path = Path(val_file_path)
         self.test_file_path = Path(test_file_path) if test_file_path is not None else None
-        self.early_stop_metric = early_stop_metric
+        self.metric = metric
+        if self.metric not in MetricDict.metric_scale_map:
+            raise ValueError(
+                f"The config parameter `metric` was not understood: received `{self.metric}` "
+                f"but only {[key for key in MetricDict.metric_scale_map.keys()]} are valid."
+            )
         self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
         if self.problem_type is not None and self.problem_type not in allowed_problem_types:
