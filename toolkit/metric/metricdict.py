@@ -18,6 +18,10 @@ class MetricDict(UserDict):
     #     self.metric_used_to_comp = MetricsDict.metric_used_to_comp
     #     self.scale = MetricsDict.scale
 
+    @classmethod
+    def support_metrics(cls):
+        return cls.__metric_scale_map.keys()
+
     def __setitem__(self, key: str, value: float | int):
         if key not in self.__metric_scale_map:
             raise KeyError(f"Key '{key}' is not allowed.")

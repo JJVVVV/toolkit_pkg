@@ -41,10 +41,10 @@ class TrainConfig(ConfigBase):
         self.val_file_path = Path(val_file_path)
         self.test_file_path = Path(test_file_path) if test_file_path is not None else None
         self.metric = metric
-        if self.metric not in MetricDict.__metric_scale_map:
+        if self.metric not in MetricDict.support_metrics():
             raise ValueError(
                 f"The config parameter `metric` was not understood: received `{self.metric}` "
-                f"but only {[key for key in MetricDict.__metric_scale_map.keys()]} are valid."
+                f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
             )
         self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")

@@ -3,7 +3,7 @@ from shutil import rmtree
 
 from ..logger import _getLogger
 
-logger = _getLogger(__name__)
+logger = _getLogger("CheckpointManager")
 
 
 def epoch2checkpoint(epoch: int) -> str:
