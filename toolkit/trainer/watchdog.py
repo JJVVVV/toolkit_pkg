@@ -107,9 +107,18 @@ class WatchDog:
         info = f"<{split.name:^14}>  {metricdict}"
         logger.info(info)
 
-    def final_report(self, file_logger: Logger | None = None):
+    def final_report(self, configs: TrainConfig, file_logger: Logger | None = None):
         if file_logger is not None:
             logger = file_logger
+        else:
+            logger = toolkit_logger
+        logger.info("-------------------------------Report-------------------------------")
+        # * if early stop is triggered
+        if configs.early_stop and self.need_to_stop:
+            logger.info(f"trainning is stopped by WatchDog")
+        # * If early stop is set but is not triggered, the epoch may have been set too small
+        elif configs.early_stop:
+            logger.info(f"All epochs are finished and the early stop is not triggered. The model may need further training!")
         logger.info(f"Cheat performance: {str(self.cheat_test_metricdict)}")
         logger.info(f"The best model at (epoch={self.best_checkpoint[0]}, step_global={self.best_checkpoint[1]})")
         logger.info(f"Dev performance: {str(self.optimal_val_metricdict)}")
