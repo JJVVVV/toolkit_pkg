@@ -187,6 +187,11 @@ class TextDataset(Dataset):
         # return len(self.splited_texts_input)
         return self.batch_model_input["input_ids"].shape[0]
 
+    def report(self):
+        logger.info(f"Total data: {len(self)}")
+        logger.info(f"Max length of input: {self.max_length_input}")
+        logger.info(f"Max length label: {self.max_length_label}")
+
     @staticmethod
     def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
         lengths = [len(value_part) for value_part in model_input_splited["input_ids"]]
@@ -317,7 +322,7 @@ class TextDataset(Dataset):
         ],
         **kwargs_load_data,
     ) -> "TextDataset":
-        """Load dataset from file."""
+        """Load dataset from file with the given `NLPTrainingConfig`."""
         if data_file_path is None:
             raise TypeError("Fail to load test data. The test file path is not specified (received NoneType).")
         if isinstance(data_file_path, str):
