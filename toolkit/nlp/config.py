@@ -1,6 +1,9 @@
 from pathlib import Path
 
 from ..config.trainconfig import TrainConfig
+from ..logger import _getLogger
+
+logger = _getLogger(__name__)
 
 
 class NLPTrainingConfig(TrainConfig):
@@ -65,3 +68,14 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
         self.pretrained_model_path = pretrained_model_path
+
+    # def print_some_info(self):
+    #     logger.debug("***** Some training information *****")
+    #     logger.debug(f"  Batch size = {self.batch_size}")
+    #     logger.debug(f"  Total epochs = {self.epochs:d}")
+    #     logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")
+    #     logger.debug(f"  Total steps = {totalSteps:d}")
+    #     if self.warmup:
+    #         logger.debug(f"  Warmup steps = {warmupSteps:d}")
+    #     logger.debug(f"  Model type = {self.model_type}")
+    #     logger.debug(f"  fp16: {self.fp16}\n")
