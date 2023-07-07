@@ -241,7 +241,7 @@ class WatchDog:
         cheat_metrics_dicts = []
         for seed_dir in seed_dirs:
             watchdog_data_path = search_file(seed_dir, json_file_name)
-            if watchdog_data_path and "checkpoint-" not in watchdog_data_path[0]:
+            if watchdog_data_path and "checkpoint" not in watchdog_data_path[0]:
                 watch_dog = cls.load(watchdog_data_path[0], silence=True)
                 dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
                 test_metrics_dicts.append(watch_dog.optimal_test_metricdict)
