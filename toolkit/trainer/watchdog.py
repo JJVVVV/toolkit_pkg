@@ -112,7 +112,7 @@ class WatchDog:
             logger = file_logger
         else:
             logger = toolkit_logger
-        logger.info("-------------------------------Report-------------------------------")
+        logger.info("------------------------------------Report------------------------------------")
         # * if early stop is triggered
         if configs.early_stop and self.need_to_stop:
             logger.info(f"trainning is stopped by WatchDog")
