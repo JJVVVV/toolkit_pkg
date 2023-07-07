@@ -7,9 +7,12 @@ import numpy as np
 import torch
 import torch.distributed as dist
 
-from ..logger import _getLogger
+from .. import toolkit_logger
 
-logger = _getLogger(__name__)
+# from ..logger import _getLogger
+
+# logger = _getLogger(__name__)
+# logger.addHandler(file_handlers[0])
 
 
 def setup_seed(seed: int) -> None:
@@ -31,7 +34,7 @@ def setup_seed(seed: int) -> None:
     # if you are using multi-GPU. 为所有GPU设置随机种子
     torch.cuda.manual_seed_all(seed)
     if local_rank == 0:
-        logger.info(f"seed={seed}")
+        toolkit_logger.info(f"seed={seed}")
 
 
 def setup_parallel() -> Tuple[int, int]:
@@ -39,11 +42,11 @@ def setup_parallel() -> Tuple[int, int]:
     local_rank = int(os.environ.get("LOCAL_RANK", -1))
     world_size = int(os.environ.get("WORLD_SIZE", -1))
     try:
-        logger.debug(f"NCCL_BLOCKING_WAIT={os.environ['NCCL_BLOCKING_WAIT']}")
+        toolkit_logger.debug(f"NCCL_BLOCKING_WAIT={os.environ['NCCL_BLOCKING_WAIT']}")
     except:
         pass
     try:
-        logger.debug(f"NCCL_ASYNC_ERROR_HANDLING={os.environ['NCCL_ASYNC_ERROR_HANDLING']}")
+        toolkit_logger.debug(f"NCCL_ASYNC_ERROR_HANDLING={os.environ['NCCL_ASYNC_ERROR_HANDLING']}")
     except:
         pass
     dist.init_process_group("nccl", timeout=datetime.timedelta(seconds=7200))
