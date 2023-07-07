@@ -260,5 +260,6 @@ class WatchDog:
                 success += 1
             else:
                 logger.debug(seed_dir)
+        # print("xxxxxxx")
         logger.info(f"success/total: {success}/{len(seed_dirs)}")
         return dev_metrics_dicts, test_metrics_dicts, cheat_metrics_dicts

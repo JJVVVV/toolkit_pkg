@@ -37,6 +37,10 @@ class MetricDict(UserDict):
         cls.__metric_for_compare = value
 
     @classmethod
+    def metric_for_compare(cls):
+        return cls.__metric_for_compare
+
+    @classmethod
     def _check(cls):
         if cls.__metric_for_compare is None:
             raise TypeError("The metric used to comparison `MetricDict.metric_used_to_comp` is undefined.")
