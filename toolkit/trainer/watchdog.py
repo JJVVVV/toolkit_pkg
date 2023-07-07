@@ -8,6 +8,7 @@ from typing import Any, Dict, List, Tuple
 
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 
+from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
@@ -63,6 +64,8 @@ class WatchDog:
         # log some information
         if file_logger is not None:
             logger = file_logger
+        else:
+            logger = toolkit_logger
         logger.info(f"epoch={epoch:03d} step={step_global:06d}")
         self.report(val_metricdict, Split.VALIDATION, file_logger=logger)
         if test_metricdict is not None:
@@ -99,6 +102,8 @@ class WatchDog:
     def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
         if file_logger is not None:
             logger = file_logger
+        else:
+            logger = toolkit_logger
         info = f"<{split.name:^14}>  {metricdict}"
         logger.info(info)
 
