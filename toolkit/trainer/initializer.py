@@ -41,14 +41,15 @@ def setup_parallel() -> Tuple[int, int]:
     """Initial parallel backend"""
     local_rank = int(os.environ.get("LOCAL_RANK", -1))
     world_size = int(os.environ.get("WORLD_SIZE", -1))
-    try:
-        toolkit_logger.debug(f"NCCL_BLOCKING_WAIT={os.environ['NCCL_BLOCKING_WAIT']}")
-    except:
-        pass
-    try:
-        toolkit_logger.debug(f"NCCL_ASYNC_ERROR_HANDLING={os.environ['NCCL_ASYNC_ERROR_HANDLING']}")
-    except:
-        pass
+    if local_rank == 0:
+        try:
+            toolkit_logger.debug(f"NCCL_BLOCKING_WAIT={os.environ['NCCL_BLOCKING_WAIT']}")
+        except:
+            pass
+        try:
+            toolkit_logger.debug(f"NCCL_ASYNC_ERROR_HANDLING={os.environ['NCCL_ASYNC_ERROR_HANDLING']}")
+        except:
+            pass
     dist.init_process_group("nccl", timeout=datetime.timedelta(seconds=7200))
     torch.cuda.set_device(local_rank)
 
