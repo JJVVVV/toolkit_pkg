@@ -138,9 +138,13 @@ class MetricDict(UserDict):
         if not metric_dicts:
             print("No metric dict.")
         if top_k is None:
-            return reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
-        metric_dicts_topk = nlargest(top_k, metric_dicts)
-        return reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
+            ret = reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
+        else:
+            metric_dicts_topk = nlargest(top_k, metric_dicts)
+            ret = reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
+        for key, value in ret.items():
+            ret[key] = round(value, 2)
+        return ret
 
     def save(self, save_dir: Path | str, file_name: str = METRIC_DICT_DATA_NAME):
         """
