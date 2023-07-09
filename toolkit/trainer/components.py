@@ -39,7 +39,7 @@ class StateDictMixin:
         except:
             self.local_rank = 0
             self.world_size = 1
-        logger.debug(f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Initialize {type_to_str(self)} successfully.")
+        logger.debug(f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Initialize {type_to_str(self).split('.')[-1]} successfully.")
 
     def __getattr__(self, name):
         return getattr(self.object_with_state_dict, name)

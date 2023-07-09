@@ -1,9 +1,6 @@
 from pathlib import Path
 
-from ..config.trainconfig import TrainConfig
-from ..logger import _getLogger
-
-logger = _getLogger(__name__)
+from ..config.trainconfig import TrainConfig, logger
 
 
 class NLPTrainingConfig(TrainConfig):
@@ -68,6 +65,10 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
         self.pretrained_model_path = pretrained_model_path
+        if kwargs:
+            logger.info("Custom training parameters:")
+            for key, value in kwargs.items():
+                logger.info(f"{key}: {value}")
 
     # def print_some_info(self):
     #     logger.debug("***** Some training information *****")
