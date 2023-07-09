@@ -330,10 +330,7 @@ class TextDataset(Dataset):
         if not data_file_path.exists():
             raise FileNotFoundError(f"Fail to load test data. {data_file_path} does not exists.")
 
-        try:
-            local_rank = dist.get_rank()
-        except:
-            local_rank = 0
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
 
         start = time.time()
         if local_rank == 0:

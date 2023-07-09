@@ -17,12 +17,8 @@ from .. import toolkit_logger
 
 def setup_seed(seed: int) -> None:
     """Set random seed"""
-    try:
-        local_rank = dist.get_rank()
-        world_size = dist.get_world_size()
-    except:
-        local_rank = 0
-        world_size = 1
+    local_rank = dist.get_rank() if dist.is_initialized() else 0
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
     # 如果读取数据的过程采用了随机预处理(如RandomCrop、RandomHorizontalFlip等)，那么对Python、Numpy的随机数生成器也需要设置种子。
     random.seed(seed)
     np.random.seed(seed)
@@ -67,10 +63,7 @@ def check_mem(cuda_device_id: int) -> Tuple[int, int]:
 def allocate_gpu_memory(ratio=0.8) -> None:
     """Allocate GPU memory.\n
     Support multiple GPUs, but the GPU used by the current process must be specified by `torch.cuda.set_device(local_rank)`"""
-    try:
-        local_rank = dist.get_rank()
-    except:
-        local_rank = 0
+    local_rank = dist.get_rank() if dist.is_initialized() else 0
 
     cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
     cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
