@@ -83,8 +83,19 @@ class TrainConfig(ConfigBase):
         # attributes related to validation and test
         self.batch_size_infer = batch_size_infer if batch_size_infer is not None else batch_size
 
+        self.check_data_file()
+
     def save(self, save_directory: Path | str, silence=True, **kwargs):
         kwargs["config_file_name"] = CONFIG_NAME
         super().save(save_directory, silence=True, **kwargs)
         if not silence:
             logger.debug(f"Save training configuration successfully.")
+
+    def check_data_file(self):
+        """
+        Check whether the data files exist.
+        """
+        assert self.train_file_path.exists(), f"Training file: {self.train_file_path} dose not exists"
+        assert self.val_file_path.exists(), f"Development file: {self.val_file_path} dose not exists"
+        if self.test_file_path is not None:
+            assert self.test_file_path.exists(), f"Test file: {self.test_file_path} dose not exists"

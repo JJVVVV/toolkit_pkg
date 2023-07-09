@@ -324,7 +324,7 @@ class TextDataset(Dataset):
     ) -> "TextDataset":
         """Load dataset from file with the given `NLPTrainingConfig`."""
         if data_file_path is None:
-            raise TypeError("Fail to load test data. The test file path is not specified (received NoneType).")
+            raise TypeError(f"Fail to load {split.name} data. The data file path is not specified (received NoneType).")
         if isinstance(data_file_path, str):
             data_file_path = Path(data_file_path)
         if not data_file_path.exists():
