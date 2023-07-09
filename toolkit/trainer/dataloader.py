@@ -26,8 +26,8 @@ def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generat
 
 def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **dataloader_kwargs) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
     """Getting the dataloader when using multiple GPUs, which is also compatible with a single GPU"""
-    local_rank = dist.get_rank()
-    world_size = dist.get_world_size()
+    local_rank = dist.get_rank() if dist.is_initialized() else 0
+    world_size = dist.get_world_size() if dist.is_initialized() else 1
 
     def split_batch(x, n):
         quotient, remainder = divmod(x, n)  # 计算每一份的基础值和剩余的单位数
@@ -73,7 +73,7 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
         )
 
     # * warning about accumulate
-    if split==split.TRAINING:
+    if split == split.TRAINING:
         if (tail_batch_num := len(dataloader) % configs.accumulate_step) != 0 and local_rank == 0:
             logger.warning(
                 (

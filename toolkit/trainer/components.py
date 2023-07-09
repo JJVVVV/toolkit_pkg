@@ -33,12 +33,8 @@ class StateDictMixin:
 
     def __init__(self, object_with_state_dict) -> None:
         self.object_with_state_dict = object_with_state_dict
-        try:
-            self.local_rank = dist.get_rank()
-            self.world_size = dist.get_world_size()
-        except:
-            self.local_rank = 0
-            self.world_size = 1
+        self.local_rank = dist.get_rank() if dist.is_initialized() else 0
+        self.world_size = dist.get_world_size() if dist.is_initialized() else 1
         logger.debug(f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Initialize {type_to_str(self).split('.')[-1]} successfully.")
 
     def __getattr__(self, name):
