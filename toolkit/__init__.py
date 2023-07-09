@@ -7,7 +7,7 @@ from .config import ConfigBase
 from .enums import ConversationStyle, Split
 from .logger import _getLogger, getLogger
 
-toolkit_logger = _getLogger(__name__)
+toolkit_logger = _getLogger("[toolkit]")
 
 
 def set_file_logger(file_path: str):

@@ -1,7 +1,10 @@
 from pathlib import Path
 
+from ..logger import _getLogger
 from ..metric.metricdict import MetricDict
-from .config_base import ConfigBase, logger
+from .config_base import ConfigBase
+
+logger = _getLogger("toolkit.TrainConfig")
 
 CONFIG_NAME = "train_config.json"
 
