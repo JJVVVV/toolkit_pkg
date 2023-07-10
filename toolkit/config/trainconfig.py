@@ -85,9 +85,8 @@ class TrainConfig(ConfigBase):
 
         self.check_data_file()
 
-    def save(self, save_directory: Path | str, silence=True, **kwargs):
-        kwargs["config_file_name"] = CONFIG_NAME
-        super().save(save_directory, silence=True, **kwargs)
+    def save(self, save_directory: Path | str, silence=True, config_file_name=CONFIG_NAME):
+        super().save(save_directory, silence=True, config_file_name=config_file_name)
         if not silence:
             logger.debug(f"Save training configuration successfully.")
 
