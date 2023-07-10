@@ -3,9 +3,11 @@ from collections import UserDict
 from functools import reduce
 from heapq import nlargest
 from pathlib import Path
-from typing import List
+from typing import List, Tuple
 
 METRIC_DICT_DATA_NAME = "performance.json"
+
+MetricDictGroup = List["MetricDictGroup"] | Tuple["MetricDictGroup"]
 
 
 class MetricDict(UserDict):
@@ -134,16 +136,20 @@ class MetricDict(UserDict):
         # return NotImplemented
 
     @staticmethod
-    def mean_top_k(metric_dicts: List["MetricDict"], top_k: int | None = None) -> "MetricDict":
+    def mean_top_k(metric_dicts: MetricDictGroup, top_k: int | None = None) -> "MetricDict" | MetricDictGroup:
         if not metric_dicts:
-            print("No metric dict.")
-        if top_k is None:
-            ret = reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
-        else:
-            metric_dicts_topk = nlargest(top_k, metric_dicts)
-            ret = reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
-        for key, value in ret.items():
-            ret[key] = round(value, 2)
+            ret = None
+        elif isinstance(metric_dicts[0], MetricDict):
+            if top_k is None:
+                ret = reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
+            else:
+                metric_dicts_topk = nlargest(top_k, metric_dicts)
+                ret = reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
+            for key, value in ret.items():
+                ret[key] = round(value, 2)
+            return ret
+        elif isinstance(metric_dicts[0], List | Tuple):
+            ret = [MetricDict.mean_top_k(md) for md in metric_dicts]
         return ret
 
     def save(self, save_dir: Path | str, file_name: str = METRIC_DICT_DATA_NAME):

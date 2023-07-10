@@ -254,9 +254,12 @@ class WatchDog:
             watchdog_data_path = search_file(seed_dir, json_file_name)
             if watchdog_data_path and "checkpoint" not in watchdog_data_path[0]:
                 watch_dog = cls.load(watchdog_data_path[0], silence=True)
-                dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
-                test_metrics_dicts.append(watch_dog.optimal_test_metricdict)
-                cheat_metrics_dicts.append(watch_dog.cheat_test_metricdict)
+                if watch_dog.optimal_val_metricdict is not None:
+                    dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
+                if watch_dog.optimal_test_metricdict is not None:
+                    test_metrics_dicts.append(watch_dog.optimal_test_metricdict)
+                if watch_dog.cheat_test_metricdict is not None:
+                    cheat_metrics_dicts.append(watch_dog.cheat_test_metricdict)
                 success += 1
             else:
                 logger.debug(seed_dir)

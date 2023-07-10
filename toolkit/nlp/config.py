@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import torch.distributed as dist
-
 from ..config.trainconfig import TrainConfig, logger
 
 
@@ -67,11 +65,10 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
         self.pretrained_model_path = pretrained_model_path
-        local_rank = dist.get_rank() if dist.is_initialized() else 0
-        if local_rank == 0 and kwargs:
-            logger.info("Custom training parameters:")
-            for key, value in kwargs.items():
-                logger.info(f"{key}={value}")
+
+        logger.info("Custom training parameters:")
+        for key, value in kwargs.items():
+            logger.info(f"{key}={value}")
 
     # def print_some_info(self):
     #     logger.debug("***** Some training information *****")
