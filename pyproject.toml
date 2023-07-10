@@ -1,27 +1,45 @@
 # pip install --editable .
 
 [build-system]
-requires = ["setuptools"]
+requires = ["setuptools>=66.0.0", "setuptools_scm>=7.1.0"]
 build-backend = "setuptools.build_meta"
 
 
 [project]
 name = "toolkit"
-version = "0.0.1"
+# version = "0.0.1"
 authors = [
     {name = "JJVV", email = "junjiewvv@gmail.com"},
 ]
 description = "a toolkit of training neural network model"
-keywords = []
-readme = "README.md"
+keywords = ["nlp"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Programming Language :: Python :: 3",
+]
+# readme = "README.md"
+readme = {file = "README.md", content-type = "text/markdown"}
 license = {file = "LICENSE"}
 requires-python = ">=3.11"
+
 dependencies = [
-    "colorlog",
-    # "logging",
-    "jsonlines",
+    "colorlog>=6.7.0",
+    "jsonlines>=3.1.0",
     'importlib-metadata; python_version<"3.12"',
 ]
+
+dynamic = ["version"]
+[tool.setuptools_scm]
+
+
+
+# 1 - Planning：软件还处于计划阶段，尚未开始开发。
+# 2 - Pre-Alpha：软件处于初期开发阶段，尚未进入 Alpha 测试阶段。
+# 3 - Alpha：软件已经进入内部测试阶段，还存在较多的缺陷和未完成的功能。
+# 4 - Beta：软件已经进入公测阶段，已经基本完成了设计和开发工作，但仍可能存在一些缺陷和需要改进的地方。
+# 5 - Production/Stable：软件已经正式发布，已经被广泛使用，并且经过了充分的测试和验证，稳定性较高。
+# 6 - Mature：软件已经发展成熟，有一定的用户群体，并且有稳定的维护和更新计划。
+# 7 - Inactive：软件已经停止维护或开发，不再推荐使用。
 
 
 # [tool.setuptools.packages]
