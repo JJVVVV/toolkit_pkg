@@ -238,7 +238,7 @@ class ConfigBase:
             config_dict = self.to_diff_dict()
         else:
             config_dict = self.to_dict()
-        return json.dumps(config_dict, indent=2, sort_keys=True) + "\n"
+        return json.dumps(config_dict, indent=2, sort_keys=False) + "\n"
 
     def to_json_file(self, json_file_path: Path | str, use_diff: bool = True):
         with open(json_file_path, "w", encoding="utf-8") as writer:
