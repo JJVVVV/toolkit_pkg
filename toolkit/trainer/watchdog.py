@@ -18,6 +18,7 @@ from ..utils.misc import search_file
 logger = _getLogger(__name__)
 
 WATCHDOG_DATA_NAME = "watchdog_data.json"
+OPTIMAL_CHECKPOINT_NAME = "optimal_checkpoint"
 
 
 class WatchDog:
@@ -147,7 +148,7 @@ class WatchDog:
         test_metricdict: MetricDict,
         configs: TrainConfig,
     ):
-        output_dir = Path(configs.save_dir, "best_checkpoint")
+        output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
         if output_dir.exists():
             shutil.rmtree(output_dir)
         output_dir.mkdir()
