@@ -51,7 +51,7 @@ class TextDataset(Dataset):
             a_sample = (dict_obj["question1"], dict_obj["question2"])
             a_sample = (
                 [dict_obj["question1"], dict_obj["question1"], dict_obj["rephrase1"], dict_obj["rephrase1"]],
-                [dict_obj["question2"], dict_obj["question2"], dict_obj["question2"], dict_obj["question2"]],
+                [dict_obj["question2"], dict_obj["rephrase2"], dict_obj["question2"], dict_obj["rephrase2"]],
             )
             a_sample = ((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
             a_label = ((False, CLS), (True, dict_obj["question1"]))
