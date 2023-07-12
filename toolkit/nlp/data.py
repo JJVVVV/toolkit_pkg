@@ -246,7 +246,7 @@ class TextDataset(Dataset):
             logger.warning(f"model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
         tokenized_dict = defaultdict(list)
         waiting_to_trunc_idxs = [idx for idx in range(len(istrunc_texts[0])) if istrunc_texts[0][idx][0]]
-        for text in tqdm(istrunc_texts, desc=desc, colour="RED"):
+        for text in tqdm(istrunc_texts, desc=desc, colour="RED", smoothing=0.99):
             # text: BoolStrings = tuple[tuple[bool, str], ...]
             cur_dict: ModelInputSplited = defaultdict(list)
             origin_length = 0
@@ -271,7 +271,7 @@ class TextDataset(Dataset):
     ) -> BatchModelInput:
         # print(text_pairs)
         batch_model_input = defaultdict(list)
-        for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED"):
+        for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
             for key, value in tokenizer(text=text1, text_pair=text2, padding="max_length", truncation="longest_first", max_length=max_length).items():
                 batch_model_input[key].append(value)
         return batch_model_input
