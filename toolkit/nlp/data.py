@@ -86,6 +86,7 @@ class TextDataset(Dataset):
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
 
         # get input and label texts
+        assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
         self.padding_side = padding_side
         self.splited_texts_input, self.splited_texts_label = load_data_fn(
             data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
@@ -170,6 +171,10 @@ class TextDataset(Dataset):
         #     self.cls_sep_indexes = (
         #         ((inputs_ids == tokenizer.cls_token_id) | (inputs_ids == tokenizer.sep_token_id)).nonzero()[:, 1].reshape(inputs_ids.shape[0], -1)
         #     )
+
+    @property
+    def collate_fn(self):
+        return self.collate_fn_padding_left if self.padding_side == "left" else self.collate_fn_padding_right
 
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
