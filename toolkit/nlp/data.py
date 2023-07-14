@@ -193,6 +193,7 @@ class TextDataset(Dataset):
         return self.batch_model_input["input_ids"].shape[0]
 
     def report(self):
+        "Log some information of dataset."
         logger.info(f"Total data: {len(self)}")
         logger.info(f"Max length of input: {self.max_length_input}")
         logger.info(f"Max length label: {self.max_length_label}")
