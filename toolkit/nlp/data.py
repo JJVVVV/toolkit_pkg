@@ -2,7 +2,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from types import NoneType
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, Iterable, List, Tuple
 
 import torch
 import torch.distributed as dist
@@ -20,17 +20,61 @@ BatchTokens = List[Tokens]
 ModelInput = Dict[str, Tokens]
 ModelInputSplited = Dict[str, List[Tokens]]
 BatchModelInput = Dict[str, BatchTokens]
-BoolStrings = Tuple[Tuple[bool, str], ...]
-TextPair = Tuple[str | List[str], str | List[str] | None]
+
 ClassificationID = List[int]
 
 logger = _getLogger(__name__)
+
+
+class PairedText:
+    def __init__(self, first_text: str | Iterable[str], second_text: str | Iterable[str] | None = None) -> None:
+        if second_text is not None:
+            assert (isinstance(first_text, str) and isinstance(second_text, str)) or (
+                isinstance(first_text, Iterable) and isinstance(second_text, Iterable)
+            ), f"Different type for text pair: {type(first_text), type(second_text)}"
+        self.first_text = first_text
+        self.second_text = second_text
+
+    def __getitem__(self, index):
+        if index == 0:
+            return self.first_text
+        elif index == 1:
+            return self.second_text
+        else:
+            raise IndexError(f"{type(self)} only have two item. Valid indexs are `0` and `1`, but got index `{index}`")
+
+
+class FinelyControlledText:
+    """
+    Texts with a flag indicating whether it will be truncated.
+
+    Example:
+    ```
+    a_sample = FinelyControlledText((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
+    ```
+    `False` indicate the corresponding text can not be truncated.
+
+    `True` indicate the corresponding text can be truncated if necessary.
+    """
+
+    def __init__(self, *texts: Tuple[bool, str]) -> None:
+        self.texts = texts
+
+    def __getitem__(self, index):
+        return self.texts[index]
+
+    def __len__(self):
+        return len(self.texts)
+
+    def __iter__(self):
+        yield from self.texts
 
 
 class TextDataset(Dataset):
     """
     A demo of get_data_from_file:
     ```
+    from toolkit.nlp.data import PairedText, FinelyControlledText
     def load_data_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
         special_tokens_map = tokenizer.special_tokens_map
         BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
@@ -48,16 +92,32 @@ class TextDataset(Dataset):
         inputs = []
         labels = []
         for dict_obj in dict_objs:
+            # Single
+            a_sample = (dict_obj["question1"], None)
+            a_sample = PairedText(dict_obj["question1"])
+
+            # Pair
             a_sample = (dict_obj["question1"], dict_obj["question2"])
+            a_sample = PairedText(dict_obj["question1"], dict_obj["question2"])
             a_sample = (
                 [dict_obj["question1"], dict_obj["question1"], dict_obj["rephrase1"], dict_obj["rephrase1"]],
                 [dict_obj["question2"], dict_obj["rephrase2"], dict_obj["question2"], dict_obj["rephrase2"]],
             )
+            a_sample = PairedText(
+                [dict_obj["question1"], dict_obj["question1"], dict_obj["rephrase1"], dict_obj["rephrase1"]],
+                [dict_obj["question2"], dict_obj["rephrase2"], dict_obj["question2"], dict_obj["rephrase2"]],
+            )
+
+            # Finely controll
             a_sample = ((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
-            a_label = ((False, CLS), (True, dict_obj["question1"]))
-            a_label = (dict_obj["question1"], None)
-            a_label = dict_obj["question1"]
-            a_label = [dict_obj["label"]]
+            a_sample = FinelyControlledText((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
+
+
+            a_label = [dict_obj["label"]] # List[int]
+            a_label = dict_obj["question1"] # str
+            a_label = PairedText(dict_obj["question1"]) # paired text
+            a_label = FinelyControlledText((False, CLS), (True, dict_obj["question1"])) # finely controlled text
+
 
             inputs.append(a_sample)
             labels.append(a_label)
@@ -73,7 +133,7 @@ class TextDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
-            Tuple[List[BoolStrings] | list[TextPair], List[BoolStrings] | list[TextPair] | List[ClassificationID]],
+            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
         padding_side: str = "right",
         max_length_input: int | None = None,
@@ -98,7 +158,9 @@ class TextDataset(Dataset):
             isinstance(self.splited_texts_input[0], tuple)
             and isinstance(self.splited_texts_input[0][0], list | str)
             and isinstance(self.splited_texts_input[0][1], list | str | NoneType)
-        ):  # if the input type is `TextPair`, i.e. `tuple[str, str | None]`
+        ) or isinstance(
+            self.splited_texts_input[0], PairedText
+        ):  # if the input type is `PairedText`
             self.batch_model_input = self.transformers_tokenizer_tqdm(
                 tokenizer, self.splited_texts_input, max_length_input, desc="Tokenize input texts"
             )
@@ -107,10 +169,12 @@ class TextDataset(Dataset):
             and isinstance(self.splited_texts_input[0][0], tuple)
             and isinstance(self.splited_texts_input[0][0][0], bool)
             and isinstance(self.splited_texts_input[0][0][1], str)
-        ):  # if the input type is `BoolStrings`, i.e. `tuple[tuple[bool,str], ...]`
+        ) or isinstance(
+            self.splited_texts_input[0], FinelyControlledText
+        ):  # if the input type is `FinelyControlledText`
             self.batch_model_input = self.__tokenize(self.splited_texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
         else:
-            raise ValueError("The input type must be `TextPair (Tuple[str, str | None])` or `BoolStrings (Tuple[Tuple[bool, str], ...])`")
+            raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
         self.batch_model_input = {key: torch.tensor(value) for key, value in self.batch_model_input.items()}
         if self.padding_side == "right":
             self.first_pad_indexes_input = torch.argmax(torch.eq(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
@@ -120,7 +184,7 @@ class TextDataset(Dataset):
         elif self.padding_side == "left":
             self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
             self.max_length_input = max_length_input - torch.min(self.first_not_pad_indexes_input).item()
-            self.batch_model_input = {key: value[..., -self.max_length_inputs :] for key, value in self.batch_model_input.items()}
+            self.batch_model_input = {key: value[..., -self.max_length_input :] for key, value in self.batch_model_input.items()}
             self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
 
         # tokenize label texts
@@ -129,7 +193,9 @@ class TextDataset(Dataset):
             isinstance(self.splited_texts_label[0], tuple)
             and isinstance(self.splited_texts_label[0][0], str)
             and isinstance(self.splited_texts_label[0][1], str | NoneType)
-        ):  # if the label type is `TextPair`, i.e. `tuple[str, str | None]`
+        ) or isinstance(
+            self.splited_texts_label[0], PairedText
+        ):  # if the label type is `PairedText`
             self.tokens_labels = self.transformers_tokenizer_tqdm(tokenizer, self.splited_texts_label, max_length_label, desc="Tokenize label texts")[
                 "input_ids"
             ]
@@ -144,7 +210,9 @@ class TextDataset(Dataset):
             and isinstance(self.splited_texts_label[0][0], tuple)
             and isinstance(self.splited_texts_label[0][0][0], bool)
             and isinstance(self.splited_texts_label[0][0][1], str)
-        ):  # if the label type is `BoolStrings`, i.e. `tuple[tuple[bool,str], ...]`
+        ) or isinstance(
+            self.splited_texts_label[0], FinelyControlledText
+        ):  # if the label type is `FinelyControlledText`
             self.tokens_labels = self.__tokenize(self.splited_texts_label, tokenizer, max_length_label, desc="Tokenize label texts")["input_ids"]
             self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
@@ -152,16 +220,20 @@ class TextDataset(Dataset):
             self.max_length_label = torch.max(self.first_pad_indexes_label).item()
             self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
             self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
-        elif isinstance(self.splited_texts_label[0], str):  # if the label type is `str`
+        elif (isinstance(self.splited_texts_label[0], list) and isinstance(self.splited_texts_label[0][0], str)) or isinstance(
+            self.splited_texts_label[0], str
+        ):  # if the label type is `List[str]` or `str`
             self.tokens_labels = self.splited_texts_label
             self.max_length_label = -1
-        elif isinstance(self.splited_texts_label[0], list):  # if the label type is `ClassificationID`, i.e. `List[int]`
+        elif isinstance(self.splited_texts_label[0], list) and isinstance(
+            self.splited_texts_label[0][0], int
+        ):  # if the label type is `ClassificationID`, i.e. `List[int]`
             self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
             self.max_length_label = self.tokens_labels.shape[-1]
         else:
             raise ValueError(
                 (
-                    "If the label is text, it must be `BoolStrings (Tuple[Tuple[bool, str], ...])` or `TextPair (Tuple[str, str | None])` or `str`, "
+                    "If the label is text, it must be `FinelyControlledText` or `PairedText` or `str`, "
                     "if the label is classification, it must be `ClassificationID (List[int])`"
                 )
             )
@@ -246,18 +318,20 @@ class TextDataset(Dataset):
             raise ValueError("Invalid padding strategy:" + str(tokenizer.padding_side))
 
     @classmethod
-    def __tokenize(cls, istrunc_texts: List[BoolStrings], tokenizer: PreTrainedTokenizer, max_length: int, desc: str, **kargs) -> BatchModelInput:
+    def __tokenize(
+        cls, finely_controlled_text_list: List[FinelyControlledText], tokenizer: PreTrainedTokenizer, max_length: int, desc: str, **kargs
+    ) -> BatchModelInput:
         # TODO: bug: token_type_ids全为0
         if "token_type_ids" in tokenizer.model_input_names:
             logger.warning(f"model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
         tokenized_dict = defaultdict(list)
-        waiting_to_trunc_idxs = [idx for idx in range(len(istrunc_texts[0])) if istrunc_texts[0][idx][0]]
-        for text in tqdm(istrunc_texts, desc=desc, colour="RED", smoothing=0.99):
-            # text: BoolStrings = tuple[tuple[bool, str], ...]
+        waiting_to_trunc_idxs = [idx for idx in range(len(finely_controlled_text_list[0])) if finely_controlled_text_list[0][idx][0]]
+        for finely_controlled_text in tqdm(finely_controlled_text_list, desc=desc, colour="RED", smoothing=0.99):
+            # text: FinelyControlledText = tuple[tuple[bool, str], ...]
             cur_dict: ModelInputSplited = defaultdict(list)
             origin_length = 0
-            for _, text_part in text:
-                cur_dict_ = tokenizer(text=text_part, padding=False, truncation=False, max_length=None, add_special_tokens=False, **kargs)
+            for _, part_text in finely_controlled_text:
+                cur_dict_ = tokenizer(text=part_text, padding=False, truncation=False, max_length=None, add_special_tokens=False, **kargs)
                 origin_length += len(cur_dict_["input_ids"])
                 for key, value in cur_dict_.items():
                     cur_dict[key].append(value)
@@ -273,7 +347,7 @@ class TextDataset(Dataset):
 
     @staticmethod
     def transformers_tokenizer_tqdm(
-        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[TextPair], max_length: int, desc: str
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
     ) -> BatchModelInput:
         # print(text_pairs)
         batch_model_input = defaultdict(list)
@@ -324,7 +398,7 @@ class TextDataset(Dataset):
         configs: NLPTrainingConfig,
         load_data_fn: Callable[
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
-            Tuple[List[BoolStrings] | list[TextPair], List[BoolStrings] | list[TextPair] | List[ClassificationID]],
+            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
         **kwargs_load_data,
     ) -> "TextDataset":
