@@ -22,6 +22,7 @@ ModelInputSplited = Dict[str, List[Tokens]]
 BatchModelInput = Dict[str, BatchTokens]
 
 ClassificationID = List[int]
+INFINITE = 1000000000000000019884624838656
 
 logger = _getLogger(__name__)
 
@@ -176,6 +177,7 @@ class TextDataset(Dataset):
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
         self.batch_model_input = {key: torch.tensor(value) for key, value in self.batch_model_input.items()}
+        max_length_input = self.batch_model_input["input_ids"].shape[1] if max_length_input == INFINITE else max_length_input
         if self.padding_side == "right":
             self.first_pad_indexes_input = torch.argmax(torch.eq(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_input[self.first_pad_indexes_input == 0] = max_length_input
@@ -199,6 +201,7 @@ class TextDataset(Dataset):
             self.tokens_labels = self.transformers_tokenizer_tqdm(tokenizer, self.splited_texts_label, max_length_label, desc="Tokenize label texts")[
                 "input_ids"
             ]
+            max_length_label = self.tokens_labels.shape[1] if max_length_label == INFINITE else max_length_label
             self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
@@ -230,11 +233,17 @@ class TextDataset(Dataset):
         ):  # if the label type is `ClassificationID`, i.e. `List[int]`
             self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
             self.max_length_label = self.tokens_labels.shape[-1]
+        elif isinstance(self.splited_texts_label[0], list) and isinstance(
+            self.splited_texts_label[0][0], float
+        ):  # if the label type is `RegressionValue`, i.e. `List[float]`
+            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.float32)
+            self.max_length_label = self.tokens_labels.shape[-1]
         else:
             raise ValueError(
                 (
                     "If the label is text, it must be `FinelyControlledText` or `PairedText` or `str`, "
-                    "if the label is classification, it must be `ClassificationID (List[int])`"
+                    "if the label is classification, it must be `ClassificationID (List[int])`",
+                    "if the label is regression value, ti must be `RegressionValue (List[float])`",
                 )
             )
 
@@ -322,6 +331,10 @@ class TextDataset(Dataset):
         cls, finely_controlled_text_list: List[FinelyControlledText], tokenizer: PreTrainedTokenizer, max_length: int, desc: str, **kargs
     ) -> BatchModelInput:
         # TODO: bug: token_type_ids全为0
+        # TODO: bug: 对于可接受无限长输入的模型, 因为其没有 max length, 因此无法pad
+        if max_length == INFINITE:
+            raise NotImplementedError("TODO")
+
         if "token_type_ids" in tokenizer.model_input_names:
             logger.warning(f"model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
         tokenized_dict = defaultdict(list)
@@ -335,7 +348,7 @@ class TextDataset(Dataset):
                 origin_length += len(cur_dict_["input_ids"])
                 for key, value in cur_dict_.items():
                     cur_dict[key].append(value)
-            num_tokens_to_remove = origin_length - max_length
+            num_tokens_to_remove = (origin_length - max_length) if max_length != INFINITE else 0
             if num_tokens_to_remove > 0:
                 cls.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
             cur_dict: ModelInput = {key: sum(value, []) for key, value in cur_dict.items()}
@@ -351,9 +364,19 @@ class TextDataset(Dataset):
     ) -> BatchModelInput:
         # print(text_pairs)
         batch_model_input = defaultdict(list)
+        # longest = 0
         for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
-            for key, value in tokenizer(text=text1, text_pair=text2, padding="max_length", truncation="longest_first", max_length=max_length).items():
+            for key, value in tokenizer(
+                text=text1,
+                text_pair=text2,
+                padding="max_length" if max_length != INFINITE else False,
+                truncation="longest_first" if max_length != INFINITE else False,
+                max_length=max_length if max_length != INFINITE else None,
+            ).items():
                 batch_model_input[key].append(value)
+            # longest = max(longest, len(value))
+        if max_length == INFINITE:
+            batch_model_input = tokenizer.pad(batch_model_input, padding="longest")
         return batch_model_input
 
     @staticmethod
