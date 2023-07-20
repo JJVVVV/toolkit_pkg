@@ -19,6 +19,7 @@ class TrainConfig(ConfigBase):
         epochs: int,
         batch_size: int,
         learning_rate: float,
+        checkpoints_dir: Path | str,
         batch_size_infer: int = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
@@ -35,6 +36,7 @@ class TrainConfig(ConfigBase):
         accumulate_step: int = 1,
         warmup_ratio: float = -1,
         fp16: bool = False,
+        dashboard: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -62,6 +64,7 @@ class TrainConfig(ConfigBase):
         self.model_name = model_name
 
         # attributes related to training
+        self.checkpoints_dir = checkpoints_dir
         self.seed = seed
         self.early_stop = early_stop
         if self.early_stop:
@@ -83,6 +86,11 @@ class TrainConfig(ConfigBase):
         # attributes related to validation and test
         self.batch_size_infer = batch_size_infer if batch_size_infer is not None else batch_size
 
+        assert dashboard in ["wandb", "tensorboard", None], (
+            f"Only `wandb` and `tensorboard` dashboards are supported, but got `{dashboard}`.\n"
+            "if you do not need dashboard, plase set it to `None`."
+        )
+        self.dashboard = dashboard
         self.check_data_file()
 
     def save(self, save_directory: Path | str, silence=True, config_file_name=CONFIG_NAME):

@@ -19,9 +19,11 @@ class CheckpointManager:
         self.cur_checkpoint = None
 
     def id2checkpoint(self, checkpoint_id: int) -> Path:
+        "Convert a id (int) to a checkpoint dir"
         return self.checkpoints_dir / f"checkpoint-{checkpoint_id:03d}"
 
     def search_latest_checkpoint(self):
+        "Search in checkpoints dir, get the latest checkpoint dir"
         for checkpoint_dir in self.checkpoints_dir.glob("checkpoint-*"):
             if self.latest_checkpoint_id < (id_searched := int(checkpoint_dir.name.split("-")[-1])):
                 self.latest_checkpoint_id = id_searched
@@ -33,6 +35,7 @@ class CheckpointManager:
             logger.debug("There is no checkpoint.")
 
     def next(self):
+        "Get a new checkpoint dir"
         self.latest_checkpoint_id += 1
         self.latest_checkpoint = self.id2checkpoint(self.latest_checkpoint_id)
 
@@ -41,6 +44,7 @@ class CheckpointManager:
         self.cur_checkpoint = self.id2checkpoint(checkpoint_id)
 
     def delete_last_checkpoint(self):
+        "Deletes the previous checkpoint of the latest checkpoint"
         if self.latest_checkpoint_id > 0:
             last_checkpoint = self.id2checkpoint(self.latest_checkpoint_id - 1)
             rmtree(last_checkpoint)

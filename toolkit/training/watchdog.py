@@ -58,8 +58,8 @@ class WatchDog:
         epoch: int,
         step_global: int,
         model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         configs: TrainConfig,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         file_logger: Logger | None = None,
     ):
         # log some information
@@ -143,10 +143,10 @@ class WatchDog:
     def save_checkpoint(
         self,
         model: PreTrainedModel,
-        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         val_metricdict: MetricDict,
         test_metricdict: MetricDict,
         configs: TrainConfig,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
     ):
         output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
         if output_dir.exists():
@@ -156,7 +156,8 @@ class WatchDog:
         logger.debug(f"Saving the optimal model and tokenizer to {output_dir}.")
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(output_dir)
-        tokenizer.save_pretrained(output_dir)
+        if tokenizer is not None:
+            tokenizer.save_pretrained(output_dir)
         configs.save(output_dir)
         with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
             writer.write(
