@@ -1,4 +1,4 @@
-from typing import Callable
+from typing import Callable, Type, TypeVar
 
 import torch
 import torch.distributed as dist
@@ -7,8 +7,9 @@ from torch import autocast
 from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, RMSprop
 from torch.utils.data import DataLoader, Dataset
+from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
 
 from .. import toolkit_logger
 from ..config import TrainConfig
@@ -23,18 +24,26 @@ from .watchdog import WatchDog
 logger = _getLogger(__name__)
 
 
+map_str2optm = {"Adamw": AdamW, "RMSprop": RMSprop}
+map_str2sche = {"LinearWarmup": get_linear_schedule_with_warmup}
+
+OptimizerClass = TypeVar("OptimizerClass", bound=torch.optim.Optimizer)
+SchedulerClass = TypeVar("SchedulerClass", bound=torch.optim.lr_scheduler.LRScheduler)
+
+
 class Trainer:
     def __init__(
         self,
         config: TrainConfig,
         model: torch.nn.Module,
-        dataset_train: Dataset,
-        dataset_val: Dataset,
-        calculate_metric_callback: Callable,
-        optimizer: torch.optim.Optimizer,
-        scheduler: torch.optim.lr_scheduler.LRScheduler | None = None,
-        dataset_test: Dataset = None,
+        dataset_train: Dataset | None = None,
+        dataset_val: Dataset | None = None,
+        dataset_test: Dataset | None = None,
+        calculate_metric_callback: Callable | None = None,
+        optimizer: Type[OptimizerClass] | str | None = None,
+        scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
+        # get_param_optimized_callback:Callable=lambda model: model.
     ) -> None:
         self.config = config
         self.model = model
@@ -42,8 +51,20 @@ class Trainer:
         self.dataset_train = dataset_train
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
-        self.optimizer = optimizer
-        self.scheduler = scheduler
+        if isinstance(optimizer, str):
+            assert (
+                optimizer in map_str2optm
+            ), f"Only following optimizer can be mapped to the corresponding optimizer: {list(map_str2optm.keys())}, bug got {optimizer}"
+            self.optimizer = map_str2optm[optimizer]
+        else:
+            self.optimizer = optimizer
+        if isinstance(scheduler, str):
+            assert (
+                scheduler in map_str2sche
+            ), f"Only following scheduler can be mapped to the corresponding scheduler: {list(map_str2sche.keys())}, bug got {scheduler}"
+            self.scheduler = map_str2sche[scheduler]
+        else:
+            self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 else None
         self.calculate_metric_callback = calculate_metric_callback
         self.ckpt_manager = CheckpointManager(config.checkpoints_dir)
@@ -62,9 +83,18 @@ class Trainer:
         warmupSteps = int(self.config.warmup_ratio * totalSteps)
 
         # * Initialize optimizer, scheduler, scaler
-        # optimizer_grouped_parameters = set_weight_decay(self.model, self.config.weight_decay)
-        optimizer = Optimizer(self.optimizer)
-        scheduler = Scheduler(self.scheduler) if self.scheduler is not None else None
+        if self.optimizer in [AdamW, RMSprop]:
+            optimizer_grouped_parameters = set_weight_decay(self.model, self.config.weight_decay)
+            optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.learning_rate, eps=self.config.epsilon)
+        else:
+            optimizer_grouped_parameters = self.model.parameters()
+            raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
+        optimizer = Optimizer(optimizer)
+        if self.scheduler is get_linear_schedule_with_warmup:
+            scheduler = self.scheduler(optimizer.object_with_state_dict, warmupSteps, totalSteps)
+        else:
+            raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
+        scheduler = Scheduler(scheduler) if self.scheduler is not None else None
         scaler = Scaler(self.scaler) if self.scaler is not None else None
 
         # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
