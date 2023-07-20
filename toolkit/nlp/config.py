@@ -13,6 +13,7 @@ class NLPTrainingConfig(TrainConfig):
         epochs: int,
         batch_size: int,
         learning_rate: float,
+        checkpoints_dir: Path | str,
         batch_size_infer: int = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
@@ -33,6 +34,7 @@ class NLPTrainingConfig(TrainConfig):
         max_length_label: int | None = None,
         pretrained_model_path: Path | str = "",
         padding_side: str = "right",
+        dashboard: str | None = None,
         **kwargs,
     ):
         super().__init__(
@@ -43,6 +45,7 @@ class NLPTrainingConfig(TrainConfig):
             epochs,
             batch_size,
             learning_rate,
+            checkpoints_dir,
             batch_size_infer,
             test_file_path,
             model_type,
