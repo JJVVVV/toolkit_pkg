@@ -6,7 +6,7 @@ import wandb
 from torch import autocast
 from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, RMSprop
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
@@ -43,6 +43,7 @@ class Trainer:
         optimizer: Type[OptimizerClass] | str | None = None,
         scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
+        dashboard_writer=None
         # get_param_optimized_callback:Callable=lambda model: model.
     ) -> None:
         self.config = config
@@ -68,6 +69,7 @@ class Trainer:
         self.scaler = GradScaler() if config.fp16 else None
         self.calculate_metric_callback = calculate_metric_callback
         self.ckpt_manager = CheckpointManager(config.checkpoints_dir)
+        self.dashboard_writer = dashboard_writer
 
     def train(self) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
@@ -187,14 +189,25 @@ class Trainer:
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
                 if local_rank == 0:
                     if curStepInGlobal & 15 == 0:
-                        wandb.run.log(
-                            {
-                                "training/loss": accumulate_loss,
-                                "training/learning_rate/downstream": optimizer.state_dict()["param_groups"][0]["lr"],
-                                "training/learning_rate/pretrain": optimizer.state_dict()["param_groups"][-1]["lr"],
-                            },
-                            step=curStepInGlobal,
-                        )
+                        if self.config.dashboard == "wandb":
+                            wandb.run.log(
+                                {
+                                    "training/loss": accumulate_loss,
+                                    "training/learning_rate/downstream": optimizer.state_dict()["param_groups"][0]["lr"],
+                                    "training/learning_rate/pretrain": optimizer.state_dict()["param_groups"][-1]["lr"],
+                                },
+                                step=curStepInGlobal,
+                            )
+                        elif self.config.dashboard == "tensorboard":
+                            self.dashboard_writer.add_scalars(
+                                "training/learning_rate",
+                                {
+                                    "downstream": optimizer.state_dict()["param_groups"][0]["lr"],
+                                    "pretrain": optimizer.state_dict()["param_groups"][-1]["lr"],
+                                },
+                                curStepInGlobal,
+                            )
+                            self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
                 # * Evaluate after each half epoch
                 if self.config.test_in_epoch and curStepInEpoch == stepsPerEpoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
@@ -203,7 +216,12 @@ class Trainer:
                     log_dict[Split.VALIDATION.name] = dict(val_metricdict)
                     if test_metricdict is not None:
                         log_dict[Split.TEST.name] = dict(test_metricdict)
-                    wandb.run.log(log_dict, step=curStepInGlobal)
+                    if self.config.dashboard == "wandb":
+                        wandb.run.log(log_dict, step=curStepInGlobal)
+                    else:
+                        for split, metricdict in log_dict.items():
+                            for metric, value in metricdict.items():
+                                self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
                     if local_rank == 0:
                         watch_dog(
                             val_metricdict=val_metricdict,
@@ -223,7 +241,12 @@ class Trainer:
             log_dict[Split.VALIDATION.name] = dict(val_metricdict)
             if test_metricdict is not None:
                 log_dict[Split.TEST.name] = dict(test_metricdict)
-            wandb.run.log(log_dict, step=curStepInGlobal)
+            if self.config.dashboard == "wandb":
+                wandb.run.log(log_dict, step=curStepInGlobal)
+            else:
+                for split, metricdict in log_dict.items():
+                    for metric, value in metricdict.items():
+                        self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
             if local_rank == 0:
                 watch_dog(
                     val_metricdict=val_metricdict,
@@ -276,8 +299,12 @@ class Trainer:
         if local_rank == 0:
             # * Report the final information
             watch_dog.final_report(self.config)
-            wandb.run.summary.update(watch_dog.optimal_performance())
-            wandb.run.finish()
+            if self.config.dashboard == "wandb":
+                wandb.run.summary.update(watch_dog.optimal_performance())
+                wandb.run.finish()
+            else:
+                self.dashboard_writer.add_hparams(hparam_dict=self.config.to_dict(), metric_dict=watch_dog.optimal_performance())
+                self.dashboard_writer.close()
 
     def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
         # if (split == Split.TEST and self.dataset_test is None) or (split == Split.VALIDATION and self.dataset_val is None):
