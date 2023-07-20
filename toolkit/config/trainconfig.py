@@ -32,7 +32,7 @@ class TrainConfig(ConfigBase):
         warmup: bool = False,
         test_in_epoch: bool = False,
         weight_decay: float = 0.01,
-        adam_epsilon: float = 1e-8,
+        epsilon: float = 1e-8,
         accumulate_step: int = 1,
         warmup_ratio: float = -1,
         fp16: bool = False,
@@ -78,7 +78,7 @@ class TrainConfig(ConfigBase):
         self.batch_size = batch_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
-        self.adam_epsilon = adam_epsilon
+        self.epsilon = epsilon
         self.accumulate_step = accumulate_step
         self.warmup_ratio = warmup_ratio
         self.fp16 = fp16
