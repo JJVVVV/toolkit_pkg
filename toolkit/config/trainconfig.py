@@ -12,15 +12,17 @@ CONFIG_NAME = "train_config.json"
 class TrainConfig(ConfigBase):
     def __init__(
         self,
-        dataset_name: str,
         train_file_path: Path | str,
-        val_file_path: Path | str,
-        metric: str,
-        epochs: int,
-        batch_size: int,
-        learning_rate: float,
-        checkpoints_dir: Path | str,
+        dataset_name: str = "",
+        metric: str = "Loss",
+        epochs: int = 3,
+        batch_size: int = 16,
+        optimizer: str | None = None,
+        lr_scheduler: str | None = None,
+        learning_rate: float = 1e-3,
+        checkpoints_dir: Path | str | None = None,
         batch_size_infer: int = None,
+        val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
         model_name: str = "",
@@ -29,11 +31,11 @@ class TrainConfig(ConfigBase):
         early_stop: bool = False,
         patience: int = 5,
         continue_train_more_patience: bool = False,
-        warmup: bool = False,
         test_in_epoch: bool = False,
         weight_decay: float = 0.01,
         epsilon: float = 1e-8,
         accumulate_step: int = 1,
+        warmup: bool = False,
         warmup_ratio: float = -1,
         fp16: bool = False,
         dashboard: str | None = None,
@@ -43,7 +45,7 @@ class TrainConfig(ConfigBase):
         # attributes related to the task
         self.dataset_name = dataset_name
         self.train_file_path = Path(train_file_path)
-        self.val_file_path = Path(val_file_path)
+        self.val_file_path = Path(val_file_path) if val_file_path is not None else None
         self.test_file_path = Path(test_file_path) if test_file_path is not None else None
         self.metric = metric
         if self.metric not in MetricDict.support_metrics():
@@ -64,7 +66,7 @@ class TrainConfig(ConfigBase):
         self.model_name = model_name
 
         # attributes related to training
-        self.checkpoints_dir = checkpoints_dir
+        self.checkpoints_dir = Path(checkpoints_dir) if checkpoints_dir is not None else None
         self.seed = seed
         self.early_stop = early_stop
         if self.early_stop:

@@ -24,7 +24,7 @@ from .watchdog import WatchDog
 logger = _getLogger(__name__)
 
 
-map_str2optm = {"Adamw": AdamW, "RMSprop": RMSprop}
+map_str2optm = {"AdamW": AdamW, "RMSprop": RMSprop}
 map_str2sche = {"LinearWarmup": get_linear_schedule_with_warmup}
 
 OptimizerClass = TypeVar("OptimizerClass", bound=torch.optim.Optimizer)
