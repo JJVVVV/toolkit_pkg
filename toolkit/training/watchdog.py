@@ -78,14 +78,14 @@ class WatchDog:
             self.optimal_val_metricdict = MetricDict(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict = MetricDict(test_metricdict)
-            self.save_checkpoint(model, tokenizer, val_metricdict, test_metricdict, configs)
+            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer)
         elif val_metricdict > self.optimal_val_metricdict:
             self.best_checkpoint = (epoch, step_global)
             self.optimal_val_metricdict.update(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict.update(test_metricdict)
             self.counter = 0
-            self.save_checkpoint(model, tokenizer, val_metricdict, test_metricdict, configs)
+            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer)
         else:
             self.counter += 1
             logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")

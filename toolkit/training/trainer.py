@@ -223,7 +223,7 @@ class Trainer:
                         log_dict[Split.TEST.name] = dict(test_metricdict)
                     if self.config.dashboard == "wandb":
                         wandb.run.log(log_dict, step=curStepInGlobal)
-                    else:
+                    elif self.config.dashboard == "tensorboard":
                         for split, metricdict in log_dict.items():
                             for metric, value in metricdict.items():
                                 self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
@@ -248,7 +248,7 @@ class Trainer:
                 log_dict[Split.TEST.name] = dict(test_metricdict)
             if self.config.dashboard == "wandb":
                 wandb.run.log(log_dict, step=curStepInGlobal)
-            else:
+            elif self.config.dashboard == "tensorboard":
                 for split, metricdict in log_dict.items():
                     for metric, value in metricdict.items():
                         self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
@@ -307,7 +307,7 @@ class Trainer:
             if self.config.dashboard == "wandb":
                 wandb.run.summary.update(watch_dog.optimal_performance())
                 wandb.run.finish()
-            else:
+            elif self.config.dashboard == "tensorboard":
                 self.dashboard_writer.add_hparams(hparam_dict=self.config.to_dict(), metric_dict=watch_dog.optimal_performance())
                 self.dashboard_writer.close()
 
