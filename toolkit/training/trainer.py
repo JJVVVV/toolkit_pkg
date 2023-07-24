@@ -40,8 +40,8 @@ class Trainer:
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
         calculate_metric_callback: Callable | None = None,
-        optimizer: Type[OptimizerClass] | str | None = None,
-        scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | None = None,
+        optimizer: Type[OptimizerClass] | str | torch.optim.Optimizer | None = None,
+        scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | torch.optim.lr_scheduler.LRScheduler | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         dashboard_writer=None
         # get_param_optimized_callback:Callable=lambda model: model.
@@ -85,32 +85,39 @@ class Trainer:
         warmupSteps = int(self.config.warmup_ratio * totalSteps)
 
         # * Initialize optimizer, scheduler, scaler
-        if self.optimizer in [AdamW, RMSprop]:
-            optimizer_grouped_parameters = set_weight_decay(self.model, self.config.weight_decay)
-            optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.learning_rate, eps=self.config.epsilon)
-        else:
-            optimizer_grouped_parameters = self.model.parameters()
-            raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
-        optimizer = Optimizer(optimizer)
-        if self.scheduler is get_linear_schedule_with_warmup:
-            scheduler = self.scheduler(optimizer.object_with_state_dict, warmupSteps, totalSteps)
-        else:
-            raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
-        scheduler = Scheduler(scheduler) if self.scheduler is not None else None
-        scaler = Scaler(self.scaler) if self.scaler is not None else None
+        if isinstance(self.optimizer, torch.optim.Optimizer):  # optimizer
+            optimizer = self.optimizer
+        else:  # optimizer class
+            if self.optimizer in [AdamW, RMSprop]:
+                optimizer_grouped_parameters = set_weight_decay(self.model, self.config.weight_decay)
+                optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.learning_rate, eps=self.config.epsilon)
+            else:
+                optimizer_grouped_parameters = self.model.parameters()
+                raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
+        self.optimizer = Optimizer(optimizer)
+        if self.scheduler is not None:
+            if isinstance(self.scheduler, torch.optim.lr_scheduler.LRScheduler):
+                scheduler = self.scheduler
+            else:
+                if self.scheduler is get_linear_schedule_with_warmup:
+                    scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
+                else:
+                    raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
+        self.scheduler = Scheduler(scheduler)
+        self.scaler = Scaler(self.scaler)
 
         # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
-        if self.ckpt_manager.latest_checkpoint.exists():
-            optimizer.load(self.ckpt_manager.latest_checkpoint, silence=False)
-            if scheduler is not None:
-                scheduler.load(self.ckpt_manager.latest_checkpoint, silence=False)
-            if scaler is not None:
-                scaler.load(self.ckpt_manager.latest_checkpoint, silence=False)
+        if self.ckpt_manager.latest_dir.exists():
+            self.optimizer.load(self.ckpt_manager.latest_dir, silence=False)
+            if self.scheduler is not None:
+                self.scheduler.load(self.ckpt_manager.latest_dir, silence=False)
+            if self.scaler is not None:
+                self.scaler.load(self.ckpt_manager.latest_dir, silence=False)
 
         # * Create or load watch dog
         if local_rank == 0:
-            if self.ckpt_manager.latest_checkpoint.exists():
-                watch_dog = WatchDog.load(self.ckpt_manager.latest_checkpoint, silence=False)
+            if self.ckpt_manager.latest_dir.exists():
+                watch_dog = WatchDog.load(self.ckpt_manager.latest_dir, silence=False)
                 # 如果因早停patience设置不合理导致训练不充分, 继续训练前: 需要重置WatchDog中的counter或增大patience
                 if self.config.early_stop and self.config.continue_train_more_patience:
                     watch_dog.counter = 0
@@ -128,16 +135,14 @@ class Trainer:
                 logger.info(f"   Warmup steps = {warmupSteps:d}")
             logger.info(f"   Model type = {self.config.model_type}")
             logger.info(f"   fp16: {self.config.fp16}\n")
-            logger.debug(
-                f"   Start training from {self.ckpt_manager.latest_checkpoint.name if self.ckpt_manager.latest_checkpoint_id>=0 else 'pretained model'}"
-            )
+            logger.debug(f"   Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.id_latest_dir>=0 else 'pretained model'}")
 
         self.ckpt_manager.next()
-        curStepInGlobal = self.ckpt_manager.latest_checkpoint_id * stepsPerEpoch  # 总共已训练步数
+        curStepInGlobal = self.ckpt_manager.id_latest_dir * stepsPerEpoch  # 总共已训练步数
 
         log_losses = []
         # * ===========================================================训练===========================================================
-        for epoch in range(self.ckpt_manager.latest_checkpoint_id, self.config.epochs):
+        for epoch in range(self.ckpt_manager.id_latest_dir, self.config.epochs):
             sampler.set_epoch(epoch)
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
@@ -164,7 +169,7 @@ class Trainer:
                             outputs = self.model(**batch)
                             loss = outputs["loss"] / self.config.accumulate_step
                         # backward
-                        scaler.scale(loss).backward()
+                        self.scaler.scale(loss).backward()
                     else:
                         # forward
                         outputs = self.model(**batch)
@@ -175,16 +180,16 @@ class Trainer:
                 # logger.error(f"loss: {accumulate_loss}")
                 if self.config.fp16:
                     # update parameters
-                    scaler.step(optimizer)
-                    scaler.update()
+                    self.scaler.step(self.optimizer)
+                    self.scaler.update()
                 else:
                     # update parameters
-                    optimizer.step()
+                    self.optimizer.step()
 
                 if self.config.warmup:
-                    scheduler.step()
+                    self.scheduler.step()
 
-                optimizer.zero_grad()
+                self.optimizer.zero_grad()
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
                 if local_rank == 0:
@@ -193,8 +198,8 @@ class Trainer:
                             wandb.run.log(
                                 {
                                     "training/loss": accumulate_loss,
-                                    "training/learning_rate/downstream": optimizer.state_dict()["param_groups"][0]["lr"],
-                                    "training/learning_rate/pretrain": optimizer.state_dict()["param_groups"][-1]["lr"],
+                                    "training/learning_rate/downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
+                                    "training/learning_rate/pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
                                 },
                                 step=curStepInGlobal,
                             )
@@ -202,8 +207,8 @@ class Trainer:
                             self.dashboard_writer.add_scalars(
                                 "training/learning_rate",
                                 {
-                                    "downstream": optimizer.state_dict()["param_groups"][0]["lr"],
-                                    "pretrain": optimizer.state_dict()["param_groups"][-1]["lr"],
+                                    "downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
+                                    "pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
                                 },
                                 curStepInGlobal,
                             )
@@ -263,26 +268,26 @@ class Trainer:
             if local_rank == 0:
                 # * Save current checkpoint
                 if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
-                    logger.debug(f"Saving checkpoint`{self.ckpt_manager.latest_checkpoint.name}`...")
-                    self.ckpt_manager.latest_checkpoint.mkdir()
-                    logger.debug(f"The checkpoint will be saved in {self.ckpt_manager.latest_checkpoint}.")
+                    logger.debug(f"Saving checkpoint`{self.ckpt_manager.latest_dir.name}`...")
+                    self.ckpt_manager.latest_dir.mkdir()
+                    logger.debug(f"The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
                     model_to_save = self.model.module if hasattr(self.model, "module") else self.model
-                    model_to_save.save_pretrained(self.ckpt_manager.latest_checkpoint)
+                    model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
                     if self.tokenizer is not None:
-                        self.tokenizer.save_pretrained(self.ckpt_manager.latest_checkpoint)
+                        self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
                     logger.debug("Save model successfully.")
 
-                    self.config.save(self.ckpt_manager.latest_checkpoint, silence=False)
-                    watch_dog.save(self.ckpt_manager.latest_checkpoint, silence=False)
+                    self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                    watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
 
-                    optimizer.save(self.ckpt_manager.latest_checkpoint, silence=False)
+                    self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
                     if self.config.warmup:
-                        scheduler.save(self.ckpt_manager.latest_checkpoint, silence=False)
+                        self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
                     if self.config.fp16:
-                        scaler.save(self.ckpt_manager.latest_checkpoint, silence=False)
+                        self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
 
-                    logger.debug(f"Save {self.ckpt_manager.latest_checkpoint.name} successfully")
+                    logger.debug(f"Save {self.ckpt_manager.latest_dir.name} successfully")
 
                 # * delete last checkpoint
                 self.ckpt_manager.delete_last_checkpoint()
