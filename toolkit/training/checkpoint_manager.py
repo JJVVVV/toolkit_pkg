@@ -6,15 +6,15 @@ from ..logger import _getLogger
 logger = _getLogger("CheckpointManager")
 
 
-def epoch2checkpoint(epoch: int) -> str:
-    return f"checkpoint-{epoch:03d}"
+# def epoch2checkpoint(epoch: int) -> str:
+#     return f"checkpoint-{epoch:03d}"
 
 
 class CheckpointManager:
     def __init__(self, checkpoints_dir: Path | str) -> None:
         self.checkpoints_dir = Path(checkpoints_dir)
-        self.id_latest_dir = -1
-        self.latest_dir = None
+        self.__id_latest_dir = -1
+        self.__latest_dir = None
         self.search()
 
     def id2dir(self, checkpoint_id: int) -> Path:
@@ -23,7 +23,7 @@ class CheckpointManager:
 
     @property
     def latest_dir(self):
-        return self.latest_dir
+        return self.__latest_dir
 
     @latest_dir.setter
     def latest_dir(self):
@@ -31,7 +31,7 @@ class CheckpointManager:
 
     @property
     def latest_id(self):
-        return self.id_latest_dir
+        return self.__id_latest_dir
 
     @latest_id.setter
     def latest_id(self):
@@ -40,24 +40,24 @@ class CheckpointManager:
     def search(self):
         "Search in checkpoints dir, get the latest checkpoint dir"
         for checkpoint_dir in self.checkpoints_dir.glob("checkpoint-*"):
-            if self.id_latest_dir < (id_searched := int(checkpoint_dir.name.split("-")[-1])):
-                self.id_latest_dir = id_searched
-        self.latest_dir = self.id2dir(self.id_latest_dir)
+            if self.__id_latest_dir < (id_searched := int(checkpoint_dir.name.split("-")[-1])):
+                self.__id_latest_dir = id_searched
+        self.__latest_dir = self.id2dir(self.__id_latest_dir)
 
-        if self.id_latest_dir > -1:
-            logger.debug(f"Find `{self.latest_dir.name}` successfully!")
+        if self.__id_latest_dir > -1:
+            logger.debug(f"Find `{self.__latest_dir.name}` successfully!")
         else:
             logger.debug("There is no checkpoint.")
 
     def next(self):
         "Get a new checkpoint dir"
-        self.id_latest_dir += 1
-        self.latest_dir = self.id2dir(self.id_latest_dir)
+        self.__id_latest_dir += 1
+        self.__latest_dir = self.id2dir(self.__id_latest_dir)
 
     def delete_last_checkpoint(self):
         "Deletes the previous checkpoint of the latest checkpoint"
-        if self.id_latest_dir > 0:
-            last_checkpoint = self.id2dir(self.id_latest_dir - 1)
+        if self.__id_latest_dir > 0:
+            last_checkpoint = self.id2dir(self.__id_latest_dir - 1)
             rmtree(last_checkpoint)
             logger.debug(f"Delete last checkpoint: `{last_checkpoint.name}` successfully")
 

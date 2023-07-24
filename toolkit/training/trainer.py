@@ -135,14 +135,14 @@ class Trainer:
                 logger.info(f"   Warmup steps = {warmupSteps:d}")
             logger.info(f"   Model type = {self.config.model_type}")
             logger.info(f"   fp16: {self.config.fp16}\n")
-            logger.debug(f"   Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.id_latest_dir>=0 else 'pretained model'}")
+            logger.debug(f"   Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
 
         self.ckpt_manager.next()
-        curStepInGlobal = self.ckpt_manager.id_latest_dir * stepsPerEpoch  # 总共已训练步数
+        curStepInGlobal = self.ckpt_manager.latest_id * stepsPerEpoch  # 总共已训练步数
 
         log_losses = []
         # * ===========================================================训练===========================================================
-        for epoch in range(self.ckpt_manager.id_latest_dir, self.config.epochs):
+        for epoch in range(self.ckpt_manager.latest_id, self.config.epochs):
             sampler.set_epoch(epoch)
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
