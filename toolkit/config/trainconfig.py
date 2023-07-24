@@ -66,6 +66,8 @@ class TrainConfig(ConfigBase):
         self.model_name = model_name
 
         # attributes related to training
+        self.optimizer = optimizer
+        self.lr_scheduler = lr_scheduler
         self.checkpoints_dir = Path(checkpoints_dir) if checkpoints_dir is not None else None
         self.seed = seed
         self.early_stop = early_stop
