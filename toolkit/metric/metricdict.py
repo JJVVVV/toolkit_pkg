@@ -22,6 +22,7 @@ class MetricDict(UserDict):
 
     @classmethod
     def support_metrics(cls):
+        "Return a set which contains all supported metrics."
         return cls.__metric_scale_map.keys()
 
     def __setitem__(self, key: str, value: float | int):

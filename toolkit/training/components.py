@@ -1,6 +1,6 @@
 import re
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Self
 
 import torch
 import torch.distributed as dist
@@ -30,6 +30,11 @@ def set_weight_decay(model: torch.nn.Module, weight_decay: float) -> List[Dict[s
 # TODO 多卡的兼容性
 class StateDictMixin:
     default_file_name: str = ""
+
+    def __new__(cls, object_with_state_dict) -> Self:
+        if object_with_state_dict is None:
+            return None
+        return super().__new__(cls)
 
     def __init__(self, object_with_state_dict) -> None:
         self.object_with_state_dict = object_with_state_dict
