@@ -1,7 +1,7 @@
 import copy
 import json
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Self
 
 from ..logger import _getLogger
 
@@ -75,7 +75,7 @@ class ConfigBase:
             logger.debug(f"Save configuration file in {output_config_file_path} successfully.")
 
     @classmethod
-    def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> "ConfigBase":
+    def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Self:
         if isinstance(load_dir_or_path, str):
             load_dir_or_path = Path(load_dir_or_path)
         if load_dir_or_path.is_file():
@@ -142,12 +142,12 @@ class ConfigBase:
         return config_dict
 
     @classmethod
-    def from_dict(cls, config_dict: Dict[str, Any]) -> "ConfigBase":
+    def from_dict(cls, config_dict: Dict[str, Any]) -> Self:
         config = cls(**config_dict)
         return config
 
     @classmethod
-    def from_json_file(cls, json_file: Path | str) -> "ConfigBase":
+    def from_json_file(cls, json_file: Path | str) -> Self:
         config_dict = cls._dict_from_json_file(json_file)
         return cls(**config_dict)
 
