@@ -32,9 +32,11 @@ class ConfigBase:
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
 
         # Additional attributes without default values
+        logger.info("Custom attributes:")
         for key, value in kwargs.items():
             try:
                 setattr(self, key, value)
+                logger.info(f"{key}={value}")
             except AttributeError as err:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
