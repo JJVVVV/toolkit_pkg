@@ -1,4 +1,7 @@
 from pathlib import Path
+from typing import Self
+
+from toolkit.config.config_base import CONFIG_NAME, ConfigBase
 
 from ..logger import _getLogger
 from ..metric.metricdict import MetricDict
@@ -97,16 +100,23 @@ class TrainConfig(ConfigBase):
         self.dashboard = dashboard
         self.check_data_file()
 
-    def save(self, save_directory: Path | str, silence=True, config_file_name=CONFIG_NAME):
-        super().save(save_directory, silence=True, config_file_name=config_file_name)
+    def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
+        super().save(save_directory, json_file_name, silence, **kwargs)
         if not silence:
             logger.debug(f"Save training configuration successfully.")
+
+    @classmethod
+    def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Self:
+        if not silence:
+            logger.debug(f"Load training configuration successfully.")
+        return super().load(load_dir_or_path, json_file_name, silence, **kwargs)
 
     def check_data_file(self):
         """
         Check whether the data files exist.
         """
         assert self.train_file_path.exists(), f"Training file: {self.train_file_path} dose not exists"
-        assert self.val_file_path.exists(), f"Development file: {self.val_file_path} dose not exists"
+        if self.val_file_path is not None:
+            assert self.val_file_path.exists(), f"Development file: {self.val_file_path} dose not exists"
         if self.test_file_path is not None:
             assert self.test_file_path.exists(), f"Test file: {self.test_file_path} dose not exists"

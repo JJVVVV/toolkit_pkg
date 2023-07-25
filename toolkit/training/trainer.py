@@ -326,7 +326,7 @@ class Trainer:
         logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         return self.evaluate(split)
 
-    def evaluate(self, split: Split) -> MetricDict | None:
+    def evaluate(self, split: Split, cuda_id=None) -> MetricDict | None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         world_size = dist.get_world_size() if dist.is_initialized() else 1
 
@@ -348,6 +348,9 @@ class Trainer:
         all_losses = []
         all_labels = []
         all_logits = []
+        if cuda_id is not None:
+            torch.cuda.set_device(cuda_id)
+            self.model.cuda()
         self.model.eval()
         for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
             with torch.no_grad():
