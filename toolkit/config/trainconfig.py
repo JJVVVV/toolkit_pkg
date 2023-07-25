@@ -15,7 +15,6 @@ CONFIG_NAME = "train_config.json"
 class TrainConfig(ConfigBase):
     def __init__(
         self,
-        train_file_path: Path | str,
         dataset_name: str = "",
         metric: str = "Loss",
         epochs: int = 3,
@@ -25,6 +24,7 @@ class TrainConfig(ConfigBase):
         learning_rate: float = 1e-3,
         checkpoints_dir: Path | str | None = None,
         batch_size_infer: int = None,
+        train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
@@ -32,7 +32,7 @@ class TrainConfig(ConfigBase):
         problem_type: str | None = None,
         seed: int = 0,
         early_stop: bool = False,
-        patience: int = 5,
+        patience: int = -1,
         continue_train_more_patience: bool = False,
         test_in_epoch: bool = False,
         weight_decay: float = 0.01,
@@ -47,7 +47,7 @@ class TrainConfig(ConfigBase):
         super().__init__(**kwargs)
         # attributes related to the task
         self.dataset_name = dataset_name
-        self.train_file_path = Path(train_file_path)
+        self.train_file_path = Path(train_file_path) if train_file_path is not None else None
         self.val_file_path = Path(val_file_path) if val_file_path is not None else None
         self.test_file_path = Path(test_file_path) if test_file_path is not None else None
         self.metric = metric
@@ -115,7 +115,8 @@ class TrainConfig(ConfigBase):
         """
         Check whether the data files exist.
         """
-        assert self.train_file_path.exists(), f"Training file: {self.train_file_path} dose not exists"
+        if self.train_file_path is not None:
+            assert self.train_file_path.exists(), f"Training file: {self.train_file_path} dose not exists"
         if self.val_file_path is not None:
             assert self.val_file_path.exists(), f"Development file: {self.val_file_path} dose not exists"
         if self.test_file_path is not None:

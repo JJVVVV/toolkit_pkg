@@ -6,7 +6,6 @@ from ..config.trainconfig import TrainConfig, logger
 class NLPTrainingConfig(TrainConfig):
     def __init__(
         self,
-        train_file_path: Path | str,
         dataset_name: str = "",
         metric: str = "Loss",
         epochs: int = 3,
@@ -16,6 +15,7 @@ class NLPTrainingConfig(TrainConfig):
         learning_rate: float = 0.001,
         checkpoints_dir: Path | str | None = None,
         batch_size_infer: int = None,
+        train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
@@ -23,7 +23,7 @@ class NLPTrainingConfig(TrainConfig):
         problem_type: str | None = None,
         seed: int = 0,
         early_stop: bool = False,
-        patience: int = 5,
+        patience: int = -1,
         continue_train_more_patience: bool = False,
         test_in_epoch: bool = False,
         weight_decay: float = 0.01,
@@ -40,7 +40,6 @@ class NLPTrainingConfig(TrainConfig):
         **kwargs,
     ):
         super().__init__(
-            train_file_path,
             dataset_name,
             metric,
             epochs,
@@ -50,6 +49,7 @@ class NLPTrainingConfig(TrainConfig):
             learning_rate,
             checkpoints_dir,
             batch_size_infer,
+            train_file_path,
             val_file_path,
             test_file_path,
             model_type,

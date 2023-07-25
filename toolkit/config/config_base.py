@@ -216,11 +216,11 @@ class ConfigBase:
         config_dict = self.to_dict()
         # print(config_dict)
 
-        # get the default config dict
-        base_config_dict = ConfigBase().to_dict()
+        # get the default config dict of ConfigBase
+        default_values_baseclass = ConfigBase().to_dict()
         # print(f"base:        {base_config_dict}")
         # get class specific config dict (including attributes defined in subclass)
-        # class_config_dict = self.__class__().to_dict()
+        default_values_subclass = self.__class__().to_dict()
         # print(f"class specific: {class_config_dict}")
         serializable_config_dict = {}
 
@@ -228,8 +228,8 @@ class ConfigBase:
         serializable_config_dict = {}
         for key, value in config_dict.items():
             if (
-                key not in base_config_dict
-                or value != base_config_dict[key]
+                key not in default_values_subclass
+                or value != default_values_subclass[key]
                 # not (key in base_config_dict and value != base_config_dict[key])
                 # or (key in class_config_dict and value != class_config_dict[key])
                 # or key not in class_config_dict
