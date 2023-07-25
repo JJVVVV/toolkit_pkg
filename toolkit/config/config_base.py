@@ -60,24 +60,30 @@ class ConfigBase:
     #         self.id2label = {i: f"LABEL_{i}" for i in range(num_labels)}
     #         self.label2id = dict(zip(self.id2label.values(), self.id2label.keys()))
 
-    def save(self, save_directory: Path | str, silence=True, **kwargs):
+    def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if isinstance(save_directory, str):
             save_directory = Path(save_directory)
         if save_directory.is_file():
             raise AssertionError(f"Provided path ({save_directory}) should be a directory, not a file")
         save_directory.mkdir(parents=True, exist_ok=True)
 
-        config_name = kwargs.pop("config_file_name", CONFIG_NAME)
         # If we save using the predefined names, we can load using `from_pretrained`
-        output_config_file_path = save_directory / config_name
+        output_config_file_path = save_directory / json_file_name
 
         self.to_json_file(output_config_file_path, use_diff=True)
         if not silence:
             logger.debug(f"Save configuration file in {output_config_file_path} successfully.")
 
     @classmethod
-    def load(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> "ConfigBase":
-        config_dict = cls.get_config_dict(pretrained_model_name_or_path, silence, **kwargs)
+    def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> "ConfigBase":
+        if isinstance(load_dir_or_path, str):
+            load_dir_or_path = Path(load_dir_or_path)
+        if load_dir_or_path.is_file():
+            load_path = load_dir_or_path
+        else:
+            load_path = load_dir_or_path / json_file_name
+
+        config_dict = cls.get_config_dict(load_path, silence=silence, **kwargs)
         # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
         #     logger.warning(
         #         f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
@@ -87,22 +93,29 @@ class ConfigBase:
         return config
 
     @classmethod
-    def get_config_dict(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> Dict[str, Any]:
+    def get_config_dict(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Dict[str, Any]:
         """
-        From a `pretrained_model_name_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
+        From a `load_dir_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
         [`PretrainedConfig`] using `from_dict`.
 
         Parameters:
-            pretrained_model_name_or_path (`str` or `os.PathLike`):
+            load_dir_or_path (`str` or `os.PathLike`):
                 The identifier of the pre-trained checkpoint from which we want the dictionary of parameters.
 
         Returns:
             `Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
 
         """
+        if isinstance(load_dir_or_path, str):
+            load_dir_or_path = Path(load_dir_or_path)
+        if load_dir_or_path.is_file():
+            load_path = load_dir_or_path
+        else:
+            load_path = load_dir_or_path / json_file_name
+
         original_kwargs = copy.deepcopy(kwargs)
         # Get config dict associated with the base config file
-        config_dict = cls._get_config_dict(pretrained_model_name_or_path, silence, **kwargs)
+        config_dict = cls._get_config_dict(load_path, silence, **kwargs)
 
         # That config file may point us toward another config file to use.
         if "configuration_files" in config_dict:
@@ -112,25 +125,18 @@ class ConfigBase:
         return config_dict
 
     @classmethod
-    def _get_config_dict(cls, pretrained_model_name_or_path: Path | str, silence=True, **kwargs) -> Dict[str, Any]:
-        json_file_dir = kwargs.pop("json_file_dir", "config")
-        if isinstance(pretrained_model_name_or_path, str):
-            pretrained_model_name_or_path = Path(pretrained_model_name_or_path)
-
-        # if name are provided, find the file in default folder "config" or the special folder
-        if pretrained_model_name_or_path.is_file():
-            resolved_config_file = pretrained_model_name_or_path
-        else:
-            resolved_config_file = json_file_dir / pretrained_model_name_or_path
+    def _get_config_dict(cls, load_path: Path | str, silence=True, **kwargs) -> Dict[str, Any]:
+        if isinstance(load_path, str):
+            load_path = Path(load_path)
 
         # Load config dict
         try:
-            config_dict = cls._dict_from_json_file(resolved_config_file)
+            config_dict = cls._dict_from_json_file(load_path)
         except (json.JSONDecodeError, UnicodeDecodeError):
-            raise EnvironmentError(f"It looks like the config file at '{resolved_config_file}' is not a valid JSON file.")
+            raise EnvironmentError(f"It looks like the config file at '{load_path}' is not a valid JSON file.")
 
         if not silence:
-            logger.debug(f"Load configuration file from {resolved_config_file}.")
+            logger.debug(f"Load configuration file from {load_path}.")
 
         config_dict.update(kwargs)
         return config_dict
