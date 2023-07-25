@@ -44,7 +44,6 @@ class Trainer:
         scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | torch.optim.lr_scheduler.LRScheduler | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         dashboard_writer=None
-        # get_param_optimized_callback:Callable=lambda model: model.
     ) -> None:
         self.config = config
         self.model = model
@@ -126,7 +125,7 @@ class Trainer:
 
         # * Print some infomation for debug
         if local_rank == 0:
-            logger.debug("===== Start training =====")
+            logger.debug("===== 🔥 Start traing 🔥 =====")
             logger.debug(f"  Batch size = {self.config.batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")
@@ -322,7 +321,7 @@ class Trainer:
                 self.dataloader_val = get_dataloader(self.dataset_val, self.config, Split.VALIDATION, collate_fn=self.dataset_val.collate_fn)
         else:
             return None
-        logger.debug(f"===== Evaluate on {split.name} set =====")
+        logger.debug(f"===== ❄️ Evaluate on {split.name} set ❄️ =====")
         logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         return self.evaluate(split)
 
