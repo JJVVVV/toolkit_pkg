@@ -74,10 +74,6 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_label = max_length_label
         self.pretrained_model_path = pretrained_model_path
 
-        logger.info("Custom training parameters:")
-        for key, value in kwargs.items():
-            logger.info(f"{key}={value}")
-
     # def print_some_info(self):
     #     logger.debug("***** Some training information *****")
     #     logger.debug(f"  Batch size = {self.batch_size}")
