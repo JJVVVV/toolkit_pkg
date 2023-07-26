@@ -47,6 +47,8 @@ class StateDictMixin:
 
     # TODO 多卡并行时, 不同卡上的的state dict可能需要分别存??
     def save(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
+        if not silence:
+            logger.debug(f"💾 Saving {type_to_str(self).split('.')[-1]} state ...")
         if file_name is None:
             file_name = self.default_file_name
         if isinstance(file_dir_or_path, str):
@@ -62,13 +64,15 @@ class StateDictMixin:
                 # logger.debug(
                 #     f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Save {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
                 # )
-                logger.debug(f"Save {type_to_str(self).split('.')[-1]} successfully.")
+                logger.debug(f"✔️ Save successfully.")
 
         except RuntimeError as e:
-            logger.warning(f"Failed to save {type_to_str(self).split('.')[-1]}. {e}")
+            logger.warning(f"⚠️ Failed to save {type_to_str(self).split('.')[-1]}. {e}")
             # exit(1)
 
     def load(self, file_dir_or_path: Path | str, file_name: str | None = None, silence=True) -> None:
+        if not silence:
+            logger.debug(f"💾 Loading {type_to_str(self).split('.')[-1]} state ...")
         if file_name is None:
             file_name = self.default_file_name
         if isinstance(file_dir_or_path, str):
@@ -84,9 +88,9 @@ class StateDictMixin:
                 # logger.debug(
                 #     f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Load {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
                 # )
-                logger.debug(f"Load {type_to_str(self).split('.')[-1]} successfully.")
+                logger.debug(f"✔️ Load successfully.")
         except FileNotFoundError:
-            logger.error(f"Failed to load {type_to_str(self).split('.')[-1]}. {file_path} dose not exist! ")
+            logger.error(f"❌ Failed to load {type_to_str(self).split('.')[-1]}. {file_path} dose not exist! ")
             exit(1)
 
 

@@ -304,15 +304,16 @@ class Trainer:
             if local_rank == 0:
                 # * Save current checkpoint
                 if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
-                    logger.debug(f"Saving checkpoint`{self.ckpt_manager.latest_dir.name}`...")
+                    logger.debug(f"💿 Saving checkpoint`{self.ckpt_manager.latest_dir.name}` ...")
                     self.ckpt_manager.latest_dir.mkdir()
-                    logger.debug(f"The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
+                    logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
+                    logger.debug("💾 Saving model ...")
                     model_to_save = self.model.module if hasattr(self.model, "module") else self.model
                     model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
                     if self.tokenizer is not None:
                         self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
-                    logger.debug("Save model successfully.")
+                    logger.debug("✔️ Save model successfully.")
 
                     self.config.save(self.ckpt_manager.latest_dir, silence=False)
                     watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
@@ -323,7 +324,7 @@ class Trainer:
                     if self.config.fp16:
                         self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
 
-                    logger.debug(f"Save {self.ckpt_manager.latest_dir.name} successfully")
+                    logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
 
                 # * delete last checkpoint
                 if not self.config.save_all_ckpts:

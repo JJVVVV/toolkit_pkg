@@ -61,6 +61,7 @@ class WatchDog:
         configs: TrainConfig,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         file_logger: Logger | None = None,
+        silence: bool = False,
     ):
         # log some information
         if file_logger is not None:
@@ -78,14 +79,14 @@ class WatchDog:
             self.optimal_val_metricdict = MetricDict(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict = MetricDict(test_metricdict)
-            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer)
+            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer, silence)
         elif val_metricdict > self.optimal_val_metricdict:
             self.best_checkpoint = (epoch, step_global)
             self.optimal_val_metricdict.update(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict.update(test_metricdict)
             self.counter = 0
-            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer)
+            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer, silence)
         else:
             self.counter += 1
             logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")
@@ -147,13 +148,15 @@ class WatchDog:
         test_metricdict: MetricDict,
         configs: TrainConfig,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
+        silence=True,
     ):
+        if not silence:
+            logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
+
         output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
         if output_dir.exists():
             shutil.rmtree(output_dir)
         output_dir.mkdir()
-
-        logger.debug(f"Saving the optimal model and tokenizer to {output_dir}.")
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(output_dir)
         if tokenizer is not None:
@@ -168,10 +171,15 @@ class WatchDog:
                 )
                 + "\n"
             )
+
+        if not silence:
+            logger.debug(f"✔️ Save successfully.")
+
         self.save(output_dir)
-        logger.debug(f"Save successfully.")
 
     def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
+        if not silence:
+            logger.debug(f"💾 Saving Watch Dog data ...")
         if isinstance(save_dir, str):
             save_dir = Path(save_dir)
         if save_dir.is_file():
@@ -182,10 +190,13 @@ class WatchDog:
         self.to_json_file(json_file_path)
         if not silence:
             # logger.debug(f"Save WatchDog data in {json_file_path} successfully.")
-            logger.debug(f"Save WatchDog data successfully.")
+            logger.debug(f"✔️ Save successfully.")
 
     @classmethod
     def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs) -> "WatchDog":
+        if not silence:
+            logger.debug(f"💾 Loading Watch Dog data ...")
+
         if isinstance(json_file_dir_or_path, str):
             json_file_dir_or_path = Path(json_file_dir_or_path)
 
@@ -198,11 +209,12 @@ class WatchDog:
             attributes_dict = cls._dict_from_json_file(json_file_path)
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{json_file_path}' is not a valid JSON file.")
-        if not silence:
-            logger.debug(f"Loading WatchDog data file from: {json_file_path}")
         attributes_dict.update(kwargs)
         watch_dog = cls.from_dict(attributes_dict)
         MetricDict.set_metric_for_compare(watch_dog.metric_for_compare)
+
+        if not silence:
+            logger.debug(f"✔️ Load successfully.")
         return watch_dog
 
     @staticmethod
