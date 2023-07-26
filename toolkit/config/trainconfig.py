@@ -1,14 +1,12 @@
 from pathlib import Path
 from typing import Self
 
-from toolkit.config.config_base import ConfigBase
+from toolkit.config.config_base import ConfigBase, logger
 
-from ..logger import _getLogger
 from ..metric.metricdict import MetricDict
 from .config_base import ConfigBase
 
-logger = _getLogger("toolkit.TrainConfig")
-SILENCE = True
+# SILENCE = True
 CONFIG_NAME = "train_config.json"
 
 
