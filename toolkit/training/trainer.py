@@ -1,3 +1,4 @@
+import pathlib
 from typing import Callable, Type, TypeVar
 
 import torch
@@ -68,7 +69,27 @@ class Trainer:
         self.scaler = GradScaler() if config.fp16 else None
         self.calculate_metric_callback = calculate_metric_callback
         self.ckpt_manager = CheckpointManager(config.checkpoints_dir)
-        self.dashboard_writer = dashboard_writer
+        if config.dashboard is not None:
+            if dashboard_writer is not None:
+                self.dashboard_writer = dashboard_writer
+            else:  # 未传入 dashboard 的 writer, 自动定义
+                if config.dashboard == "tensorboard":
+                    dataset_name = config.dataset_name if config.dataset_name else "unk_dataset"
+                    model_type = config.model_type if config.model_type else "unk_model_type"
+                    model_name = config.model_name if config.model_name else "unk_model_name"
+                    run_dir = pathlib.Path("tensorboard", dataset_name, model_type, model_name)
+                    run_dir.mkdir(parents=True, exist_ok=True)
+                    self.dashboard_writer = SummaryWriter(comment="training", log_dir=run_dir)
+                elif config.dashboard == "wandb":
+                    self.dashboard_writer = wandb.init(
+                        project="untitled",
+                        config=config.to_dict(),
+                        tags=[config.dataset_name, config.model_type, config.model_name],
+                        # mode="disabled",
+                    )
+                    assert self.dashboard_writer is wandb.run
+        else:
+            self.dashboard_writer = None
 
     def train(self) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
