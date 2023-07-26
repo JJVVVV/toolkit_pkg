@@ -6,6 +6,7 @@ from typing import Any, Dict, Self
 from ..logger import _getLogger
 
 CONFIG_NAME = "config.json"
+SILENCE = True
 logger = _getLogger("toolkit.config")
 
 
@@ -32,14 +33,17 @@ class ConfigBase:
         self._name_or_path = str(kwargs.pop("name_or_path", ""))
 
         # Additional attributes without default values
-        logger.info("Custom attributes:")
         for key, value in kwargs.items():
             try:
                 setattr(self, key, value)
-                logger.info(f"{key}={value}")
             except AttributeError as err:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
+
+        if not SILENCE:
+            logger.info("👻 Custom attributes:")
+            for key, value in kwargs.items():
+                logger.info(f"{key}={value}")
 
     @property
     def name_or_path(self) -> str:
@@ -62,7 +66,9 @@ class ConfigBase:
     #         self.id2label = {i: f"LABEL_{i}" for i in range(num_labels)}
     #         self.label2id = dict(zip(self.id2label.values(), self.id2label.keys()))
 
-    def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
+    def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=None, **kwargs):
+        if isinstance(silence, bool):
+            SILENCE = silence
         if isinstance(save_directory, str):
             save_directory = Path(save_directory)
         if save_directory.is_file():
@@ -73,11 +79,13 @@ class ConfigBase:
         output_config_file_path = save_directory / json_file_name
 
         self.to_json_file(output_config_file_path, use_diff=True)
-        if not silence:
-            logger.debug(f"Save configuration file in {output_config_file_path} successfully.")
+        if not SILENCE:
+            logger.debug(f"✔️ Save configuration file in {output_config_file_path} successfully.")
 
     @classmethod
-    def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Self:
+    def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=None, **kwargs) -> Self:
+        if isinstance(silence, bool):
+            SILENCE = silence
         if isinstance(load_dir_or_path, str):
             load_dir_or_path = Path(load_dir_or_path)
         if load_dir_or_path.is_file():
@@ -85,7 +93,7 @@ class ConfigBase:
         else:
             load_path = load_dir_or_path / json_file_name
 
-        config_dict = cls.get_config_dict(load_path, silence=silence, **kwargs)
+        config_dict = cls.get_config_dict(load_path, **kwargs)
         # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:
         #     logger.warning(
         #         f"You are using a model of type {config_dict['model_type']} to instantiate a model of type "
@@ -95,7 +103,7 @@ class ConfigBase:
         return config
 
     @classmethod
-    def get_config_dict(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Dict[str, Any]:
+    def get_config_dict(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=None, **kwargs) -> Dict[str, Any]:
         """
         From a `load_dir_or_path`, resolve to a dictionary of parameters, to be used for instantiating a
         [`PretrainedConfig`] using `from_dict`.
@@ -108,6 +116,8 @@ class ConfigBase:
             `Tuple[Dict, Dict]`: The dictionary(ies) that will be used to instantiate the configuration object.
 
         """
+        if isinstance(silence, bool):
+            SILENCE = silence
         if isinstance(load_dir_or_path, str):
             load_dir_or_path = Path(load_dir_or_path)
         if load_dir_or_path.is_file():
@@ -117,17 +127,17 @@ class ConfigBase:
 
         original_kwargs = copy.deepcopy(kwargs)
         # Get config dict associated with the base config file
-        config_dict = cls._get_config_dict(load_path, silence, **kwargs)
+        config_dict = cls._get_config_dict(load_path, **kwargs)
 
         # That config file may point us toward another config file to use.
         if "configuration_files" in config_dict:
             # The another config file must be a path or be in the same folder as the first
-            config_dict = cls._get_config_dict(config_dict["configuration_files"], silence, **original_kwargs)
+            config_dict = cls._get_config_dict(config_dict["configuration_files"], **original_kwargs)
 
         return config_dict
 
     @classmethod
-    def _get_config_dict(cls, load_path: Path | str, silence=True, **kwargs) -> Dict[str, Any]:
+    def _get_config_dict(cls, load_path: Path | str, **kwargs) -> Dict[str, Any]:
         if isinstance(load_path, str):
             load_path = Path(load_path)
 
@@ -137,8 +147,8 @@ class ConfigBase:
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{load_path}' is not a valid JSON file.")
 
-        if not silence:
-            logger.debug(f"Load configuration file from {load_path}.")
+        if not SILENCE:
+            logger.debug(f"✔️ Load configuration file from {load_path} successfully.")
 
         config_dict.update(kwargs)
         return config_dict

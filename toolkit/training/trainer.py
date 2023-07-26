@@ -46,7 +46,7 @@ class Trainer:
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
         project_name: str = "untitled",
-        only_evaluate: bool = False,
+        evaluate_only: bool = False,
     ) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         world_size = dist.get_world_size() if dist.is_initialized() else 1
@@ -57,7 +57,7 @@ class Trainer:
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.calculate_metric_callback = calculate_metric_callback
-        if only_evaluate:
+        if evaluate_only:
             return
 
         if isinstance(optimizer, str):
