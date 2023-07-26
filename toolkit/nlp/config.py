@@ -33,6 +33,7 @@ class NLPTrainingConfig(TrainConfig):
         warmup_ratio: float = -1,
         fp16: bool = False,
         dashboard: str | None = None,
+        save_all_ckpts: bool = False,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         pretrained_model_path: Path | str = "",
@@ -67,6 +68,7 @@ class NLPTrainingConfig(TrainConfig):
             warmup_ratio,
             fp16,
             dashboard,
+            save_all_ckpts,
             **kwargs,
         )
         self.padding_side = padding_side

@@ -42,6 +42,7 @@ class TrainConfig(ConfigBase):
         warmup_ratio: float = -1,
         fp16: bool = False,
         dashboard: str | None = None,
+        save_all_ckpts: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -79,6 +80,7 @@ class TrainConfig(ConfigBase):
             self.continue_train_more_patience = continue_train_more_patience
         self.warmup = warmup
         self.test_in_epoch = test_in_epoch
+        self.save_all_ckpts = save_all_ckpts
 
         # optimization hyperparameter
         self.epochs = epochs

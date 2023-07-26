@@ -43,7 +43,7 @@ class Trainer:
         optimizer: Type[OptimizerClass] | str | torch.optim.Optimizer | None = None,
         scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | torch.optim.lr_scheduler.LRScheduler | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
-        dashboard_writer=None
+        dashboard_writer=None,
     ) -> None:
         self.config = config
         self.model = model
@@ -289,7 +289,8 @@ class Trainer:
                     logger.debug(f"Save {self.ckpt_manager.latest_dir.name} successfully")
 
                 # * delete last checkpoint
-                self.ckpt_manager.delete_last_checkpoint()
+                if not self.config.save_all_ckpts:
+                    self.ckpt_manager.delete_last_checkpoint()
                 self.ckpt_manager.next()
 
                 # * save WatchDog
