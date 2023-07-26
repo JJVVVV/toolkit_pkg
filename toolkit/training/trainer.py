@@ -44,14 +44,22 @@ class Trainer:
         optimizer: Type[OptimizerClass] | str | torch.optim.Optimizer | None = None,
         scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | torch.optim.lr_scheduler.LRScheduler | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
-        dashboard_writer=None,
+        dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
+        project_name: str = "untitled",
+        only_evaluate: bool = False,
     ) -> None:
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+        world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.config = config
         self.model = model
         self.tokenizer = tokenizer
         self.dataset_train = dataset_train
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
+        self.calculate_metric_callback = calculate_metric_callback
+        if only_evaluate:
+            return
+
         if isinstance(optimizer, str):
             assert (
                 optimizer in map_str2optm
@@ -67,12 +75,13 @@ class Trainer:
         else:
             self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 else None
-        self.calculate_metric_callback = calculate_metric_callback
         self.ckpt_manager = CheckpointManager(config.checkpoints_dir)
         if config.dashboard is not None:
             if dashboard_writer is not None:
                 self.dashboard_writer = dashboard_writer
-            else:  # 未传入 dashboard 的 writer, 自动定义
+                if config.dashboard == "wandb":
+                    assert self.dashboard_writer is wandb.run
+            elif local_rank == 0:  # 未传入 dashboard 的 writer, 自动定义
                 if config.dashboard == "tensorboard":
                     dataset_name = config.dataset_name if config.dataset_name else "unk_dataset"
                     model_type = config.model_type if config.model_type else "unk_model_type"
@@ -82,7 +91,7 @@ class Trainer:
                     self.dashboard_writer = SummaryWriter(comment="training", log_dir=run_dir)
                 elif config.dashboard == "wandb":
                     self.dashboard_writer = wandb.init(
-                        project="untitled",
+                        project=project_name,
                         config=config.to_dict(),
                         tags=[config.dataset_name, config.model_type, config.model_name],
                         # mode="disabled",
@@ -90,6 +99,13 @@ class Trainer:
                     assert self.dashboard_writer is wandb.run
         else:
             self.dashboard_writer = None
+
+    def __del__(self):
+        if self.dashboard_writer is not None:
+            if self.config.dashboard == "wandb":
+                self.dashboard_writer.finish()
+            elif self.config.dashboard == "tensorboard":
+                self.dashboard_writer.close()
 
     def train(self) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
