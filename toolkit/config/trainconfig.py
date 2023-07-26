@@ -1,14 +1,14 @@
 from pathlib import Path
 from typing import Self
 
-from toolkit.config.config_base import CONFIG_NAME, ConfigBase
+from toolkit.config.config_base import ConfigBase
 
 from ..logger import _getLogger
 from ..metric.metricdict import MetricDict
 from .config_base import ConfigBase
 
 logger = _getLogger("toolkit.TrainConfig")
-
+SILENCE = True
 CONFIG_NAME = "train_config.json"
 
 
@@ -103,14 +103,14 @@ class TrainConfig(ConfigBase):
         self.check_data_file()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
-        super().save(save_directory, json_file_name, silence, **kwargs)
         if not silence:
-            logger.debug(f"Save training configuration successfully.")
+            logger.debug(f"💾 Saving training configuration ...")
+        super().save(save_directory, json_file_name, silence, **kwargs)
 
     @classmethod
     def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Self:
         if not silence:
-            logger.debug(f"Load training configuration successfully.")
+            logger.debug(f"💾 Loading training configuration ...")
         return super().load(load_dir_or_path, json_file_name, silence, **kwargs)
 
     def check_data_file(self):
