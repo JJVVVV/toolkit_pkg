@@ -437,7 +437,7 @@ class TextDataset(Dataset):
 
         start = time.time()
         if local_rank == 0:
-            logger.debug(f"⏳ Loading {split.name} dataset...")
+            logger.debug(f"⏳ Loading {split.name} dataset ...")
 
         if "tokenized" in data_file_path.name:
             dataset = torch.load(data_file_path)
@@ -455,7 +455,7 @@ class TextDataset(Dataset):
             )
         end = time.time()
         if local_rank == 0:
-            logger.info(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
+            logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
             # logger.debug(f"Total {split.name} data = {len(dataset):d}")
             # logger.debug(f"{split.name} data max length of input: {dataset.max_length_input}")
