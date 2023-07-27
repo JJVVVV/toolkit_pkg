@@ -11,8 +11,8 @@ logger = _getLogger("CheckpointManager")
 
 
 class CheckpointManager:
-    def __init__(self, checkpoints_dir: Path | str) -> None:
-        self.checkpoints_dir = Path(checkpoints_dir)
+    def __init__(self, save_dir: Path | str) -> None:
+        self.checkpoints_dir = Path(save_dir, "checkpoints")
         self.checkpoints_dir.mkdir(parents=True, exist_ok=True)
         logger.info(f"Checkpoints directory: `{self.checkpoints_dir}`")
         self.__id_latest_dir = -1

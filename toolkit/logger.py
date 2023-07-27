@@ -26,8 +26,8 @@ def _getLogger(name: str) -> logging.Logger:
     formatter = colorlog.ColoredFormatter(log_format, log_colors=log_colors)
     # formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 
-    if logger.hasHandlers():
-        return logger
+    # if logger.hasHandlers():
+    #     return logger
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setLevel(logging.DEBUG)
     console_handler.setFormatter(formatter)
