@@ -277,7 +277,7 @@ class TextDataset(Dataset):
         "Log some information of dataset."
         logger.info(f"Total data: {len(self)}")
         logger.info(f"Max length of input: {self.max_length_input}")
-        logger.info(f"Max length label: {self.max_length_label}")
+        logger.info(f"Max length of label: {self.max_length_label}")
 
     @staticmethod
     def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
@@ -336,7 +336,7 @@ class TextDataset(Dataset):
             raise NotImplementedError("TODO")
 
         if "token_type_ids" in tokenizer.model_input_names:
-            logger.warning(f"model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
+            logger.warning(f" model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
         tokenized_dict = defaultdict(list)
         waiting_to_trunc_idxs = [idx for idx in range(len(finely_controlled_text_list[0])) if finely_controlled_text_list[0][idx][0]]
         for finely_controlled_text in tqdm(finely_controlled_text_list, desc=desc, colour="RED", smoothing=0.99):
@@ -427,17 +427,17 @@ class TextDataset(Dataset):
     ) -> "TextDataset":
         """Load dataset from file with the given `NLPTrainingConfig`."""
         if data_file_path is None:
-            raise TypeError(f"Fail to load {split.name} data. The data file path is not specified (received NoneType).")
+            raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received NoneType).")
         if isinstance(data_file_path, str):
             data_file_path = Path(data_file_path)
         if not data_file_path.exists():
-            raise FileNotFoundError(f"Fail to load test data. {data_file_path} does not exists.")
+            raise FileNotFoundError(f"❌ Fail to load test data. {data_file_path} does not exists.")
 
         local_rank = dist.get_rank() if dist.is_initialized() else 0
 
         start = time.time()
         if local_rank == 0:
-            logger.debug(f"Loading {split.name} dataset...")
+            logger.debug(f"⏳ Loading {split.name} dataset...")
 
         if "tokenized" in data_file_path.name:
             dataset = torch.load(data_file_path)
@@ -455,10 +455,11 @@ class TextDataset(Dataset):
             )
         end = time.time()
         if local_rank == 0:
-            logger.debug(f"Loading {split.name} data takes {end - start:.2f} sec.")
-            logger.debug(f"Total {split.name} data = {len(dataset):d}")
-            logger.debug(f"{split.name} data max length of input: {dataset.max_length_input}")
-            logger.debug(f"{split.name} data max length of label: {dataset.max_length_label}")
+            logger.info(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
+            cls.report(dataset)
+            # logger.debug(f"Total {split.name} data = {len(dataset):d}")
+            # logger.debug(f"{split.name} data max length of input: {dataset.max_length_input}")
+            # logger.debug(f"{split.name} data max length of label: {dataset.max_length_label}")
         return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?
