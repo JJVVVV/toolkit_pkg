@@ -49,7 +49,7 @@ class CheckpointManager:
         if self.__id_latest_dir > -1:
             logger.debug(f"🔍 Find `{self.__latest_dir.name}` successfully! ✔️")
         else:
-            logger.debug("🔍 There is no checkpoint. ❌")
+            logger.debug("🔍 There is no checkpoint. ❗")
 
     def next(self):
         "Get a new checkpoint dir"
