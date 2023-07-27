@@ -6,7 +6,7 @@ from typing import Any, Dict, Self
 from ..logger import _getLogger
 
 CONFIG_NAME = "config.json"
-logger = _getLogger("toolkit.config")
+logger = _getLogger("Configuration")
 
 
 class ConfigBase:
