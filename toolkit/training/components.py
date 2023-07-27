@@ -66,7 +66,7 @@ class StateDictMixin:
                 # logger.debug(
                 #     f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Save {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
                 # )
-                logger.debug(f"✔️ Save successfully.")
+                logger.debug(f"✔️  Save successfully.")
 
         except RuntimeError as e:
             logger.warning(f"⚠️ Failed to save {type_to_str(self).split('.')[-1]}. {e}")
@@ -90,7 +90,7 @@ class StateDictMixin:
                 # logger.debug(
                 #     f"{f'local rank {self.local_rank}: ' if self.world_size!=1 else ''}Load {file_dir_or_path if file_dir_or_path.is_file() else file_name} successfully."
                 # )
-                logger.debug(f"✔️ Load successfully.")
+                logger.debug(f"✔️  Load successfully.")
         except FileNotFoundError:
             logger.error(f"❌ Failed to load {type_to_str(self).split('.')[-1]}. {file_path} dose not exist! ")
             exit(1)
