@@ -26,6 +26,7 @@ class TrainConfig(ConfigBase):
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
+        model_dir: str = None,
         model_name: str = "",
         problem_type: str | None = None,
         seed: int = 0,
@@ -65,6 +66,7 @@ class TrainConfig(ConfigBase):
 
         # attributes related to the model
         self.model_type = model_type
+        self.model_dir = model_dir
         self.model_name = model_name
 
         # attributes related to training

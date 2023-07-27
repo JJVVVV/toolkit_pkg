@@ -19,6 +19,7 @@ class NLPTrainingConfig(TrainConfig):
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
+        model_dir: str = None,
         model_name: str = "",
         problem_type: str | None = None,
         seed: int = 0,
@@ -36,7 +37,7 @@ class NLPTrainingConfig(TrainConfig):
         save_all_ckpts: bool = False,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
-        pretrained_model_path: Path | str = "",
+        # pretrained_model_path: Path | str | None = None,
         padding_side: str = "right",
         **kwargs,
     ):
@@ -54,6 +55,7 @@ class NLPTrainingConfig(TrainConfig):
             val_file_path,
             test_file_path,
             model_type,
+            model_dir,
             model_name,
             problem_type,
             seed,
@@ -74,7 +76,7 @@ class NLPTrainingConfig(TrainConfig):
         self.padding_side = padding_side
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
-        self.pretrained_model_path = pretrained_model_path
+        # self.pretrained_model_path = pretrained_model_path
 
     # def print_some_info(self):
     #     logger.debug("***** Some training information *****")
