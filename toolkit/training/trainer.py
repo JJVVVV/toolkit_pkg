@@ -166,11 +166,11 @@ class Trainer:
             logger.debug(f"  Batch size = {self.config.batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")
-            logger.info(f"   Total steps = {totalSteps:d}")
+            logger.debug(f"   Total steps = {totalSteps:d}")
             if self.config.warmup:
-                logger.info(f"   Warmup steps = {warmupSteps:d}")
-            logger.info(f"   Model type = {self.config.model_type}")
-            logger.info(f"   fp16: {self.config.fp16}\n")
+                logger.debug(f"   Warmup steps = {warmupSteps:d}")
+            logger.debug(f"   Model type = {self.config.model_type}")
+            logger.debug(f"   fp16: {self.config.fp16}\n")
             logger.debug(f"   Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
 
         self.ckpt_manager.next()
@@ -313,7 +313,7 @@ class Trainer:
                     model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
                     if self.tokenizer is not None:
                         self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
-                    logger.debug("✔️ Save model successfully.")
+                    logger.debug("✔️  Save model successfully.")
 
                     self.config.save(self.ckpt_manager.latest_dir, silence=False)
                     watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
@@ -361,7 +361,7 @@ class Trainer:
         else:
             return None
         logger.debug("")
-        logger.debug(f"===== ❄️ Evaluate on {split.name} set ❄️ =====")
+        logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
         logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         return self.evaluate(split)
 

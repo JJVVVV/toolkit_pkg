@@ -77,7 +77,7 @@ class ConfigBase:
 
         self.to_json_file(output_config_file_path, use_diff=True)
         if not silence:
-            logger.debug(f"✔️ Save configuration file in `{output_config_file_path}` successfully.")
+            logger.debug(f"✔️  Save configuration file in `{output_config_file_path}` successfully.")
 
     @classmethod
     def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Self:
@@ -141,7 +141,7 @@ class ConfigBase:
             raise EnvironmentError(f"It looks like the config file at `{load_path}` is not a valid JSON file.")
 
         if not silence:
-            logger.debug(f"✔️ Load configuration file from `{load_path}` successfully.")
+            logger.debug(f"✔️  Load configuration file from `{load_path}` successfully.")
 
         config_dict.update(kwargs)
         return config_dict
