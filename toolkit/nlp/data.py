@@ -24,7 +24,7 @@ BatchModelInput = Dict[str, BatchTokens]
 ClassificationID = List[int]
 INFINITE = 1000000000000000019884624838656
 
-logger = _getLogger(__name__)
+logger = _getLogger("TextDataset")
 
 
 class PairedText:

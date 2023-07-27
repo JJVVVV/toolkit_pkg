@@ -22,7 +22,7 @@ from .components import Optimizer, Scaler, Scheduler, set_weight_decay
 from .dataloader import get_dataloader, gradient_accumulate
 from .watchdog import WatchDog
 
-logger = _getLogger(__name__)
+logger = _getLogger("Trainer")
 
 
 map_str2optm = {"AdamW": AdamW, "RMSprop": RMSprop}

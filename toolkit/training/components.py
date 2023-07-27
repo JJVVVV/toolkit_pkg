@@ -8,7 +8,9 @@ import torch.distributed as dist
 from ..logger import _getLogger
 from ..utils.misc import type_to_str
 
-logger = _getLogger(__name__)
+# from .trainer import logger
+
+logger = _getLogger("Components")
 
 
 def set_weight_decay(model: torch.nn.Module, weight_decay: float) -> List[Dict[str, Any]]:

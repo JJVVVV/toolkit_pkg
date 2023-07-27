@@ -15,7 +15,7 @@ from ..logger import _getLogger
 from ..metric.metricdict import MetricDict
 from ..utils.misc import search_file
 
-logger = _getLogger(__name__)
+logger = _getLogger("WatchDog")
 
 WATCHDOG_DATA_NAME = "watchdog_data.json"
 OPTIMAL_CHECKPOINT_NAME = "optimal_checkpoint"
