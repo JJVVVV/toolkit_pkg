@@ -39,9 +39,10 @@ class ConfigBase:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
 
-        logger.info("👻 Custom attributes:")
-        for key, value in kwargs.items():
-            logger.info(f"{key}={value}")
+        if kwargs:
+            logger.info("👻 Custom attributes:")
+            for key, value in kwargs.items():
+                logger.info(f"{key}={value}")
 
     @property
     def name_or_path(self) -> str:

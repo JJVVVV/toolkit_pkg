@@ -150,13 +150,13 @@ class WatchDog:
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         silence=True,
     ):
-        if not silence:
-            logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
-
         output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
         if output_dir.exists():
             shutil.rmtree(output_dir)
         output_dir.mkdir()
+        if not silence:
+            logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
+
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(output_dir)
         if tokenizer is not None:

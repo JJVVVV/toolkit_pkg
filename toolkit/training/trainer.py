@@ -75,7 +75,7 @@ class Trainer:
         else:
             self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 else None
-        self.ckpt_manager = CheckpointManager(config.checkpoints_dir)
+        self.ckpt_manager = CheckpointManager(config.save_dir)
         if config.dashboard is not None:
             if dashboard_writer is not None:
                 self.dashboard_writer = dashboard_writer
@@ -360,6 +360,7 @@ class Trainer:
                 self.dataloader_val = get_dataloader(self.dataset_val, self.config, Split.VALIDATION, collate_fn=self.dataset_val.collate_fn)
         else:
             return None
+        logger.debug("")
         logger.debug(f"===== ❄️ Evaluate on {split.name} set ❄️ =====")
         logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         return self.evaluate(split)

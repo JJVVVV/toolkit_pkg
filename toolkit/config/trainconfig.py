@@ -20,7 +20,7 @@ class TrainConfig(ConfigBase):
         optimizer: str | None = None,
         lr_scheduler: str | None = None,
         learning_rate: float = 1e-3,
-        checkpoints_dir: Path | str | None = None,
+        save_dir: Path | str | None = None,
         batch_size_infer: int = None,
         train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
@@ -70,7 +70,7 @@ class TrainConfig(ConfigBase):
         # attributes related to training
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
-        self.checkpoints_dir = Path(checkpoints_dir) if checkpoints_dir is not None else None
+        self.save_dir = Path(save_dir) if save_dir is not None else None
         self.seed = seed
         self.early_stop = early_stop
         if self.early_stop:
