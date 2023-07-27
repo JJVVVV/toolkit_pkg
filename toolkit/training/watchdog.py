@@ -173,7 +173,7 @@ class WatchDog:
             )
 
         if not silence:
-            logger.debug(f"✔️ Save successfully.")
+            logger.debug(f"✔️  Save successfully.")
 
         self.save(output_dir)
 
@@ -190,7 +190,7 @@ class WatchDog:
         self.to_json_file(json_file_path)
         if not silence:
             # logger.debug(f"Save WatchDog data in {json_file_path} successfully.")
-            logger.debug(f"✔️ Save successfully.")
+            logger.debug(f"✔️  Save successfully.")
 
     @classmethod
     def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs) -> "WatchDog":
@@ -214,7 +214,7 @@ class WatchDog:
         MetricDict.set_metric_for_compare(watch_dog.metric_for_compare)
 
         if not silence:
-            logger.debug(f"✔️ Load successfully.")
+            logger.debug(f"✔️  Load successfully.")
         return watch_dog
 
     @staticmethod
