@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from types import NoneType
-from typing import Callable, Dict, Iterable, List, Tuple
+from typing import Callable, Dict, Iterable, List, Self, Tuple
 
 import torch
 import torch.distributed as dist
@@ -146,6 +146,7 @@ class TextDataset(Dataset):
         super().__init__()
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
+        self.split = split
 
         # get input and label texts
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
@@ -424,8 +425,10 @@ class TextDataset(Dataset):
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
+        cache: bool = True,
+        use_cache: bool = True,
         **kwargs_load_data,
-    ) -> "TextDataset":
+    ) -> Self:
         """Load dataset from file with the given `NLPTrainingConfig`."""
         if data_file_path is None:
             raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received NoneType).")
@@ -439,10 +442,11 @@ class TextDataset(Dataset):
         start = time.time()
         if local_rank == 0:
             logger.debug(f"⏳ Loading {split.name} dataset ...")
-
-        if "tokenized" in data_file_path.name:
-            dataset = torch.load(data_file_path)
+        if use_cache:
+            dataset = cls.from_cache(data_file_path)
         else:
+            dataset = None
+        if dataset is None:
             dataset = cls(
                 data_file_path=data_file_path,
                 model_type=configs.model_type,
@@ -454,24 +458,54 @@ class TextDataset(Dataset):
                 split=split,
                 **kwargs_load_data,
             )
+            if cache:
+                
         end = time.time()
         if local_rank == 0:
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
-            # logger.debug(f"Total {split.name} data = {len(dataset):d}")
-            # logger.debug(f"{split.name} data max length of input: {dataset.max_length_input}")
-            # logger.debug(f"{split.name} data max length of label: {dataset.max_length_label}")
         return dataset
 
-    def _cache(self, origin_data_path: Path):
-        "Cache tokenized dataset."
+    @staticmethod
+    def cache_path(origin_data_path: Path) -> Path:
+        "Convert the original data file path to a path where dataset will be cached in."
         absolute_path = origin_data_path.resolve()
         cache_path = Path(CACHE_DIR, str(absolute_path)[1:] if str(absolute_path).startswith("/") else str(absolute_path))
         cache_path = cache_path.with_suffix("pkl")
         cache_path.parent.mkdir(parents=True)
-        with cache_path.open("wb") as f:
-            pickle.dump(self, f)
-        logger.debug(f"Dataset from {origin_data_path} is cached.")
+        return cache_path
+
+    def cache(self, origin_data_path: Path):
+        "Cache tokenized dataset."
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+        if local_rank == 0:
+            logger.debug(f"💿 Caching dataset from {origin_data_path} ...")
+            cache_path = self.cache_path(origin_data_path)
+            with cache_path.open("wb") as f:
+                pickle.dump(self, f)
+            logger.debug("✔️  Cache successfully.")
+
+    @classmethod
+    def from_cache(cls, cached_dataset_or_origin_data_path: Path | str) -> Self | None:
+        "Try to load dataset from cache. If there if no cache, `None` will be returned."
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+        if local_rank == 0:
+            logger.debug(f"💿 Loading dataset from cache ...")
+        cached_dataset_or_origin_data_path = Path(cached_dataset_or_origin_data_path)
+        if cached_dataset_or_origin_data_path.with_suffix("pkl"):
+            cached_dataset_path = cached_dataset_or_origin_data_path
+        else:
+            cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path)
+        try:
+            with cached_dataset_path.open("rb") as f:
+                dataset = pickle.load(f)
+            if local_rank == 0:
+                logger.debug("✔️  Load successfully.")
+        except FileNotFoundError as e:
+            if local_rank == 0:
+                logger.debug("❕ There is no cache.")
+                dataset = None
+        return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?
     # @staticmethod
