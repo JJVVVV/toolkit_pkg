@@ -481,7 +481,7 @@ class TextDataset(Dataset):
         if local_rank == 0:
             logger.debug(f"💿 Caching dataset from {origin_data_path} ...")
             cache_path = self.cache_path(origin_data_path)
-            cache_path.parent.mkdir(parents=True)
+            cache_path.parent.mkdir(parents=True, exist_ok=True)
             with cache_path.open("wb") as f:
                 pickle.dump(self, f)
             logger.debug("✔️  Cache successfully.")
