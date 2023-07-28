@@ -79,14 +79,14 @@ class WatchDog:
             self.optimal_val_metricdict = MetricDict(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict = MetricDict(test_metricdict)
-            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer, silence)
+            self.save_optimal_checkpoint(model, configs, tokenizer, silence)
         elif val_metricdict > self.optimal_val_metricdict:
             self.best_checkpoint = (epoch, step_global)
             self.optimal_val_metricdict.update(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict.update(test_metricdict)
             self.counter = 0
-            self.save_checkpoint(model, val_metricdict, test_metricdict, configs, tokenizer, silence)
+            self.save_optimal_checkpoint(model, configs, tokenizer, silence)
         else:
             self.counter += 1
             logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")
@@ -102,6 +102,7 @@ class WatchDog:
 
     @staticmethod
     def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
+        "Report a metric dictionary."
         if file_logger is not None:
             logger = file_logger
         else:
@@ -110,6 +111,7 @@ class WatchDog:
         logger.info(info)
 
     def final_report(self, configs: TrainConfig, file_logger: Logger | None = None):
+        "Report the final information after training finished."
         if file_logger is not None:
             logger = file_logger
         else:
@@ -141,14 +143,8 @@ class WatchDog:
         return ret
 
     # TODO 当前只支持 Transformers 中的 model 和 tokenizer
-    def save_checkpoint(
-        self,
-        model: PreTrainedModel,
-        val_metricdict: MetricDict,
-        test_metricdict: MetricDict,
-        configs: TrainConfig,
-        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
-        silence=True,
+    def save_optimal_checkpoint(
+        self, model: PreTrainedModel, configs: TrainConfig, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None, silence=True
     ):
         output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
         if output_dir.exists():
@@ -165,7 +161,10 @@ class WatchDog:
         with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
             writer.write(
                 json.dumps(
-                    {"Validiton": dict(val_metricdict), "Test": dict(test_metricdict) if test_metricdict is not None else None},
+                    {
+                        "Validiton": dict(self.optimal_val_metricdict),
+                        "Test": dict(self.optimal_test_metricdict) if self.optimal_test_metricdict is not None else None,
+                    },
                     indent=2,
                     sort_keys=False,
                 )
@@ -219,6 +218,7 @@ class WatchDog:
 
     @staticmethod
     def _dict_from_json_file(json_file: Path | str) -> Dict:
+        "Load a attributes dictionary from a json file."
         with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         attributes_dict = json.loads(text)
@@ -229,19 +229,23 @@ class WatchDog:
 
     @classmethod
     def from_dict(cls, attributes_dict: Dict[str, Any]) -> "WatchDog":
+        "Load a WatchDog from a attributes dictionary."
         watch_dog = cls(None, None)
         watch_dog._update(attributes_dict)
         return watch_dog
 
     def _update(self, attributes_dict: Dict[str, Any]):
+        "Set attributes from a attribute dictionary."
         for key, value in attributes_dict.items():
             setattr(self, key, value)
 
     def to_json_file(self, json_file_path: Path | str):
+        "Write json string to the given file path"
         with open(json_file_path, "w", encoding="utf-8") as writer:
             writer.write(self.to_json_string())
 
     def to_json_string(self) -> str:
+        "Dump the attribute dictionary to json string."
         attributes_dict = self.to_dict()
         for key in ("optimal_val_metricdict", "optimal_test_metricdict", "cheat_test_metricdict"):
             if attributes_dict[key] is not None:
@@ -249,6 +253,7 @@ class WatchDog:
         return json.dumps(attributes_dict, indent=2, sort_keys=False) + "\n"
 
     def to_dict(self) -> Dict[str, Any]:
+        "Return the atrribute dictionary"
         output = copy.deepcopy(self.__dict__)
         return output
 
