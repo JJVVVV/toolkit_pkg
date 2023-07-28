@@ -109,7 +109,7 @@ class Trainer:
 
     def train(self) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
-        world_size = dist.get_world_size() if dist.is_initialized() else 1
+        # world_size = dist.get_world_size() if dist.is_initialized() else 1
 
         # * Load training data, development data and test data
         # TODO: 通用性: collate_fn 并不一定需要
@@ -176,7 +176,7 @@ class Trainer:
         self.ckpt_manager.next()
         curStepInGlobal = self.ckpt_manager.latest_id * stepsPerEpoch  # 总共已训练步数
 
-        log_losses = []
+        # log_losses = []
         # * ===========================================================训练===========================================================
         for epoch in range(self.ckpt_manager.latest_id, self.config.epochs):
             sampler.set_epoch(epoch)

@@ -151,7 +151,8 @@ class TextDataset(Dataset):
         # get input and label texts
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
         self.padding_side = padding_side
-        self.splited_texts_input, self.splited_texts_label = load_data_fn(
+        # TODO 自定义的模型输入(batch special)
+        self.splited_texts_input, self.splited_texts_label, *self.custom_inputs = load_data_fn(
             data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
 
@@ -503,7 +504,7 @@ class TextDataset(Dataset):
                 logger.debug("✔️  Load successfully.")
         except FileNotFoundError as e:
             if local_rank == 0:
-                logger.debug(" ❕ There is no cache.")
+                logger.debug("❕ There is no cache.")
                 dataset = None
         return dataset
 
