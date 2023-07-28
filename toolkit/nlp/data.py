@@ -483,7 +483,7 @@ class TextDataset(Dataset):
             cache_path.parent.mkdir(parents=True)
             with cache_path.open("wb") as f:
                 pickle.dump(self, f)
-            logger.debug("✔️ Cache successfully.")
+            logger.debug("✔️  Cache successfully.")
 
     @classmethod
     def from_cache(cls, cached_dataset_or_origin_data_path: Path | str) -> Self | None:
@@ -500,7 +500,7 @@ class TextDataset(Dataset):
             with cached_dataset_path.open("rb") as f:
                 dataset = pickle.load(f)
             if local_rank == 0:
-                logger.debug("✔️ Load successfully.")
+                logger.debug("✔️  Load successfully.")
         except FileNotFoundError as e:
             if local_rank == 0:
                 logger.debug(" ❕ There is no cache.")
