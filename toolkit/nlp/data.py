@@ -425,7 +425,6 @@ class TextDataset(Dataset):
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
-        cache: bool = True,
         use_cache: bool = True,
         **kwargs_load_data,
     ) -> Self:
@@ -458,8 +457,9 @@ class TextDataset(Dataset):
                 split=split,
                 **kwargs_load_data,
             )
-            if cache:
-                
+            if use_cache:
+                dataset.cache(data_file_path)
+
         end = time.time()
         if local_rank == 0:
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
