@@ -1,3 +1,4 @@
+import pickle
 import time
 from collections import defaultdict
 from pathlib import Path
@@ -23,7 +24,7 @@ BatchModelInput = Dict[str, BatchTokens]
 
 ClassificationID = List[int]
 INFINITE = 1000000000000000019884624838656
-
+CACHE_DIR = "./.cache/dataset/"
 logger = _getLogger("TextDataset")
 
 
@@ -461,6 +462,16 @@ class TextDataset(Dataset):
             # logger.debug(f"{split.name} data max length of input: {dataset.max_length_input}")
             # logger.debug(f"{split.name} data max length of label: {dataset.max_length_label}")
         return dataset
+
+    def _cache(self, origin_data_path: Path):
+        "Cache tokenized dataset."
+        absolute_path = origin_data_path.resolve()
+        cache_path = Path(CACHE_DIR, str(absolute_path)[1:] if str(absolute_path).startswith("/") else str(absolute_path))
+        cache_path = cache_path.with_suffix("pkl")
+        cache_path.parent.mkdir(parents=True)
+        with cache_path.open("wb") as f:
+            pickle.dump(self, f)
+        logger.debug(f"Dataset from {origin_data_path} is cached.")
 
     # # ? 递归改循环, 貌似对速度没影响?
     # @staticmethod

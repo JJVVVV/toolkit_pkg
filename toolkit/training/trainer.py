@@ -304,7 +304,7 @@ class Trainer:
             if local_rank == 0:
                 # * Save current checkpoint
                 if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
-                    logger.debug(f"💿 Saving checkpoint`{self.ckpt_manager.latest_dir.name}` ...")
+                    logger.debug(f"🚩 Saving checkpoint`{self.ckpt_manager.latest_dir.name}` ...")
                     self.ckpt_manager.latest_dir.mkdir()
                     logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 

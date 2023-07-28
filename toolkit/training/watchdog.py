@@ -151,7 +151,9 @@ class WatchDog:
             shutil.rmtree(output_dir)
         output_dir.mkdir()
         if not silence:
-            logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
+            logger.debug("🚩 Saving optimal checkpoint ...")
+            logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
+            # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
 
         model_to_save = model.module if hasattr(model, "module") else model
         model_to_save.save_pretrained(output_dir)
@@ -172,7 +174,7 @@ class WatchDog:
             )
 
         if not silence:
-            logger.debug(f"✔️  Save successfully.")
+            logger.debug(f"✅ Save optimal checkpoint successfully.")
 
         self.save(output_dir)
 
