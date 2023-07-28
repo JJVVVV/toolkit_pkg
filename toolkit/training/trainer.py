@@ -17,6 +17,7 @@ from ..config import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
 from ..metric import MetricDict
+from ..nlp.config import NLPTrainingConfig
 from .checkpoint_manager import CheckpointManager
 from .components import Optimizer, Scaler, Scheduler, set_weight_decay
 from .dataloader import get_dataloader, gradient_accumulate
@@ -35,7 +36,7 @@ SchedulerClass = TypeVar("SchedulerClass", bound=torch.optim.lr_scheduler.LRSche
 class Trainer:
     def __init__(
         self,
-        config: TrainConfig,
+        config: TrainConfig | NLPTrainingConfig,
         model: torch.nn.Module,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
@@ -47,9 +48,10 @@ class Trainer:
         dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
         project_name: str = "untitled",
         evaluate_only: bool = False,
+        decode: bool = False,
     ) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
-        world_size = dist.get_world_size() if dist.is_initialized() else 1
+        # world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.config = config
         self.model = model
         self.tokenizer = tokenizer
@@ -57,6 +59,7 @@ class Trainer:
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.calculate_metric_callback = calculate_metric_callback
+        self.decode = decode
         if evaluate_only:
             return
 
@@ -107,6 +110,7 @@ class Trainer:
             elif self.config.dashboard == "tensorboard":
                 self.dashboard_writer.close()
 
+    # TODO 自定义额外的模型输入, 如(is_train)
     def train(self) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
@@ -304,7 +308,7 @@ class Trainer:
             if local_rank == 0:
                 # * Save current checkpoint
                 if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
-                    logger.debug(f"🚩 Saving checkpoint`{self.ckpt_manager.latest_dir.name}` ...")
+                    logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
                     self.ckpt_manager.latest_dir.mkdir()
                     logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
@@ -393,13 +397,33 @@ class Trainer:
         self.model.eval()
         for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
             with torch.no_grad():
-                batch = {key: value.cuda() for key, value in batch.items()}
-                labels = batch["labels"]
-                outputs = self.model(**batch)
-                loss, logits = outputs["loss"], outputs["logits"]
-                all_losses.append(loss.item())
-                all_labels.extend(labels.numpy(force=True).tolist())
-                all_logits.extend(logits.numpy(force=True).tolist())
+                if self.decode:
+                    labels = batch.pop("labels")
+                    batch = {key: value.cuda() for key, value in batch.items()}
+                    outputs = self.model.generate(
+                        **batch,
+                        max_length=self.config.max_length,
+                        max_new_tokens=self.config.max_new_tokens,
+                        top_k=self.config.top_k,
+                        do_sample=self.config.do_sample,
+                        num_beams=self.config.num_beams,
+                        early_stopping=self.config.early_stopping,
+                        use_cache=self.config.use_cache,
+                        diversity_penalty=self.config.diversity_penalty,
+                        length_penalty=self.config.length_penalty,
+                    )
+                    texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                    all_losses.append(0)
+                    all_labels.extend(labels)
+                    all_logits.extend(texts)
+                else:
+                    batch = {key: value.cuda() for key, value in batch.items()}
+                    labels = batch["labels"]
+                    outputs = self.model(**batch)
+                    loss, logits = outputs["loss"], outputs["logits"]
+                    all_losses.append(loss.item())
+                    all_labels.extend(labels.numpy(force=True).tolist())
+                    all_logits.extend(logits.numpy(force=True).tolist())
         self.model.train()
 
         if world_size > 1:

@@ -37,6 +37,15 @@ class NLPTrainingConfig(TrainConfig):
         save_all_ckpts: bool = False,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
+        max_length: int = 20,
+        max_new_tokens: int | None = None,
+        do_sample: bool = False,
+        num_beams: int = 1,
+        early_stopping: bool = False,
+        use_cache: bool = True,
+        top_k: int = 50,
+        diversity_penalty: float = 0.0,
+        length_penalty: float = 1.0,
         # pretrained_model_path: Path | str | None = None,
         padding_side: str = "right",
         **kwargs,
@@ -76,6 +85,16 @@ class NLPTrainingConfig(TrainConfig):
         self.padding_side = padding_side
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
+
+        self.max_length = max_length
+        self.max_new_tokens = max_new_tokens
+        self.do_sample = do_sample
+        self.num_beams = num_beams
+        self.early_stopping = early_stopping
+        self.use_cache = use_cache
+        self.top_k = top_k
+        self.diversity_penalty = diversity_penalty
+        self.length_penalty = length_penalty
         # self.pretrained_model_path = pretrained_model_path
 
     # def print_some_info(self):
