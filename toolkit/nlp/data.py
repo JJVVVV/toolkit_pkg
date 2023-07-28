@@ -471,8 +471,7 @@ class TextDataset(Dataset):
         "Convert the original data file path to a path where dataset will be cached in."
         absolute_path = origin_data_path.resolve()
         cache_path = Path(CACHE_DIR, str(absolute_path)[1:] if str(absolute_path).startswith("/") else str(absolute_path))
-        cache_path = cache_path.with_suffix("pkl")
-        cache_path.parent.mkdir(parents=True)
+        cache_path = cache_path.with_suffix(".pkl")
         return cache_path
 
     def cache(self, origin_data_path: Path):
@@ -481,9 +480,10 @@ class TextDataset(Dataset):
         if local_rank == 0:
             logger.debug(f"💿 Caching dataset from {origin_data_path} ...")
             cache_path = self.cache_path(origin_data_path)
+            cache_path.parent.mkdir(parents=True)
             with cache_path.open("wb") as f:
                 pickle.dump(self, f)
-            logger.debug("✔️  Cache successfully.")
+            logger.debug("✔️ Cache successfully.")
 
     @classmethod
     def from_cache(cls, cached_dataset_or_origin_data_path: Path | str) -> Self | None:
@@ -492,7 +492,7 @@ class TextDataset(Dataset):
         if local_rank == 0:
             logger.debug(f"💿 Loading dataset from cache ...")
         cached_dataset_or_origin_data_path = Path(cached_dataset_or_origin_data_path)
-        if cached_dataset_or_origin_data_path.with_suffix("pkl"):
+        if cached_dataset_or_origin_data_path.suffix == ".pkl":
             cached_dataset_path = cached_dataset_or_origin_data_path
         else:
             cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path)
@@ -500,10 +500,10 @@ class TextDataset(Dataset):
             with cached_dataset_path.open("rb") as f:
                 dataset = pickle.load(f)
             if local_rank == 0:
-                logger.debug("✔️  Load successfully.")
+                logger.debug("✔️ Load successfully.")
         except FileNotFoundError as e:
             if local_rank == 0:
-                logger.debug("❕ There is no cache.")
+                logger.debug(" ❕ There is no cache.")
                 dataset = None
         return dataset
 
