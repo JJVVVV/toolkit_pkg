@@ -13,7 +13,7 @@ MetricDictGroup = List["MetricDictGroup"] | Tuple["MetricDictGroup"]
 class MetricDict(UserDict):
     __metric_for_compare = None
     # metric_scale = defaultdict(lambda: 1, {2:-1})
-    __metric_scale_map = {"Accuracy": 1, "F1-score": 1, "Loss": -1}
+    __metric_scale_map = {"Accuracy": 1, "F1-score": 1, "Loss": -1, "Bleu-4": 1, "ROUGE-L": 1}
 
     # def __init__(self, *args):
     #     super().__init__(*args)

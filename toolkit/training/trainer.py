@@ -79,6 +79,7 @@ class Trainer:
             self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 else None
         self.ckpt_manager = CheckpointManager(config.save_dir)
+        self.dashboard_writer = dashboard_writer
         if config.dashboard is not None:
             if dashboard_writer is not None:
                 self.dashboard_writer = dashboard_writer
