@@ -128,7 +128,6 @@ class Trainer:
         # * Define training parameters
         stepsPerEpoch = len(dataloader_train) // self.config.accumulate_step
         totalSteps = stepsPerEpoch * self.config.epochs
-        warmupSteps = int(self.config.warmup_ratio * totalSteps)
 
         # * Initialize optimizer, scheduler, scaler
         if isinstance(self.optimizer, torch.optim.Optimizer):  # optimizer
@@ -138,7 +137,7 @@ class Trainer:
                 optimizer_grouped_parameters = set_weight_decay(self.model, self.config.weight_decay)
                 optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.learning_rate, eps=self.config.epsilon)
             else:
-                optimizer_grouped_parameters = self.model.parameters()
+                # optimizer_grouped_parameters = self.model.parameters()
                 raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
         self.optimizer = Optimizer(optimizer)
         if self.scheduler is not None:
@@ -146,6 +145,8 @@ class Trainer:
                 scheduler = self.scheduler
             else:
                 if self.scheduler is get_linear_schedule_with_warmup:
+                    assert 1 >= self.config.warmup_ratio >= 0, f"`warmup_ratio` must be between 0 and 1"
+                    warmupSteps = int(self.config.warmup_ratio * totalSteps)
                     scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
                 else:
                     raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
@@ -177,8 +178,8 @@ class Trainer:
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")
             logger.debug(f"  Total steps = {totalSteps:d}")
-            if self.config.warmup:
-                logger.debug(f"  Warmup steps = {warmupSteps:d}")
+            # if self.config.warmup_ratio >= 0:
+            #     logger.debug(f"  Warmup steps = {warmupSteps:d}")
             logger.debug(f"  Model type = {self.config.model_type}")
             logger.debug(f"  fp16: {self.config.fp16}\n")
             logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
@@ -233,7 +234,7 @@ class Trainer:
                     # update parameters
                     self.optimizer.step()
 
-                if self.config.warmup:
+                if self.scheduler is not None:
                     self.scheduler.step()
 
                 self.optimizer.zero_grad()
@@ -330,7 +331,7 @@ class Trainer:
                     watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
 
                     self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
-                    if self.config.warmup:
+                    if self.scheduler is not None:
                         self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
                     if self.config.fp16:
                         self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
