@@ -52,7 +52,11 @@ class Trainer:
         project_name: str = "untitled",
         evaluate_only: bool = False,
     ) -> None:
-        "`task_type`: `generate`, `classify`, `regress`"
+        """
+        `task_type`: "generate", "classify", "regress"\n
+        `optimizer`: "AdamW", "RMSprop"\n
+        `scheduler`: "LinearWarmup"\n
+        """
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.config = config
