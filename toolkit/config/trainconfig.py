@@ -37,7 +37,6 @@ class TrainConfig(ConfigBase):
         weight_decay: float = 0.01,
         epsilon: float = 1e-8,
         accumulate_step: int = 1,
-        warmup: bool = False,
         warmup_ratio: float = -1,
         fp16: bool = False,
         dashboard: str | None = None,
@@ -78,7 +77,6 @@ class TrainConfig(ConfigBase):
         if self.early_stop:
             self.patience = patience
             self.continue_train_more_patience = continue_train_more_patience
-        self.warmup = warmup
         self.test_in_epoch = test_in_epoch
         self.save_all_ckpts = save_all_ckpts
 
@@ -101,6 +99,7 @@ class TrainConfig(ConfigBase):
         )
         self.dashboard = dashboard
         self.check_data_file()
+        self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if not silence:
@@ -125,5 +124,8 @@ class TrainConfig(ConfigBase):
             assert self.test_file_path.exists(), f"Test file: {self.test_file_path} dose not exists"
 
     def warning_default(self):
-        default_values = self.__class__()
-        
+        default = self.__class__()
+        attri_to_check = ("metric", "seed", "epochs", "batch_size", "learning_rate", "fp16")
+        for attri in attri_to_check:
+            if getattr(self, attri) != getattr(default, attri):
+                logger.warning(f"`{attri}` is not specified, default value: `{getattr(default, attri)}`")

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from ..config.trainconfig import TrainConfig, logger
+from ..config.trainconfig import TrainConfig
 
 
 class NLPTrainingConfig(TrainConfig):
@@ -30,7 +30,6 @@ class NLPTrainingConfig(TrainConfig):
         weight_decay: float = 0.01,
         epsilon: float = 1e-8,
         accumulate_step: int = 1,
-        warmup: bool = False,
         warmup_ratio: float = -1,
         fp16: bool = False,
         dashboard: str | None = None,
@@ -75,7 +74,6 @@ class NLPTrainingConfig(TrainConfig):
             weight_decay,
             epsilon,
             accumulate_step,
-            warmup,
             warmup_ratio,
             fp16,
             dashboard,
