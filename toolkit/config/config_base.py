@@ -181,9 +181,15 @@ class ConfigBase:
         Convert objects' type to the types that can be encoded by json.
         For example: `Path` -> `str`
         """
+        dict_kv = []
         for key, value in d.items():
             if isinstance(value, Path):
                 d[key] = str(value)
+            if isinstance(value, dict):
+                dict_kv.append((key, value))
+        for key, value in dict_kv:
+            d.pop(key)
+            d.update(value)
 
     def __eq__(self, other):
         return isinstance(other, ConfigBase) and (self.__dict__ == other.__dict__)

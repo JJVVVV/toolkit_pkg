@@ -349,7 +349,8 @@ class Trainer:
                 # * Whether early stop is triggered
                 if self.config.early_stop and watch_dog.need_to_stop:
                     break
-            dist.barrier()
+            if dist.is_initialized():
+                dist.barrier()
         # * ===========================================================训练结束===========================================================
         if local_rank == 0:
             # * Report the final information
