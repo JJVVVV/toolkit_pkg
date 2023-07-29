@@ -86,15 +86,17 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
 
-        self.max_length = max_length
-        self.max_new_tokens = max_new_tokens
-        self.do_sample = do_sample
-        self.num_beams = num_beams
-        self.early_stopping = early_stopping
-        self.use_cache = use_cache
-        self.top_k = top_k
-        self.diversity_penalty = diversity_penalty
-        self.length_penalty = length_penalty
+        self.generate_kwargs = {
+            "max_length": max_length,
+            "max_new_tokens": max_new_tokens,
+            "do_sample": do_sample,
+            "num_beams": num_beams,
+            "early_stopping": early_stopping,
+            "use_cache": use_cache,
+            "top_k": top_k,
+            "diversity_penalty": diversity_penalty,
+            "length_penalty": length_penalty,
+        }
         # self.pretrained_model_path = pretrained_model_path
 
     # def print_some_info(self):

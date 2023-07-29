@@ -32,10 +32,13 @@ map_str2sche = {"LinearWarmup": get_linear_schedule_with_warmup}
 OptimizerClass = TypeVar("OptimizerClass", bound=torch.optim.Optimizer)
 SchedulerClass = TypeVar("SchedulerClass", bound=torch.optim.lr_scheduler.LRScheduler)
 
+allowed_task_type = ("generate", "classify", "regression")
+
 
 class Trainer:
     def __init__(
         self,
+        task_type: str,
         config: TrainConfig | NLPTrainingConfig,
         model: torch.nn.Module,
         dataset_train: Dataset | None = None,
@@ -48,18 +51,20 @@ class Trainer:
         dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
         project_name: str = "untitled",
         evaluate_only: bool = False,
-        decode: bool = False,
     ) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.config = config
+        # TODO: model to cuda
         self.model = model
         self.tokenizer = tokenizer
         self.dataset_train = dataset_train
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.calculate_metric_callback = calculate_metric_callback
-        self.decode = decode
+        if task_type not in allowed_task_type:
+            raise ValueError(f"The parameter `task_type` was not understood: received `{task_type}` " f"but only {allowed_task_type} are valid.")
+        self.task_type = task_type
         if evaluate_only:
             return
 
@@ -79,7 +84,7 @@ class Trainer:
             self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 else None
         self.ckpt_manager = CheckpointManager(config.save_dir)
-        self.dashboard_writer = dashboard_writer
+        # self.dashboard_writer = dashboard_writer
         if config.dashboard is not None:
             if dashboard_writer is not None:
                 self.dashboard_writer = dashboard_writer
@@ -105,7 +110,7 @@ class Trainer:
             self.dashboard_writer = None
 
     def __del__(self):
-        if self.dashboard_writer is not None:
+        if hasattr(self, "dashboard_writer") and self.dashboard_writer is not None:
             if self.config.dashboard == "wandb":
                 self.dashboard_writer.finish()
             elif self.config.dashboard == "tensorboard":
@@ -184,7 +189,8 @@ class Trainer:
         # log_losses = []
         # * ===========================================================训练===========================================================
         for epoch in range(self.ckpt_manager.latest_id, self.config.epochs):
-            sampler.set_epoch(epoch)
+            if sampler is not None:
+                sampler.set_epoch(epoch)
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
                 enumerate(gradient_accumulate(dataloader_train, self.config.accumulate_step)),
@@ -396,28 +402,19 @@ class Trainer:
             torch.cuda.set_device(cuda_id)
             self.model.cuda()
         self.model.eval()
-        for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
-            with torch.no_grad():
-                if self.decode:
-                    labels = batch.pop("labels")
-                    batch = {key: value.cuda() for key, value in batch.items()}
-                    outputs = self.model.generate(
-                        **batch,
-                        max_length=self.config.max_length,
-                        max_new_tokens=self.config.max_new_tokens,
-                        top_k=self.config.top_k,
-                        do_sample=self.config.do_sample,
-                        num_beams=self.config.num_beams,
-                        early_stopping=self.config.early_stopping,
-                        use_cache=self.config.use_cache,
-                        diversity_penalty=self.config.diversity_penalty,
-                        length_penalty=self.config.length_penalty,
-                    )
-                    texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-                    all_losses.append(0)
-                    all_labels.extend(labels)
-                    all_logits.extend(texts)
-                else:
+        match self.task_type:
+            case "generate":
+                for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
+                    with torch.no_grad():
+                        labels = batch.pop("labels")
+                        batch = {key: value.cuda() for key, value in batch.items()}
+                        outputs = self.model.generate(**batch, **self.config.generate_kwargs)
+                        texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                        all_losses.append(-1)
+                        all_labels.extend(labels)
+                        all_logits.extend(texts)
+            case "classify" | "regression":
+                for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     batch = {key: value.cuda() for key, value in batch.items()}
                     labels = batch["labels"]
                     outputs = self.model(**batch)
