@@ -420,7 +420,7 @@ class Trainer:
                         all_losses.append(-1)
                         all_labels.extend(labels)
                         all_logits.extend(texts)
-            case "classify" | "regression":
+            case "classify" | "regress":
                 for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     batch = {key: value.cuda() for key, value in batch.items()}
                     labels = batch["labels"]
