@@ -178,7 +178,7 @@ class Trainer:
 
         # * Print some infomation for debug
         if local_rank == 0:
-            logger.debug("===== 🔥 Start traing 🔥 =====")
+            logger.debug("===== 🔥 Start training 🔥 =====")
             logger.debug(f"  Batch size = {self.config.batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")

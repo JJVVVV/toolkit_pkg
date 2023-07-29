@@ -234,7 +234,7 @@ class TextDataset(Dataset):
         elif isinstance(self.splited_texts_label[0], list) and isinstance(
             self.splited_texts_label[0][0], int
         ):  # if the label type is `ClassificationID`, i.e. `List[int]`
-            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.int)
+            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.long)
             self.max_length_label = self.tokens_labels.shape[-1]
         elif isinstance(self.splited_texts_label[0], list) and isinstance(
             self.splited_texts_label[0][0], float
