@@ -99,7 +99,7 @@ class TrainConfig(ConfigBase):
         )
         self.dashboard = dashboard
         self.check_data_file()
-        self.warning_default()
+        # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if not silence:
