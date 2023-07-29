@@ -120,6 +120,10 @@ class TrainConfig(ConfigBase):
         if self.train_file_path is not None:
             assert self.train_file_path.exists(), f"Training file: {self.train_file_path} dose not exists"
         if self.val_file_path is not None:
-            assert self.val_file_path.exists(), f"Development file: {self.val_file_path} dose not exists"
+            assert self.val_file_path.exists(), f"Validation file: {self.val_file_path} dose not exists"
         if self.test_file_path is not None:
             assert self.test_file_path.exists(), f"Test file: {self.test_file_path} dose not exists"
+
+    def warning_default(self):
+        default_values = self.__class__()
+        

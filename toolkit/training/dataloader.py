@@ -36,7 +36,7 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
     batch_size_per_prog = split_batch(configs.batch_size, world_size)
 
     if split == Split.TRAINING:
-        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=configs.seed)
+        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=configs.seed) if world_size != 1 else None
         g = torch.Generator()
         g.manual_seed(configs.seed)
         dataloader = DataLoader(
