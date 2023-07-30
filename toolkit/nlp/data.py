@@ -443,7 +443,7 @@ class TextDataset(Dataset):
         if local_rank == 0:
             logger.debug(f"⏳ Loading {split.name} dataset ...")
         if use_cache:
-            dataset = cls.from_cache(data_file_path)
+            dataset = cls.from_cache(data_file_path, tokenizer.name_or_path)
         else:
             dataset = None
         if dataset is None:
@@ -459,7 +459,7 @@ class TextDataset(Dataset):
                 **kwargs_load_data,
             )
             if use_cache:
-                dataset.cache(data_file_path)
+                dataset.cache(data_file_path, tokenizer.name_or_path)
 
         end = time.time()
         if local_rank == 0:
@@ -468,26 +468,31 @@ class TextDataset(Dataset):
         return dataset
 
     @staticmethod
-    def cache_path(origin_data_path: Path) -> Path:
+    def cache_path(origin_data_path: Path, tokenizer_name_or_path: str) -> Path:
         "Convert the original data file path to a path where dataset will be cached in."
         absolute_path = origin_data_path.resolve()
-        cache_path = Path(CACHE_DIR, str(absolute_path)[1:] if str(absolute_path).startswith("/") else str(absolute_path))
+        cache_path = Path(
+            CACHE_DIR,
+            tokenizer_name_or_path[1:] if str(tokenizer_name_or_path).startswith("/") else tokenizer_name_or_path,
+            str(absolute_path)[1:] if str(absolute_path).startswith("/") else str(absolute_path),
+        )
         cache_path = cache_path.with_suffix(".pkl")
         return cache_path
 
-    def cache(self, origin_data_path: Path):
+    def cache(self, origin_data_path: Path, tokenizer_name_or_path: str):
         "Cache tokenized dataset."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"💿 Caching dataset from {origin_data_path} ...")
-            cache_path = self.cache_path(origin_data_path)
+            cache_path = self.cache_path(origin_data_path, tokenizer_name_or_path)
+            logger.debug(f"❔ Cache file will be saved in {cache_path}")
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             with cache_path.open("wb") as f:
                 pickle.dump(self, f)
             logger.debug("✔️  Cache successfully.")
 
     @classmethod
-    def from_cache(cls, cached_dataset_or_origin_data_path: Path | str) -> Self | None:
+    def from_cache(cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_name_or_path: str) -> Self | None:
         "Try to load dataset from cache. If there if no cache, `None` will be returned."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
@@ -496,7 +501,7 @@ class TextDataset(Dataset):
         if cached_dataset_or_origin_data_path.suffix == ".pkl":
             cached_dataset_path = cached_dataset_or_origin_data_path
         else:
-            cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path)
+            cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path, tokenizer_name_or_path)
         try:
             with cached_dataset_path.open("rb") as f:
                 dataset = pickle.load(f)
