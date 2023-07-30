@@ -42,7 +42,7 @@ class ConfigBase:
         if kwargs:
             logger.info("👻 Custom attributes:")
             for key, value in kwargs.items():
-                logger.info(f"{key}={value}")
+                logger.info(f"   {key}={value}")
 
     @property
     def name_or_path(self) -> str:
