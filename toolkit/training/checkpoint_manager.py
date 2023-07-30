@@ -61,7 +61,7 @@ class CheckpointManager:
         if self.__id_latest_dir > 0:
             last_checkpoint = self.id2dir(self.__id_latest_dir - 1)
             rmtree(last_checkpoint)
-            logger.debug(f"Delete last checkpoint: `{last_checkpoint.name}` successfully")
+            logger.debug(f"🚩 Delete last checkpoint: `{last_checkpoint.name}` successfully")
 
     # def set_checkpoint(self, checkpoint_id: int):
     #     self.cur_checkpoint_id = checkpoint_id
