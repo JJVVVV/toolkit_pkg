@@ -13,7 +13,7 @@ from ..config.trainconfig import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
 from ..metric.metricdict import MetricDict
-from ..utils.misc import search_file
+from ..utils.misc import find_file
 
 logger = _getLogger("WatchDog")
 
@@ -50,6 +50,14 @@ class WatchDog:
         self.optimal_val_metricdict = None
         self.optimal_test_metricdict = None
         self.cheat_test_metricdict = None
+        self.finished = False
+
+    def finish(self):
+        "Indicates that the training is over."
+        self.finished = True
+
+    def is_finish(self) -> bool:
+        return self.finished
 
     def __call__(
         self,
@@ -264,7 +272,7 @@ class WatchDog:
         cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME
     ) -> Tuple[List[MetricDict], List[MetricDict], List[MetricDict]]:
         """
-        Get a list of validation metricdict, test metricdict and cheat test metricdict from different seed.
+        Get a list of validation metricdicts, test metricdicts and cheat test metricdicts from different seed.
         """
         seed_dirs = glob.glob(seeds_dir + "/*")
         success = 0
@@ -272,9 +280,8 @@ class WatchDog:
         test_metrics_dicts = []
         cheat_metrics_dicts = []
         for seed_dir in seed_dirs:
-            watchdog_data_path = search_file(seed_dir, json_file_name)
-            if watchdog_data_path and "checkpoint" not in watchdog_data_path[0]:
-                watch_dog = cls.load(watchdog_data_path[0], silence=True)
+            watchdog_data_path = find_file(seed_dir, json_file_name)
+            if watchdog_data_path and (watch_dog := cls.load(watchdog_data_path, silence=True)).is_finish():
                 if watch_dog.optimal_val_metricdict is not None:
                     dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
                 if watch_dog.optimal_test_metricdict is not None:
@@ -283,7 +290,7 @@ class WatchDog:
                     cheat_metrics_dicts.append(watch_dog.cheat_test_metricdict)
                 success += 1
             else:
-                logger.debug(seed_dir)
+                logger.debug(f"❌ Failed: {seed_dir}")
         # print("xxxxxxx")
         logger.info(f"success/total: {success}/{len(seed_dirs)}")
         return dev_metrics_dicts, test_metrics_dicts, cheat_metrics_dicts

@@ -349,6 +349,8 @@ class Trainer:
                 self.ckpt_manager.next()
 
                 # * save WatchDog
+                if epoch == self.config.epochs - 1:
+                    watch_dog.finish()
                 watch_dog.save(self.config.save_dir)
 
                 # * Whether early stop is triggered
