@@ -31,3 +31,43 @@ def search_file(directory, filename):
             file_path = os.path.join(root, filename)
             file_paths.append(file_path)
     return file_paths
+
+
+def find_file(directory: str, filename: str, depth: int = 0) -> str | None:
+    """Deep first search, stop when the the first matched file is found.\n
+    Only root dirctory will be scanned, when `depth=0`"""
+    if depth < 0:  # 递归深度限制
+        return None
+
+    for item in os.listdir(directory):
+        item_path = os.path.join(directory, item)  # 获取项目路径
+
+        if os.path.isfile(item_path) and item == filename:  # 如果项目是文件并且文件名匹配
+            return item_path
+
+        elif os.path.isdir(item_path):  # 如果项目是目录，则递归搜索
+            found_file = find_file(item_path, filename, depth - 1)
+            if found_file is not None:  # 如果在子目录中找到了文件，返回其路径
+                return found_file
+
+    return None  # 如果在这个目录中没有找到文件，返回None
+
+
+def find_files(dir: str, filename: str, depth: int = 0) -> List[str]:
+    """Deep first search, find all matched files.\n
+    Only root dirctory will be scanned, when `depth=0`"""
+    found_files = []
+
+    if depth < 0:  # 递归深度限制
+        return found_files
+
+    for item in os.listdir(dir):
+        item_path = os.path.join(dir, item)  # 获取项目路径
+
+        if os.path.isfile(item_path) and item == filename:  # 如果项目是文件并且文件名匹配
+            found_files.append(item_path)
+
+        elif os.path.isdir(item_path):  # 如果项目是目录，则递归搜索
+            found_files.extend(find_files(item_path, filename, depth - 1))  # 将找到的文件添加到列表中
+
+    return found_files  #
