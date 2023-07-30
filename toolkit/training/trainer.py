@@ -39,6 +39,7 @@ class Trainer:
     def __init__(
         self,
         task_type: str,
+        evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
         model: torch.nn.Module,
         dataset_train: Dataset | None = None,
@@ -50,7 +51,6 @@ class Trainer:
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
         project_name: str = "untitled",
-        evaluate_only: bool = False,
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
