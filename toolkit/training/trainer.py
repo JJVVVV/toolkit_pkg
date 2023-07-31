@@ -98,9 +98,15 @@ class Trainer:
             elif local_rank == 0:  # 未传入 dashboard 的 writer, 自动定义
                 if config.dashboard == "tensorboard":
                     dataset_name = config.dataset_name if config.dataset_name else "unk_dataset"
-                    model_type = config.model_type if config.model_type else "unk_model_type"
+                    model_type = (
+                        (config.model_type[1:] if config.model_type.startswith("/") else config.model_type) if config.model_type else "unk_model_type"
+                    )
                     model_name = config.model_name if config.model_name else "unk_model_name"
-                    run_dir = pathlib.Path("tensorboard", dataset_name, model_type, model_name)
+                    if config.model_dir is not None:
+                        model_dir = config.model_dir[1:] if config.model_dir.startswith("/") else config.model_dir
+                    else:
+                        model_dir = ""
+                    run_dir = pathlib.Path("tensorboard", dataset_name, model_type, model_dir, model_name)
                     run_dir.mkdir(parents=True, exist_ok=True)
                     self.dashboard_writer = SummaryWriter(comment="training", log_dir=run_dir)
                 elif config.dashboard == "wandb":
@@ -215,17 +221,18 @@ class Trainer:
                 accumulate_loss = 0
                 for batch in batch_in_accumulate:
                     # copy batch to GPU memory
+                    custom_inputs = batch.pop("custom_inputs", dict())
                     batch = {key: value.cuda() for key, value in batch.items()}
                     if self.config.fp16:
                         # forward
                         with autocast(device_type="cuda", dtype=torch.float16):
-                            outputs = self.model(**batch)
+                            outputs = self.model(**batch, **custom_inputs)
                             loss = outputs["loss"] / self.config.accumulate_step
                         # backward
                         self.scaler.scale(loss).backward()
                     else:
                         # forward
-                        outputs = self.model(**batch)
+                        outputs = self.model(**batch, **custom_inputs)
                         loss = outputs["loss"] / self.config.accumulate_step
                         # backward
                         loss.backward()
