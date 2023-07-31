@@ -151,7 +151,7 @@ class TextDataset(Dataset):
         # get input and label texts
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
         self.padding_side = padding_side
-        # TODO 自定义的模型输入(batch special)
+        # TODO 自定义的模型输入(batch special) finish !!!
         self.splited_texts_input, self.splited_texts_label, *custom_args = load_data_fn(
             data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
