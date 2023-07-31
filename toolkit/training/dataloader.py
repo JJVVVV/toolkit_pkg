@@ -1,5 +1,5 @@
 import itertools
-from typing import Generator, List, Tuple, Dict
+from typing import Dict, Generator, List, Tuple
 
 import torch
 import torch.distributed as dist
@@ -22,6 +22,7 @@ def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generat
         if len(batch_in_accumulate) == accumulate_step:
             yield batch_in_accumulate
             batch_in_accumulate.clear()
+    yield batch_in_accumulate
 
 
 def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **dataloader_kwargs) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
@@ -77,7 +78,8 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
         if (tail_batch_num := len(dataloader) % configs.accumulate_step) != 0 and local_rank == 0:
             logger.warning(
                 (
-                    "The last batch in training data will be discarded! "
+                    # "The last batch in training data will be discarded! "
+                    "The last batch in training is Not strictly batch gradient descent! "
                     "Because gradient accumulation is enabled. And the last few split batches are less than the accumulate step: "
                     f"{tail_batch_num} < {configs.accumulate_step}"
                 )

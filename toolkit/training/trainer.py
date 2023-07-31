@@ -1,3 +1,4 @@
+from math import ceil
 import pathlib
 from typing import Callable, Type, TypeVar
 
@@ -137,7 +138,7 @@ class Trainer:
         dataloader_train, sampler = get_dataloader(self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn)
 
         # * Define training parameters
-        stepsPerEpoch = len(dataloader_train) // self.config.accumulate_step
+        stepsPerEpoch = ceil(len(dataloader_train) / self.config.accumulate_step)
         totalSteps = stepsPerEpoch * self.config.epochs
 
         # * Initialize optimizer, scheduler, scaler
