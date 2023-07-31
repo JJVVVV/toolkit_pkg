@@ -3,7 +3,7 @@ import time
 from collections import defaultdict
 from pathlib import Path
 from types import NoneType
-from typing import Callable, Dict, Iterable, List, Self, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Self, Tuple
 
 import torch
 import torch.distributed as dist
@@ -135,7 +135,7 @@ class TextDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
-            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
+            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID], Any],
         ],
         padding_side: str = "right",
         max_length_input: int | None = None,
@@ -152,9 +152,15 @@ class TextDataset(Dataset):
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
         self.padding_side = padding_side
         # TODO 自定义的模型输入(batch special)
-        self.splited_texts_input, self.splited_texts_label, *self.custom_inputs = load_data_fn(
+        self.splited_texts_input, self.splited_texts_label, *custom_args = load_data_fn(
             data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
+        if len(custom_args) > 0:
+            dicts_custom_inputs = custom_args[0]
+            assert isinstance(dicts_custom_inputs, list) and isinstance(
+                dicts_custom_inputs[0], dict
+            ), "Custom inputs of a sample must be a `Dict` and all `Dict` must in a `List`"
+            self.dicts_custom_inputs: List[Dict] = dicts_custom_inputs
 
         # tokenize input texts
         tokenizer.padding_side = padding_side
@@ -179,7 +185,9 @@ class TextDataset(Dataset):
             self.batch_model_input = self.__tokenize(self.splited_texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
-        self.batch_model_input = {key: torch.tensor(value) for key, value in self.batch_model_input.items()}
+        self.batch_model_input = {
+            key: (torch.tensor(value) if not isinstance(value, torch.Tensor) else value) for key, value in self.batch_model_input.items()
+        }
         max_length_input = self.batch_model_input["input_ids"].shape[1] if max_length_input == INFINITE else max_length_input
         if self.padding_side == "right":
             self.first_pad_indexes_input = torch.argmax(torch.eq(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
@@ -204,8 +212,9 @@ class TextDataset(Dataset):
             self.tokens_labels = self.transformers_tokenizer_tqdm(tokenizer, self.splited_texts_label, max_length_label, desc="Tokenize label texts")[
                 "input_ids"
             ]
+            if not isinstance(self.tokens_labels, torch.Tensor):
+                self.tokens_labels = torch.tensor(self.tokens_labels)
             max_length_label = self.tokens_labels.shape[1] if max_length_label == INFINITE else max_length_label
-            self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
             self.max_length_label = torch.max(self.first_pad_indexes_label).item()
@@ -270,6 +279,8 @@ class TextDataset(Dataset):
 
         if self.tokens_labels is not None:
             ret_dict["labels"] = self.tokens_labels[item]
+        if hasattr(self, "dicts_custom_inputs"):
+            ret_dict["custom_inputs"]: dict = self.dicts_custom_inputs[item]
         return ret_dict
 
     def __len__(self):

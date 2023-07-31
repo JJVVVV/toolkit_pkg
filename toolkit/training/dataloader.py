@@ -1,5 +1,5 @@
 import itertools
-from typing import Generator, List, Tuple
+from typing import Generator, List, Tuple, Dict
 
 import torch
 import torch.distributed as dist
@@ -13,7 +13,7 @@ logger = _getLogger(__name__)
 
 
 # TODO: If the batches in one epoch is not divisible by accumulate_step, the last few splited batches will be discarded.
-def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generator[List, None, None]:
+def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generator[List[Dict], None, None]:
     """Get a generator used for gradient accumulate. \n
     yield a `list` of batches where the batches will be used for gradient accumulate"""
     batch_in_accumulate = []

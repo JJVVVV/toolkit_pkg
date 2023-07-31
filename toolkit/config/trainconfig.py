@@ -26,7 +26,7 @@ class TrainConfig(ConfigBase):
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
-        model_dir: str = None,
+        model_dir: str | None = None,
         model_name: str = "",
         problem_type: str | None = None,
         seed: int = 0,
