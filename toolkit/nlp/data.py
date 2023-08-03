@@ -511,6 +511,8 @@ class TextDataset(Dataset):
         cached_dataset_or_origin_data_path = Path(cached_dataset_or_origin_data_path)
         if cached_dataset_or_origin_data_path.suffix == ".pkl":
             cached_dataset_path = cached_dataset_or_origin_data_path
+            logger.warning("You are loading data from a `.pkl` file, the file will be considered as a dataset cache file.")
+            logger.warning("If you are sure that the file is a raw data file, rename it to a non-PKL suffix.")
         else:
             cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path, tokenizer_name_or_path)
         try:
