@@ -1,5 +1,5 @@
-from math import ceil
 import pathlib
+from math import ceil
 from typing import Callable, Type, TypeVar
 
 import torch
@@ -11,7 +11,7 @@ from torch.optim import AdamW, RMSprop
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
-from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
+from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
 
 from .. import toolkit_logger
 from ..config import TrainConfig
@@ -42,7 +42,7 @@ class Trainer:
         task_type: str,
         evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
-        model: torch.nn.Module,
+        model: torch.nn.Module | PreTrainedModel,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
@@ -152,10 +152,10 @@ class Trainer:
                 # optimizer_grouped_parameters = self.model.parameters()
                 raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
         self.optimizer = Optimizer(optimizer)
-        if self.scheduler is not None:
+        if self.scheduler is not None:  # scheduler
             if isinstance(self.scheduler, torch.optim.lr_scheduler.LRScheduler):
                 scheduler = self.scheduler
-            else:
+            else:  # a function that return a scheduler with a given optimizer
                 if self.scheduler is get_linear_schedule_with_warmup:
                     assert 1 >= self.config.warmup_ratio >= 0, f"`warmup_ratio` must be between 0 and 1"
                     warmupSteps = int(self.config.warmup_ratio * totalSteps)

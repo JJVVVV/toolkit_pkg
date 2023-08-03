@@ -31,7 +31,6 @@ model_name="baseline"
 
 fp16=False
 test_in_epoch=True
-warmup=True
 
 accumulate_step=1
 batch_size=32
@@ -121,7 +120,6 @@ do
       --epochs $epochs \
       --batch_size $batch_size \
       --batch_size_infer $batch_size_infer \
-      --warmup $warmup \
       --warmup_ratio $warmup_ratio \
       --max_length_input $max_length_input \
       --metric $metric \
