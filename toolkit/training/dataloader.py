@@ -80,7 +80,7 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
                 (
                     # "The last batch in training data will be discarded! "
                     "The last batch in training is Not strictly batch gradient descent! "
-                    "Because gradient accumulation is enabled. And the last few split batches are less than the accumulate step: "
+                    "Because gradient accumulation is enabled, and the last few split batches are less than the accumulate step: "
                     f"{tail_batch_num} < {configs.accumulate_step}"
                 )
             )
