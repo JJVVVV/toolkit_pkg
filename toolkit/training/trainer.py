@@ -432,13 +432,14 @@ class Trainer:
                         all_logits.extend(texts)
             case "classify" | "regress":
                 for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
-                    batch = {key: value.cuda() for key, value in batch.items()}
-                    labels = batch["labels"]
-                    outputs = self.model(**batch)
-                    loss, logits = outputs["loss"], outputs["logits"]
-                    all_losses.append(loss.item())
-                    all_labels.extend(labels.numpy(force=True).tolist())
-                    all_logits.extend(logits.numpy(force=True).tolist())
+                    with torch.no_grad():
+                        batch = {key: value.cuda() for key, value in batch.items()}
+                        labels = batch["labels"]
+                        outputs = self.model(**batch)
+                        loss, logits = outputs["loss"], outputs["logits"]
+                        all_losses.append(loss.item())
+                        all_labels.extend(labels.numpy(force=True).tolist())
+                        all_logits.extend(logits.numpy(force=True).tolist())
         self.model.train()
 
         if world_size > 1:
