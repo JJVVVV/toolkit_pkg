@@ -523,7 +523,7 @@ class TextDataset(Dataset):
         except FileNotFoundError as e:
             if local_rank == 0:
                 logger.debug("❕ There is no cache.")
-                dataset = None
+            dataset = None
         return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?

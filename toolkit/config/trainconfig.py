@@ -41,6 +41,7 @@ class TrainConfig(ConfigBase):
         fp16: bool = False,
         dashboard: str | None = None,
         save_all_ckpts: bool = False,
+        run_dir: Path | str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -72,6 +73,7 @@ class TrainConfig(ConfigBase):
         self.optimizer = optimizer
         self.lr_scheduler = lr_scheduler
         self.save_dir = Path(save_dir) if save_dir is not None else None
+        self.run_dir = Path(run_dir) if run_dir is not None else None
         self.seed = seed
         self.early_stop = early_stop
         if self.early_stop:
