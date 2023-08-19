@@ -34,6 +34,7 @@ class NLPTrainingConfig(TrainConfig):
         fp16: bool = False,
         dashboard: str | None = None,
         save_all_ckpts: bool = False,
+        run_dir: Path | str | None = None,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         max_length: int = 20,
@@ -78,6 +79,7 @@ class NLPTrainingConfig(TrainConfig):
             fp16,
             dashboard,
             save_all_ckpts,
+            run_dir,
             **kwargs,
         )
         self.padding_side = padding_side

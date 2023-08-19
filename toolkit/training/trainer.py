@@ -77,14 +77,14 @@ class Trainer:
         if isinstance(optimizer, str):
             assert (
                 optimizer in map_str2optm
-            ), f"Only following optimizer can be mapped to the corresponding optimizer: {list(map_str2optm.keys())}, bug got {optimizer}"
+            ), f"Only following optimizer can be mapped to the corresponding optimizer: {list(map_str2optm.keys())}, bug got `{optimizer}`"
             self.optimizer = map_str2optm[optimizer]
         else:
             self.optimizer = optimizer
         if isinstance(scheduler, str):
             assert (
                 scheduler in map_str2sche
-            ), f"Only following scheduler can be mapped to the corresponding scheduler: {list(map_str2sche.keys())}, bug got {scheduler}"
+            ), f"Only following scheduler can be mapped to the corresponding scheduler: {list(map_str2sche.keys())}, bug got `{scheduler}`"
             self.scheduler = map_str2sche[scheduler]
         else:
             self.scheduler = scheduler
@@ -107,11 +107,12 @@ class Trainer:
                         model_dir = config.model_dir[1:] if config.model_dir.startswith("/") else config.model_dir
                     else:
                         model_dir = ""
-                    run_dir = pathlib.Path("tensorboard", dataset_name, model_type, model_dir, model_name)
+                    run_dir = pathlib.Path("runs", "tensorboard", dataset_name, model_type, model_dir, model_name)
                     run_dir.mkdir(parents=True, exist_ok=True)
                     self.dashboard_writer = SummaryWriter(comment="training", log_dir=run_dir)
                 elif config.dashboard == "wandb":
                     self.dashboard_writer = wandb.init(
+                        dir="./runs/wandb",
                         project=project_name,
                         config=config.to_dict(),
                         tags=[config.dataset_name, config.model_type, config.model_name],
@@ -157,7 +158,7 @@ class Trainer:
                 scheduler = self.scheduler
             else:  # a function that return a scheduler with a given optimizer
                 if self.scheduler is get_linear_schedule_with_warmup:
-                    assert 1 >= self.config.warmup_ratio >= 0, f"`warmup_ratio` must be between 0 and 1"
+                    assert 1 >= self.config.warmup_ratio >= 0, f"`warmup_ratio` must be between 0 and 1, but got {self.config.warmup_ratio}"
                     warmupSteps = int(self.config.warmup_ratio * totalSteps)
                     scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
                 else:
@@ -278,17 +279,17 @@ class Trainer:
                 if self.config.test_in_epoch and curStepInEpoch == stepsPerEpoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
-                    log_dict = dict()
-                    log_dict[Split.VALIDATION.name] = dict(val_metricdict)
-                    if test_metricdict is not None:
-                        log_dict[Split.TEST.name] = dict(test_metricdict)
-                    if self.config.dashboard == "wandb":
-                        wandb.run.log(log_dict, step=curStepInGlobal)
-                    elif self.config.dashboard == "tensorboard":
-                        for split, metricdict in log_dict.items():
-                            for metric, value in metricdict.items():
-                                self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
                     if local_rank == 0:
+                        log_dict = dict()
+                        log_dict[Split.VALIDATION.name] = dict(val_metricdict)
+                        if test_metricdict is not None:
+                            log_dict[Split.TEST.name] = dict(test_metricdict)
+                        if self.config.dashboard == "wandb":
+                            wandb.run.log(log_dict, step=curStepInGlobal)
+                        elif self.config.dashboard == "tensorboard":
+                            for split, metricdict in log_dict.items():
+                                for metric, value in metricdict.items():
+                                    self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
                         watch_dog(
                             val_metricdict=val_metricdict,
                             test_metricdict=test_metricdict,
@@ -303,17 +304,17 @@ class Trainer:
             # * Evaluate after each epoch
             val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
             test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
-            log_dict = dict()
-            log_dict[Split.VALIDATION.name] = dict(val_metricdict)
-            if test_metricdict is not None:
-                log_dict[Split.TEST.name] = dict(test_metricdict)
-            if self.config.dashboard == "wandb":
-                wandb.run.log(log_dict, step=curStepInGlobal)
-            elif self.config.dashboard == "tensorboard":
-                for split, metricdict in log_dict.items():
-                    for metric, value in metricdict.items():
-                        self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
             if local_rank == 0:
+                log_dict = dict()
+                log_dict[Split.VALIDATION.name] = dict(val_metricdict)
+                if test_metricdict is not None:
+                    log_dict[Split.TEST.name] = dict(test_metricdict)
+                if self.config.dashboard == "wandb":
+                    wandb.run.log(log_dict, step=curStepInGlobal)
+                elif self.config.dashboard == "tensorboard":
+                    for split, metricdict in log_dict.items():
+                        for metric, value in metricdict.items():
+                            self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
                 watch_dog(
                     val_metricdict=val_metricdict,
                     test_metricdict=test_metricdict,
@@ -458,7 +459,7 @@ class Trainer:
 
             all_labels = sum(labels_gather_list, [])
             all_logits = sum(logits_gather_list, [])
-            mean_loss = (all_losses / world_size).item()
+            mean_loss = (mean_loss / world_size).item()
         else:
             mean_loss = sum(all_losses) / len(all_losses)
 
