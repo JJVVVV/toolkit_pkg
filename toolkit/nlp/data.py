@@ -72,11 +72,21 @@ class FinelyControlledText:
         yield from self.texts
 
 
+class ClassificationLabel(list):
+    def __init__(self, *values: int):
+        super().__init__(values)
+
+
+class RegressionLabel(list):
+    def __init__(self, *values: float):
+        super().__init__(values)
+
+
 class TextDataset(Dataset):
     """
     A demo of get_data_from_file:
     ```
-    from toolkit.nlp.data import PairedText, FinelyControlledText
+    from toolkit.nlp.data import PairedText, FinelyControlledText, ClassificationLabel, RegressionLabel
     def load_data_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
         special_tokens_map = tokenizer.special_tokens_map
         BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
@@ -115,10 +125,13 @@ class TextDataset(Dataset):
             a_sample = FinelyControlledText((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
 
 
-            a_label = [dict_obj["label"]] # List[int]
-            a_label = dict_obj["question1"] # str
-            a_label = PairedText(dict_obj["question1"]) # paired text
-            a_label = FinelyControlledText((False, CLS), (True, dict_obj["question1"])) # finely controlled text
+            a_label = [dict_obj["label"]]  # List[int]
+            a_label = ClassificationLabel(dict_obj["label"])  # ClassificationLabel
+            a_label = [dict_obj["label"]]  # List[float]
+            a_label = RegressionLabel(dict_obj["label"])  # RegressionLabel
+            a_label = dict_obj["question1"]  # str
+            a_label = PairedText(dict_obj["question1"])  # paired text
+            a_label = FinelyControlledText((False, CLS), (True, dict_obj["question1"]))  # finely controlled text
 
 
             inputs.append(a_sample)
@@ -240,13 +253,13 @@ class TextDataset(Dataset):
         ):  # if the label type is `List[str]` or `str`
             self.tokens_labels = self.splited_texts_label
             self.max_length_label = -1
-        elif isinstance(self.splited_texts_label[0], list) and isinstance(
-            self.splited_texts_label[0][0], int
+        elif (isinstance(self.splited_texts_label[0], list) and isinstance(self.splited_texts_label[0][0], int)) or isinstance(
+            self.splited_texts_label[0], ClassificationLabel
         ):  # if the label type is `ClassificationID`, i.e. `List[int]`
             self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.long)
             self.max_length_label = self.tokens_labels.shape[-1]
-        elif isinstance(self.splited_texts_label[0], list) and isinstance(
-            self.splited_texts_label[0][0], float
+        elif (isinstance(self.splited_texts_label[0], list) and isinstance(self.splited_texts_label[0][0], float)) or isinstance(
+            self.splited_texts_label[0], RegressionLabel
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
             self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.float32)
             self.max_length_label = self.tokens_labels.shape[-1]
