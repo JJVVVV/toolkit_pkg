@@ -503,7 +503,7 @@ class TextDataset(Dataset):
         cache_path = cache_path.with_suffix(".pkl")
         return cache_path
 
-    def cache(self, origin_data_path: Path, tokenizer_name_or_path: str):
+    def cache(self, origin_data_path: Path, tokenizer_name_or_path: str = "unknown_tokenizer"):
         "Cache tokenized dataset."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
@@ -516,7 +516,7 @@ class TextDataset(Dataset):
             logger.debug("✔️  Cache successfully.")
 
     @classmethod
-    def from_cache(cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_name_or_path: str) -> Self | None:
+    def from_cache(cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_name_or_path: str = "unknown_tokenizer") -> Self | None:
         "Try to load dataset from cache. If there if no cache, `None` will be returned."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
