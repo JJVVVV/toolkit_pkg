@@ -25,7 +25,9 @@ def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generat
     yield batch_in_accumulate
 
 
-def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **dataloader_kwargs) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
+def get_dataloader(
+    dataset: Dataset, configs: TrainConfig, split: Split, shuffle=None, **dataloader_kwargs
+) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
     """Getting the dataloader when using multiple GPUs, which is also compatible with a single GPU"""
     local_rank = dist.get_rank() if dist.is_initialized() else 0
     world_size = dist.get_world_size() if dist.is_initialized() else 1
@@ -43,7 +45,7 @@ def get_dataloader(dataset: Dataset, configs: TrainConfig, split: Split, **datal
         dataloader = DataLoader(
             dataset=dataset,
             batch_size=batch_size_per_prog[local_rank] // configs.accumulate_step,
-            shuffle=(sampler is None),
+            shuffle=(sampler is None) if shuffle is None else shuffle,
             pin_memory=True,
             #   worker_init_fn=seed_worker,
             generator=g,

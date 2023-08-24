@@ -136,7 +136,9 @@ class Trainer:
 
         # * Load training data, development data and test data
         # TODO: 通用性: collate_fn 并不一定需要
-        dataloader_train, sampler = get_dataloader(self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn)
+        dataloader_train, sampler = get_dataloader(
+            self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
+        )
 
         # * Define training parameters
         stepsPerEpoch = ceil(len(dataloader_train) / self.config.accumulate_step)
@@ -214,11 +216,11 @@ class Trainer:
                 unit="batch",
                 smoothing=0.8,
             ):
-                # if curStepInEpoch < 3:
-                #     if batch_in_accumulate[0]["input_ids"][0][0].numel() == 1:
-                #         logger.debug(f'\n{tokenizer.decode(batch_in_accumulate[0]["input_ids"][0], skip_special_tokens=False)}\n')
-                #     else:
-                #         logger.debug(f'\n{tokenizer.decode(batch_in_accumulate[0]["input_ids"][0][0], skip_special_tokens=False)}\n')
+                if curStepInEpoch < 3:
+                    if batch_in_accumulate[0]["input_ids"][0][0].numel() == 1:
+                        logger.debug(f'\n{self.tokenizer.batch_decode(batch_in_accumulate[0]["input_ids"], skip_special_tokens=True)}\n')
+                    else:
+                        logger.debug(f'\n{self.tokenizer.decode(batch_in_accumulate[0]["input_ids"][0], skip_special_tokens=True)}\n')
 
                 accumulate_loss = 0
                 for batch in batch_in_accumulate:

@@ -42,6 +42,7 @@ class TrainConfig(ConfigBase):
         dashboard: str | None = None,
         save_all_ckpts: bool = False,
         run_dir: Path | str | None = None,
+        shuffle: bool | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -81,6 +82,7 @@ class TrainConfig(ConfigBase):
             self.continue_train_more_patience = continue_train_more_patience
         self.test_in_epoch = test_in_epoch
         self.save_all_ckpts = save_all_ckpts
+        self.shuffle = shuffle
 
         # optimization hyperparameter
         self.epochs = epochs

@@ -78,10 +78,11 @@ class LineChart(ChartBase):
         self,
         x: List[List[List[Data]]],
         y: List[List[List[Data]]],
-        xlabel: str,
-        ylabel: str,
         line_label: List[List[List[str]]],
+        xlabel: str = "x",
+        ylabel: str = "y",
         colors: List[str] | None = None,
+        no_dot: bool = True,
     ) -> None:
         x = np.array(x)
         y = np.array(y)
@@ -98,10 +99,16 @@ class LineChart(ChartBase):
             for j in range(self.ncols):
                 ax = self.axes[i][j]
                 for k in range(lines_pre_ax):
-                    if self.nrows == 1 and self.ncols == 1:
-                        ax.plot(x[k], y[k], DOT_LINE_STYLE[k], color=colors[k], label=line_label[k])
-                    else:
-                        ax.plot(x[i][j][k], y[i][j][k], DOT_LINE_STYLE[k], color=colors[k], label=line_label[i][j][k])
+                    # if self.nrows == 1 and self.ncols == 1:
+                    #     ax.plot(x[k], y[k], DOT_LINE_STYLE[k], color=colors[k], label=line_label[k])
+                    # else:
+                    ax.plot(
+                        x[i][j][k],
+                        y[i][j][k],
+                        list(LINE_STYLE.keys())[k] if no_dot else DOT_LINE_STYLE[k],
+                        color=colors[k],
+                        label=line_label[i][j][k].item(),
+                    )
                     # ax.axhline(y=81.875, linestyle="--", color="red", label="ChatGPT Zeroshot")
 
                 ax.set_xlabel(xlabel)

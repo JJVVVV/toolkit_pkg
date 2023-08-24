@@ -137,7 +137,7 @@ class TextDataset(Dataset):
             inputs.append(a_sample)
             labels.append(a_label)
 
-        return inputs, labels
+        return inputs, labels, {label2: [...]}
     ```
     """
 
