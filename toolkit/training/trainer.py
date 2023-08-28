@@ -216,11 +216,11 @@ class Trainer:
                 unit="batch",
                 smoothing=0.8,
             ):
-                if curStepInEpoch < 3:
-                    if batch_in_accumulate[0]["input_ids"][0][0].numel() == 1:
-                        logger.debug(f'\n{self.tokenizer.batch_decode(batch_in_accumulate[0]["input_ids"], skip_special_tokens=True)}\n')
-                    else:
-                        logger.debug(f'\n{self.tokenizer.decode(batch_in_accumulate[0]["input_ids"][0], skip_special_tokens=True)}\n')
+                # if curStepInEpoch < 3:
+                #     if batch_in_accumulate[0]["input_ids"][0][0].numel() == 1:
+                #         logger.debug(f'\n{self.tokenizer.batch_decode(batch_in_accumulate[0]["input_ids"], skip_special_tokens=True)}\n')
+                #     else:
+                #         logger.debug(f'\n{self.tokenizer.decode(batch_in_accumulate[0]["input_ids"][0], skip_special_tokens=True)}\n')
 
                 accumulate_loss = 0
                 for batch in batch_in_accumulate:
