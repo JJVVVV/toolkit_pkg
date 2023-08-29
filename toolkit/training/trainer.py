@@ -211,7 +211,7 @@ class Trainer:
             for curStepInEpoch, batch_in_accumulate in tqdm(
                 enumerate(gradient_accumulate(dataloader_train, self.config.accumulate_step)),
                 total=stepsPerEpoch,
-                desc=f"{'training epoch':16}{epoch:#03d}",
+                desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
                 unit="batch",
                 smoothing=0.8,
