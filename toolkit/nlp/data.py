@@ -450,7 +450,7 @@ class TextDataset(Dataset):
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
-        use_cache: bool = True,
+        use_cache: bool | None = None,
         **kwargs_load_data,
     ) -> Self:
         """Load dataset from file with the given `NLPTrainingConfig`."""
@@ -466,6 +466,8 @@ class TextDataset(Dataset):
         start = time.time()
         if local_rank == 0:
             logger.debug(f"⏳ Loading {split.name} dataset ...")
+        if use_cache is None:  # use_cache will cover the config.cache_dataset
+            use_cache = configs.cache_dataset
         if use_cache:
             dataset = cls.from_cache(data_file_path, tokenizer.name_or_path)
         else:

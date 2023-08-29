@@ -43,6 +43,7 @@ class TrainConfig(ConfigBase):
         save_all_ckpts: bool = False,
         run_dir: Path | str | None = None,
         shuffle: bool | None = None,
+        cache_dataset: bool | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -83,6 +84,7 @@ class TrainConfig(ConfigBase):
         self.test_in_epoch = test_in_epoch
         self.save_all_ckpts = save_all_ckpts
         self.shuffle = shuffle
+        self.cache_dataset = cache_dataset
 
         # optimization hyperparameter
         self.epochs = epochs
