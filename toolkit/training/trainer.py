@@ -427,8 +427,9 @@ class Trainer:
                 for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     with torch.no_grad():
                         labels = batch.pop("labels")
+                        custom_inputs = batch.pop("custom_inputs", dict())
                         batch = {key: value.cuda() for key, value in batch.items()}
-                        outputs = self.model.generate(**batch, **self.config.generate_kwargs)
+                        outputs = self.model.generate(**batch, **custom_inputs, **self.config.generate_kwargs)
                         texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                         all_losses.append(-1)
                         all_labels.extend(labels)
@@ -436,9 +437,10 @@ class Trainer:
             case "classify" | "regress":
                 for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     with torch.no_grad():
+                        custom_inputs = batch.pop("custom_inputs", dict())
                         batch = {key: value.cuda() for key, value in batch.items()}
                         labels = batch["labels"]
-                        outputs = self.model(**batch)
+                        outputs = self.model(**batch, **custom_inputs)
                         loss, logits = outputs["loss"], outputs["logits"]
                         all_losses.append(loss.item())
                         all_labels.extend(labels.numpy(force=True).tolist())
