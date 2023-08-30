@@ -1,6 +1,7 @@
 import pickle
 import time
 from collections import defaultdict
+from enum import Enum
 from pathlib import Path
 from types import NoneType
 from typing import Any, Callable, Dict, Iterable, List, Self, Tuple
@@ -469,7 +470,7 @@ class TextDataset(Dataset):
         if use_cache is None:  # use_cache will cover the config.cache_dataset
             use_cache = configs.cache_dataset
         if use_cache:
-            dataset = cls.from_cache(data_file_path, tokenizer.name_or_path)
+            dataset = cls.from_cache(data_file_path, tokenizer.name_or_path, **kwargs_load_data)
         else:
             dataset = None
         if dataset is None:
@@ -485,7 +486,7 @@ class TextDataset(Dataset):
                 **kwargs_load_data,
             )
             if use_cache:
-                dataset.cache(data_file_path, tokenizer.name_or_path)
+                dataset.cache(data_file_path, tokenizer.name_or_path, **kwargs_load_data)
 
         end = time.time()
         if local_rank == 0:
@@ -494,23 +495,29 @@ class TextDataset(Dataset):
         return dataset
 
     @staticmethod
-    def cache_path(origin_data_path: Path, tokenizer_name_or_path: str) -> Path:
+    def cache_path(origin_data_path: Path, tokenizer_name_or_path: str, **kwargs_load_data) -> Path:
         "Convert the original data file path to a path where dataset will be cached in."
         absolute_path = origin_data_path.resolve()
+        resolved_kwargs_list = []
+        for key, value in kwargs_load_data.items():
+            if issubclass(value.__class__, Enum):
+                value = value.name
+            resolved_kwargs_list.append(f"{key}={value}")
         cache_path = Path(
             CACHE_DIR,
             tokenizer_name_or_path[1:] if str(tokenizer_name_or_path).startswith("/") else tokenizer_name_or_path,
+            "/".join(resolved_kwargs_list),
             str(absolute_path)[1:] if str(absolute_path).startswith("/") else str(absolute_path),
         )
         cache_path = cache_path.with_suffix(".pkl")
         return cache_path
 
-    def cache(self, origin_data_path: Path, tokenizer_name_or_path: str = "unknown_tokenizer"):
+    def cache(self, origin_data_path: Path, tokenizer_name_or_path: str = "unknown_tokenizer", **kwargs_load_data):
         "Cache tokenized dataset."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"💿 Caching dataset from {origin_data_path} ...")
-            cache_path = self.cache_path(origin_data_path, tokenizer_name_or_path)
+            cache_path = self.cache_path(origin_data_path, tokenizer_name_or_path, **kwargs_load_data)
             logger.debug(f"❔ Cache file will be saved in {cache_path}")
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             with cache_path.open("wb") as f:
@@ -518,7 +525,9 @@ class TextDataset(Dataset):
             logger.debug("✔️  Cache successfully.")
 
     @classmethod
-    def from_cache(cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_name_or_path: str = "unknown_tokenizer") -> Self | None:
+    def from_cache(
+        cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_name_or_path: str = "unknown_tokenizer", **kwargs_load_data
+    ) -> Self | None:
         "Try to load dataset from cache. If there if no cache, `None` will be returned."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
@@ -529,7 +538,7 @@ class TextDataset(Dataset):
             logger.warning("You are loading data from a `.pkl` file, the file will be considered as a dataset cache file.")
             logger.warning("If you are sure that the file is a raw data file, rename it to a non-PKL suffix.")
         else:
-            cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path, tokenizer_name_or_path)
+            cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path, tokenizer_name_or_path, **kwargs_load_data)
         try:
             with cached_dataset_path.open("rb") as f:
                 dataset = pickle.load(f)
