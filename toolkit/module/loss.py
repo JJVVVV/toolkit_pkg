@@ -9,6 +9,22 @@ class ContrastLoss(torch.nn.Module):
         self.temperature = temperature
 
 
+# Implementation according to https://spaces.ac.cn/archives/8847
+class CoSentLoss(ContrastLoss):
+    def __init__(self, temperature: float = 0.05):
+        super().__init__(temperature)
+
+    def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor, text_neg_embeddings: torch.Tensor) -> torch.Tensor:
+        sim_pos_vector = torch.cosine_similarity(text_embeddings, text_pos_embeddings, dim=-1) / self.temperature
+        sim_neg_vector = torch.cosine_similarity(text_embeddings, text_neg_embeddings, dim=-1) / self.temperature
+        sim_matrix_diff = sim_neg_vector[:, None] - sim_pos_vector[None, :]
+        # loss = torch.logsumexp(sim_matrix_diff, dim=1).mean()
+        loss = torch.logsumexp(sim_matrix_diff)
+
+        return loss
+
+
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegCoSentLoss(ContrastLoss):
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor) -> torch.Tensor:
         sim_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_pos_embeddings.unsqueeze(0), dim=-1)
@@ -19,6 +35,7 @@ class PairInBatchNegCoSentLoss(ContrastLoss):
         return loss
 
 
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class TripletInBatchNegCoSentLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05, add_swap_loss: bool = False):
         super().__init__(temperature)
@@ -40,6 +57,7 @@ class TripletInBatchNegCoSentLoss(ContrastLoss):
         return loss
 
 
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegSigmoidContrastLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05):
         super().__init__()
@@ -59,6 +77,7 @@ class PairInBatchNegSigmoidContrastLoss(ContrastLoss):
         return loss
 
 
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class TripletInBatchNegSigmoidContrastLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05, add_swap_loss: bool = False):
         super().__init__(temperature)
@@ -82,6 +101,9 @@ class TripletInBatchNegSigmoidContrastLoss(ContrastLoss):
 
 # --------------------------------------------------------------------------------------------------------------
 # 以下没看懂
+
+
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05):
         super().__init__()
@@ -96,6 +118,7 @@ class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
         return loss
 
 
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05, add_swap_loss: bool = False):
         super().__init__(temperature)
