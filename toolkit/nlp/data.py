@@ -104,6 +104,7 @@ class TextDataset(Dataset):
 
         inputs = []
         labels = []
+        customs = []
         for dict_obj in dict_objs:
             # Single
             a_sample = (dict_obj["question1"], None)
@@ -125,7 +126,7 @@ class TextDataset(Dataset):
             a_sample = ((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
             a_sample = FinelyControlledText((False, CLS), (True, dict_obj["question1"]), (False, SEP), (True, dict_obj["question2"]), (False, SEP))
 
-
+            # label
             a_label = [dict_obj["label"]]  # List[int]
             a_label = ClassificationLabel(dict_obj["label"])  # ClassificationLabel
             a_label = [dict_obj["label"]]  # List[float]
@@ -134,9 +135,15 @@ class TextDataset(Dataset):
             a_label = PairedText(dict_obj["question1"])  # paired text
             a_label = FinelyControlledText((False, CLS), (True, dict_obj["question1"]))  # finely controlled text
 
+            # custom
+            a_custom_dict = {}
+            a_custom_dict[additional_input1] = XXX
+            a_custom_dict[additional_input2] = XXX
+
 
             inputs.append(a_sample)
             labels.append(a_label)
+            customs.append(a_cumstom_dict)
 
         return inputs, labels, {label2: [...]}
     ```
