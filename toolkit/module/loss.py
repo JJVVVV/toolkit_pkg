@@ -140,6 +140,7 @@ class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
         return loss
 
 
+# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class CoSentLoss(ContrastLoss):
     bias: torch.Tensor
 
