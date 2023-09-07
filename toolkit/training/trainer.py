@@ -52,6 +52,8 @@ class Trainer:
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
         project_name: str = "untitled",
+        extral_args_training: dict = dict(),
+        extral_args_evaluation: dict = dict(),
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
@@ -121,6 +123,8 @@ class Trainer:
                     assert self.dashboard_writer is wandb.run
         else:
             self.dashboard_writer = None
+        self.extral_args_training = extral_args_training
+        self.extral_args_evaluation = extral_args_evaluation
 
     def __del__(self):
         if hasattr(self, "dashboard_writer") and self.dashboard_writer is not None:
@@ -230,13 +234,13 @@ class Trainer:
                     if self.config.fp16:
                         # forward
                         with autocast(device_type="cuda", dtype=torch.float16):
-                            outputs = self.model(**batch, **custom_inputs)
+                            outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                             loss = outputs["loss"] / self.config.accumulate_step
                         # backward
                         self.scaler.scale(loss).backward()
                     else:
                         # forward
-                        outputs = self.model(**batch, **custom_inputs)
+                        outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                         loss = outputs["loss"] / self.config.accumulate_step
                         # backward
                         loss.backward()
@@ -429,7 +433,7 @@ class Trainer:
                         labels = batch.pop("labels")
                         custom_inputs = batch.pop("custom_inputs", dict())
                         batch = {key: value.cuda() for key, value in batch.items()}
-                        outputs = self.model.generate(**batch, **custom_inputs, **self.config.generate_kwargs)
+                        outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
                         texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                         all_losses.append(-1)
                         all_labels.extend(labels)
@@ -440,7 +444,7 @@ class Trainer:
                         custom_inputs = batch.pop("custom_inputs", dict())
                         batch = {key: value.cuda() for key, value in batch.items()}
                         labels = batch["labels"]
-                        outputs = self.model(**batch, **custom_inputs)
+                        outputs = self.model(**batch, **custom_inputs, **self.extral_args_evaluation)
                         loss, logits = outputs["loss"], outputs["logits"]
                         all_losses.append(loss.item())
                         all_labels.extend(labels.numpy(force=True).tolist())
