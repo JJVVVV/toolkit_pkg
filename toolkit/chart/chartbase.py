@@ -47,8 +47,12 @@ class ChartBase:
         self.nrows = nrows
         self.ncols = ncols
         self.fig, self.axes = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize, dpi=dpi)
+
         if nrows == 1 and ncols == 1:
             self.axes = np.array([[self.axes]])
+
+    def __getattr__(self, name):
+        return getattr(self.fig, name)
 
     def draw(self) -> None:
         raise NotImplementedError("`draw` function must be implimented in subclass.")
