@@ -52,8 +52,8 @@ class Trainer:
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
         dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
         project_name: str = "untitled",
-        extral_args_training: dict = dict(),
-        extral_args_evaluation: dict = dict(),
+        extral_args_training: dict | None = None,
+        extral_args_evaluation: dict | None = None,
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
@@ -73,6 +73,8 @@ class Trainer:
         if task_type not in allowed_task_type:
             raise ValueError(f"The parameter `task_type` was not understood: received `{task_type}` " f"but only {allowed_task_type} are valid.")
         self.task_type = task_type
+        self.extral_args_training = extral_args_training if extral_args_training is not None else dict()
+        self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
         if evaluate_only:
             return
 
@@ -123,8 +125,6 @@ class Trainer:
                     assert self.dashboard_writer is wandb.run
         else:
             self.dashboard_writer = None
-        self.extral_args_training = extral_args_training
-        self.extral_args_evaluation = extral_args_evaluation
 
     def __del__(self):
         if hasattr(self, "dashboard_writer") and self.dashboard_writer is not None:
