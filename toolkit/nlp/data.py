@@ -87,7 +87,13 @@ class TextDataset(Dataset):
     """
     A demo of get_data_from_file:
     ```
-    from toolkit.nlp.data import PairedText, FinelyControlledText, ClassificationLabel, RegressionLabel
+    from pathlib import Path
+
+    from toolkit.enums import Split
+    from toolkit.nlp.data import ClassificationLabel, FinelyControlledText, PairedText, RegressionLabel
+    from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
+
+
     def load_data_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
         special_tokens_map = tokenizer.special_tokens_map
         BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
@@ -140,12 +146,12 @@ class TextDataset(Dataset):
             a_custom_dict[additional_input1] = XXX
             a_custom_dict[additional_input2] = XXX
 
-
             inputs.append(a_sample)
             labels.append(a_label)
             customs.append(a_cumstom_dict)
 
         return inputs, labels, {label2: [...]}
+
     ```
     """
 
@@ -165,6 +171,7 @@ class TextDataset(Dataset):
         **kwargs_load_data,
     ) -> None:
         super().__init__()
+        logger.info(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
         self.split = split
@@ -397,6 +404,7 @@ class TextDataset(Dataset):
     def transformers_tokenizer_tqdm(
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
     ) -> BatchModelInput:
+        # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad
         # print(text_pairs)
         batch_model_input = defaultdict(list)
         # longest = 0

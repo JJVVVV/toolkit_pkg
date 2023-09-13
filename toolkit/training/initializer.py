@@ -52,6 +52,10 @@ def setup_parallel() -> Tuple[int, int]:
     return local_rank, world_size
 
 
+def specify_cuda():
+    torch.cuda.set_device(0)
+
+
 # torch申请显存
 def check_mem(cuda_device_id: int) -> Tuple[int, int]:
     """Get total and used memory (unit: `MB`) of GPU with the corresponding ID."""

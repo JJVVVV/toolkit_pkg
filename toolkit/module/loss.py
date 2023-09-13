@@ -24,6 +24,21 @@ class CoSentLoss(ContrastLoss):
         return loss
 
 
+class CoSentLoss_logits(ContrastLoss):
+    def __init__(self, temperature: float = 0.05):
+        super().__init__(temperature)
+
+    def forward(self, pos_pair_logits: torch.Tensor, neg_pair_logits: torch.Tensor) -> torch.Tensor:
+        pos_pair_score = torch.sigmoid(pos_pair_logits) / self.temperature  # (b, 1)
+        neg_pair_score = torch.sigmoid(neg_pair_logits) / self.temperature  # (b, n_neg)
+
+        sim_matrix_diff = neg_pair_score[None, :] - pos_pair_score[:, None]  # (b, b, n_neg)
+        loss = torch.logsumexp(sim_matrix_diff, dim=-1).mean()
+        # loss = torch.logsumexp(sim_matrix_diff)
+
+        return loss
+
+
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegCoSentLoss(ContrastLoss):
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor) -> torch.Tensor:
