@@ -22,6 +22,7 @@ from ..nlp.config import NLPTrainingConfig
 from .checkpoint_manager import CheckpointManager
 from .components import Optimizer, Scaler, Scheduler, set_weight_decay
 from .dataloader import get_dataloader, gradient_accumulate
+from .evaluater import Evaluater
 from .watchdog import WatchDog
 
 logger = _getLogger("Trainer")
@@ -63,12 +64,21 @@ class Trainer:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.config = config
-        # TODO: model to cuda
         self.model = model
         self.tokenizer = tokenizer
         self.dataset_train = dataset_train
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
+        self.evaluater_val = (
+            Evaluater(task_type, config, model, tokenizer, dataset_val, calculate_metric_callback, extral_args_evaluation)
+            if dataset_val is not None
+            else None
+        )
+        self.evaluater_test = (
+            Evaluater(task_type, config, model, tokenizer, dataset_test, calculate_metric_callback, extral_args_evaluation)
+            if dataset_test is not None
+            else None
+        )
         self.calculate_metric_callback = calculate_metric_callback
         if task_type not in allowed_task_type:
             raise ValueError(f"The parameter `task_type` was not understood: received `{task_type}` " f"but only {allowed_task_type} are valid.")
@@ -137,6 +147,9 @@ class Trainer:
     def train(self) -> None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
+        # # * Initalize seed
+        if self.config.gpu:
+            self.model.cuda()
 
         # * Load training data, development data and test data
         # TODO: 通用性: collate_fn 并不一定需要
@@ -230,7 +243,8 @@ class Trainer:
                 for batch in batch_in_accumulate:
                     # copy batch to GPU memory
                     custom_inputs = batch.pop("custom_inputs", dict())
-                    batch = {key: value.cuda() for key, value in batch.items()}
+                    if self.config.gpu:
+                        batch = {key: value.cuda() for key, value in batch.items()}
                     # import pdb; pdb.set_trace()
                     if self.config.fp16:
                         # forward
@@ -389,17 +403,15 @@ class Trainer:
         # if (split == Split.TEST and self.dataset_test is None) or (split == Split.VALIDATION and self.dataset_val is None):
         #     return None
         if split == Split.TEST and self.dataset_test is not None:
-            if not hasattr(self, "dataloader_test"):
-                self.dataloader_test = get_dataloader(self.dataset_test, self.config, Split.TEST, collate_fn=self.dataset_test.collate_fn)
+            evaluater = self.evaluater_test
         elif split == Split.VALIDATION and self.dataset_val is not None:
-            if not hasattr(self, "dataloader_val"):
-                self.dataloader_val = get_dataloader(self.dataset_val, self.config, Split.VALIDATION, collate_fn=self.dataset_val.collate_fn)
+            evaluater = self.evaluater_val
         else:
             return None
         logger.debug("")
         logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
         logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
-        return self.evaluate(split)
+        return evaluater.eval(split)
 
     def evaluate(self, split: Split, cuda_id=None) -> MetricDict | None:
         local_rank = dist.get_rank() if dist.is_initialized() else 0

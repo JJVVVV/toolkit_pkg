@@ -37,6 +37,7 @@ class NLPTrainingConfig(TrainConfig):
         run_dir: Path | str | None = None,
         shuffle: bool | None = None,
         cache_dataset: bool = True,
+        gpu: bool = True,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         max_length: int = 20,
@@ -84,6 +85,7 @@ class NLPTrainingConfig(TrainConfig):
             run_dir,
             shuffle,
             cache_dataset,
+            gpu,
             **kwargs,
         )
         self.padding_side = padding_side
