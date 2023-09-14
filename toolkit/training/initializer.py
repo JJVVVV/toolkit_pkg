@@ -8,6 +8,7 @@ import torch
 import torch.distributed as dist
 
 from .. import toolkit_logger
+from ..config.trainconfig import TrainConfig
 
 # from ..logger import _getLogger
 
@@ -52,7 +53,7 @@ def setup_parallel() -> Tuple[int, int]:
     return local_rank, world_size
 
 
-def specify_cuda():
+def setup_single_gpu():
     torch.cuda.set_device(0)
 
 
@@ -76,3 +77,15 @@ def allocate_gpu_memory(ratio=0.8) -> None:
     block_mem = int((int(total) - int(used)) * ratio)
     x = torch.cuda.FloatTensor(256, 1024, block_mem)
     del x
+
+
+def initialize(config: TrainConfig):
+    setup_seed(config.seed)
+    cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+    cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
+    if len(cuda_device_ids) > 1:
+        local_rank, world_size = setup_parallel()
+    else:
+        setup_single_gpu()
+        local_rank, world_size = 0, 1
+    return local_rank, world_size
