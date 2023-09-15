@@ -269,7 +269,7 @@ class WatchDog:
 
     @classmethod
     def metric_dicts_from_diff_seeds(
-        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME
+        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False
     ) -> Tuple[List[MetricDict], List[MetricDict], List[MetricDict]]:
         """
         Get a list of validation metricdicts, test metricdicts and cheat test metricdicts from different seed.
@@ -292,5 +292,6 @@ class WatchDog:
             else:
                 logger.debug(f"❌ Failed: {seed_dir}")
         # print("xxxxxxx")
-        logger.info(f"success/total: {success}/{len(seed_dirs)}")
+        if not silence:
+            logger.info(f"success/total: {success}/{len(seed_dirs)}")
         return dev_metrics_dicts, test_metrics_dicts, cheat_metrics_dicts
