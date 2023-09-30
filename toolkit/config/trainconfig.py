@@ -16,12 +16,12 @@ class TrainConfig(ConfigBase):
         dataset_name: str = "",
         metric: str = "Loss",
         epochs: int = 3,
-        batch_size: int = 16,
+        train_batch_size: int = 16,
         optimizer: str | None = None,
         lr_scheduler: str | None = None,
         learning_rate: float = 1e-3,
         save_dir: Path | str | None = None,
-        batch_size_infer: int = None,
+        infer_batch_size: int = None,
         train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
@@ -34,9 +34,10 @@ class TrainConfig(ConfigBase):
         patience: int = -1,
         continue_train_more_patience: bool = False,
         test_in_epoch: bool = False,
+        eval_step: int = 500,
         weight_decay: float = 0.01,
         epsilon: float = 1e-8,
-        accumulate_step: int = 1,
+        gradient_accumulation_steps: int = 1,
         warmup_ratio: float = -1,
         fp16: bool = False,
         dashboard: str | None = None,
@@ -45,6 +46,7 @@ class TrainConfig(ConfigBase):
         shuffle: bool | None = None,
         cache_dataset: bool | None = None,
         gpu: bool = True,
+        parallel_mode: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -87,19 +89,24 @@ class TrainConfig(ConfigBase):
         self.shuffle = shuffle
         self.cache_dataset = cache_dataset
         self.gpu = gpu
+        assert parallel_mode in [None, "DDP", "deepspeed"], (
+            f"[parallel_mode] Only `DDP` and `deepspeed` are supported, but got `{parallel_mode}`.\n"
+            "if you do not need parallel, plase set it to `None`."
+        )
+        self.parallel_mode = parallel_mode
 
         # optimization hyperparameter
         self.epochs = epochs
-        self.batch_size = batch_size
+        self.train_batch_size = train_batch_size
         self.learning_rate = learning_rate
         self.weight_decay = weight_decay
         self.epsilon = epsilon
-        self.accumulate_step = accumulate_step
+        self.gradient_accumulation_steps = gradient_accumulation_steps
         self.warmup_ratio = warmup_ratio
         self.fp16 = fp16
 
         # attributes related to validation and test
-        self.batch_size_infer = batch_size_infer if batch_size_infer is not None else batch_size
+        self.batch_size_infer = infer_batch_size if infer_batch_size is not None else train_batch_size
 
         assert dashboard in ["wandb", "tensorboard", None], (
             f"Only `wandb` and `tensorboard` dashboards are supported, but got `{dashboard}`.\n"

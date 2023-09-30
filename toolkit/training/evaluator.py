@@ -12,7 +12,7 @@ from .dataloader import get_dataloader
 logger = _getLogger("Evaluater")
 
 
-class Evaluater:
+class Evaluator:
     """
     `task_type`: "generate", "classify", "regress"\n
     """
