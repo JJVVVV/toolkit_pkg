@@ -164,7 +164,7 @@ class WatchDog:
             logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
         if configs.parallel_mode == "deepspeed":
-            model.save_checkpoint(output_dir, tag='optimal')
+            model.save_checkpoint(output_dir, tag="optimal")
         else:
             model_to_save = model.module if hasattr(model, "module") else model
             model_to_save.save_pretrained(output_dir)
