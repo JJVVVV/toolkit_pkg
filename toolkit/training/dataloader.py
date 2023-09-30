@@ -32,61 +32,76 @@ def get_dataloader(
     local_rank = dist.get_rank() if dist.is_initialized() else 0
     world_size = dist.get_world_size() if dist.is_initialized() else 1
 
-    def split_batch(x, n):
-        quotient, remainder = divmod(x, n)  # 计算每一份的基础值和剩余的单位数
-        return [(quotient + 1 if i < remainder else quotient) for i in range(n)]
-
-    batch_size_per_prog = split_batch(configs.train_batch_size, world_size)
-
-    if split == Split.TRAINING:
-        sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=configs.seed) if world_size != 1 else None
+    if configs.parallel_mode == "deepspeed":
         g = torch.Generator()
         g.manual_seed(configs.seed)
         dataloader = DataLoader(
             dataset=dataset,
-            batch_size=batch_size_per_prog[local_rank] // configs.gradient_accumulation_steps,
-            shuffle=(sampler is None) if shuffle is None else shuffle,
+            batch_size=configs.train_batch_size,
+            shuffle=(split == Split.TRAINING) if shuffle is None else shuffle,
             pin_memory=True,
             #   worker_init_fn=seed_worker,
             generator=g,
-            sampler=sampler,
             **dataloader_kwargs,
         )
-    else:
-        sampler = DistributedSampler(dataset, shuffle=False, drop_last=True) if world_size != 1 else None
-        dataloader = DataLoader(
-            dataset=dataset,
-            batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
-            shuffle=False,
-            pin_memory=True,
-            sampler=sampler,
-            **dataloader_kwargs,
-        )
-    # logger.debug(f'\n{tokenizer.decode(dataset.tokenized_dict["input_ids"][0][0], skip_special_tokens=False)}\n')
+        return (dataloader, None) if split == Split.TRAINING else dataloader
+    elif configs.parallel_mode == "DDP":
 
-    # * If there is a tail in development dataset, concatenate it. (Max length of tail: world_size.)
-    if local_rank == 0 and not split == Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
-        dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
-        dataloader_tail = DataLoader(
-            dataset=dataset_tail,
-            batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
-            shuffle=False,
-            **dataloader_kwargs,
-        )
-        logger.debug(f"Tail batch num: {len(dataloader_tail)}")
-        dataloader = DataLoader(
-            list(itertools.chain(dataloader, dataloader_tail)), batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True
-        )
+        def split_batch(x, n):
+            quotient, remainder = divmod(x, n)  # 计算每一份的基础值和剩余的单位数
+            return [(quotient + 1 if i < remainder else quotient) for i in range(n)]
 
-    # * warning about accumulate
-    if split == split.TRAINING:
-        if (tail_batch_num := len(dataloader) % configs.gradient_accumulation_steps) != 0 and local_rank == 0:
-            logger.warning(
-                (
-                    # "The last batch in training data will be discarded! "
-                    "The last batch in training is Not strictly batch gradient descent! "
-                    "Because gradient accumulation is enabled, and the last few split batches are less than the accumulate step: "
-                    f"{tail_batch_num} < {configs.gradient_accumulation_steps}"
-                )
+        batch_size_per_prog = split_batch(configs.train_batch_size, world_size)
+
+        if split == Split.TRAINING:
+            sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=configs.seed) if world_size != 1 else None
+            g = torch.Generator()
+            g.manual_seed(configs.seed)
+            dataloader = DataLoader(
+                dataset=dataset,
+                batch_size=batch_size_per_prog[local_rank] // configs.gradient_accumulation_steps,
+                shuffle=(sampler is None) if shuffle is None else shuffle,
+                pin_memory=True,
+                #   worker_init_fn=seed_worker,
+                generator=g,
+                sampler=sampler,
+                **dataloader_kwargs,
             )
-    return (dataloader, sampler) if split == Split.TRAINING else dataloader
+        else:
+            sampler = DistributedSampler(dataset, shuffle=False, drop_last=True) if world_size != 1 else None
+            dataloader = DataLoader(
+                dataset=dataset,
+                batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
+                shuffle=False,
+                pin_memory=True,
+                sampler=sampler,
+                **dataloader_kwargs,
+            )
+        # logger.debug(f'\n{tokenizer.decode(dataset.tokenized_dict["input_ids"][0][0], skip_special_tokens=False)}\n')
+
+        # * If there is a tail in development dataset, concatenate it. (Max length of tail: world_size.)
+        if local_rank == 0 and not split == Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
+            dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
+            dataloader_tail = DataLoader(
+                dataset=dataset_tail,
+                batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
+                shuffle=False,
+                **dataloader_kwargs,
+            )
+            logger.debug(f"Tail batch num: {len(dataloader_tail)}")
+            dataloader = DataLoader(
+                list(itertools.chain(dataloader, dataloader_tail)), batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True
+            )
+
+        # * warning about accumulate
+        if split == split.TRAINING:
+            if (tail_batch_num := len(dataloader) % configs.gradient_accumulation_steps) != 0 and local_rank == 0:
+                logger.warning(
+                    (
+                        # "The last batch in training data will be discarded! "
+                        "The last batch in training is Not strictly batch gradient descent! "
+                        "Because gradient accumulation is enabled, and the last few split batches are less than the accumulate step: "
+                        f"{tail_batch_num} < {configs.gradient_accumulation_steps}"
+                    )
+                )
+        return (dataloader, sampler) if split == Split.TRAINING else dataloader
