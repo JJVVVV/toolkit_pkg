@@ -374,7 +374,7 @@ class Trainer:
             # TODO 保存最后 n 个ckpt
             if self.config.parallel_mode == "deepspeed":
                 if epoch < self.config.epochs:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
-                    self.model.save_checkpoint(self.ckpt_manager.latest_dir, ckpt_id=accumulate_loss)
+                    self.model.save_checkpoint(self.ckpt_manager.latest_dir)
                     if local_rank == 0:
                         if self.tokenizer is not None:
                             self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
