@@ -171,7 +171,9 @@ class TextDataset(Dataset):
         **kwargs_load_data,
     ) -> None:
         super().__init__()
-        logger.info(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+        if local_rank == 0:
+            logger.info(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
         self.split = split

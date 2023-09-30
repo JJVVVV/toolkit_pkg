@@ -40,7 +40,7 @@ class ConfigBase:
             except AttributeError as err:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
-
+        # todo 并行时会重复log
         if kwargs:
             logger.info("👻 Custom attributes:")
             for key, value in kwargs.items():
