@@ -22,7 +22,7 @@ from ..nlp.config import NLPTrainingConfig
 from .checkpoint_manager import CheckpointManager
 from .components import Optimizer, Scaler, Scheduler, set_weight_decay
 from .dataloader import get_dataloader, gradient_accumulate
-from .evaluater import Evaluater
+from .evaluator import Evaluator
 from .watchdog import WatchDog
 
 logger = _getLogger("Trainer")
@@ -70,12 +70,12 @@ class Trainer:
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.evaluater_val = (
-            Evaluater(task_type, config, model, tokenizer, dataset_val, calculate_metric_callback, extral_args_evaluation)
+            Evaluator(task_type, config, model, tokenizer, dataset_val, calculate_metric_callback, extral_args_evaluation)
             if dataset_val is not None
             else None
         )
         self.evaluater_test = (
-            Evaluater(task_type, config, model, tokenizer, dataset_test, calculate_metric_callback, extral_args_evaluation)
+            Evaluator(task_type, config, model, tokenizer, dataset_test, calculate_metric_callback, extral_args_evaluation)
             if dataset_test is not None
             else None
         )
@@ -158,7 +158,7 @@ class Trainer:
         )
 
         # * Define training parameters
-        stepsPerEpoch = ceil(len(dataloader_train) / self.config.accumulate_step)
+        stepsPerEpoch = ceil(len(dataloader_train) / self.config.gradient_accumulation_steps)
         totalSteps = stepsPerEpoch * self.config.epochs
 
         # * Initialize optimizer, scheduler, scaler
@@ -206,7 +206,7 @@ class Trainer:
         # * Print some infomation for debug
         if local_rank == 0:
             logger.debug("===== 🔥 Start training 🔥 =====")
-            logger.debug(f"  Batch size = {self.config.batch_size}")
+            logger.debug(f"  Batch size = {self.config.train_batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")
             logger.debug(f"  Total steps = {totalSteps:d}")
@@ -226,7 +226,7 @@ class Trainer:
                 sampler.set_epoch(epoch)
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
-                enumerate(gradient_accumulate(dataloader_train, self.config.accumulate_step)),
+                enumerate(gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)),
                 total=stepsPerEpoch,
                 desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
@@ -246,33 +246,43 @@ class Trainer:
                     if self.config.gpu:
                         batch = {key: value.cuda() for key, value in batch.items()}
                     # import pdb; pdb.set_trace()
-                    if self.config.fp16:
-                        # forward
-                        with autocast(device_type="cuda", dtype=torch.float16):
-                            outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
-                            loss = outputs["loss"] / self.config.accumulate_step
-                        # backward
-                        self.scaler.scale(loss).backward()
-                    else:
+                    if self.config.parallel_mode == "deepspeed":
                         # forward
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
-                        loss = outputs["loss"] / self.config.accumulate_step
+                        loss = outputs["loss"] / self.config.gradient_accumulation_steps
                         # backward
-                        loss.backward()
-                    accumulate_loss += loss.item()
+                        self.model.backward(loss)
+                    else:
+                        if self.config.fp16:
+                            # forward
+                            with autocast(device_type="cuda", dtype=torch.float16):
+                                outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
+                                loss = outputs["loss"] / self.config.gradient_accumulation_steps
+                            # backward
+                            self.scaler.scale(loss).backward()
+                        else:
+                            # forward
+                            outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
+                            loss = outputs["loss"] / self.config.gradient_accumulation_steps
+                            # backward
+                            loss.backward()
+                        accumulate_loss += loss.item()
                 # logger.error(f"loss: {accumulate_loss}")
-                if self.config.fp16:
-                    # update parameters
-                    self.scaler.step(self.optimizer)
-                    self.scaler.update()
+                if self.config.parallel_mode == "deepspeed":
+                    self.model.step()
                 else:
-                    # update parameters
-                    self.optimizer.step()
+                    if self.config.fp16:
+                        # update parameters
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        # update parameters
+                        self.optimizer.step()
 
-                if self.scheduler is not None:
-                    self.scheduler.step()
+                    if self.scheduler is not None:
+                        self.scheduler.step()
 
-                self.optimizer.zero_grad()
+                    self.optimizer.zero_grad()
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
                 if local_rank == 0:
@@ -302,9 +312,13 @@ class Trainer:
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
                     if local_rank == 0:
                         log_dict = dict()
-                        log_dict[Split.VALIDATION.name] = dict(val_metricdict)
+                        if val_metricdict is not None:
+                            log_dict[Split.VALIDATION.name] = dict(val_metricdict)
                         if test_metricdict is not None:
                             log_dict[Split.TEST.name] = dict(test_metricdict)
+                        if len(log_dict) == 0:
+                            log_dict["Training"] = {"cur_step_loss": accumulate_loss}
+                            val_metricdict = MetricDict(Loss=accumulate_loss)
                         if self.config.dashboard == "wandb":
                             wandb.run.log(log_dict, step=curStepInGlobal)
                         elif self.config.dashboard == "tensorboard":
@@ -327,9 +341,13 @@ class Trainer:
             test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
             if local_rank == 0:
                 log_dict = dict()
-                log_dict[Split.VALIDATION.name] = dict(val_metricdict)
+                if val_metricdict is not None:
+                    log_dict[Split.VALIDATION.name] = dict(val_metricdict)
                 if test_metricdict is not None:
                     log_dict[Split.TEST.name] = dict(test_metricdict)
+                if len(log_dict) == 0:
+                    log_dict["Training"] = {"cur_step_loss": accumulate_loss}
+                    val_metricdict = MetricDict(Loss=accumulate_loss)
                 if self.config.dashboard == "wandb":
                     wandb.run.log(log_dict, step=curStepInGlobal)
                 elif self.config.dashboard == "tensorboard":
@@ -348,44 +366,57 @@ class Trainer:
 
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
-            if local_rank == 0:
-                # * Save current checkpoint
-                if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
-                    logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
-                    self.ckpt_manager.latest_dir.mkdir()
-                    logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
+            # TODO 保存最后 n 个ckpt
+            if self.config.parallel_mode == "deepspeed":
+                if epoch < self.config.epochs:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
+                    self.model.save_checkpoint(self.ckpt_manager.latest_dir, ckpt_id=accumulate_loss)
+                    if local_rank == 0:
+                        if self.tokenizer is not None:
+                            self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        logger.debug("✔️  Save model successfully.")
+                        self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                        watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
+                        logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
 
-                    logger.debug("💾 Saving model ...")
-                    model_to_save = self.model.module if hasattr(self.model, "module") else self.model
-                    model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
-                    if self.tokenizer is not None:
-                        self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
-                    logger.debug("✔️  Save model successfully.")
+            else:
+                if local_rank == 0:
+                    # * Save current checkpoint
+                    if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
+                        logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
+                        self.ckpt_manager.latest_dir.mkdir()
+                        logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
-                    self.config.save(self.ckpt_manager.latest_dir, silence=False)
-                    watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
+                        logger.debug("💾 Saving model ...")
+                        model_to_save = self.model.module if hasattr(self.model, "module") else self.model
+                        model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
+                        if self.tokenizer is not None:
+                            self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        logger.debug("✔️  Save model successfully.")
 
-                    self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
-                    if self.scheduler is not None:
-                        self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
-                    if self.config.fp16:
-                        self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
+                        self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                        watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
 
-                    logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
+                        self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
+                        if self.scheduler is not None:
+                            self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
+                        if self.config.fp16:
+                            self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
 
-                # * delete last checkpoint
-                if not self.config.save_all_ckpts:
-                    self.ckpt_manager.delete_last_checkpoint()
-                self.ckpt_manager.next()
+                        logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
 
-                # * save WatchDog
-                if epoch == self.config.epochs - 1:
-                    watch_dog.finish()
-                watch_dog.save(self.config.save_dir)
+                    # * delete last checkpoint
+                    if not self.config.save_all_ckpts:
+                        self.ckpt_manager.delete_last_checkpoint()
+                    self.ckpt_manager.next()
 
-                # * Whether early stop is triggered
-                if self.config.early_stop and watch_dog.need_to_stop:
-                    break
+                    # * save WatchDog
+                    if epoch == self.config.epochs - 1:
+                        watch_dog.finish()
+                    watch_dog.save(self.config.save_dir)
+
+                    # * Whether early stop is triggered
+                    if self.config.early_stop and watch_dog.need_to_stop:
+                        break
             if dist.is_initialized():
                 dist.barrier()
         # * ===========================================================训练结束===========================================================

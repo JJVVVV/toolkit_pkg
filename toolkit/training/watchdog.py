@@ -151,6 +151,7 @@ class WatchDog:
         return ret
 
     # TODO 当前只支持 Transformers 中的 model 和 tokenizer
+    # TODO 保存最好的 n 个ckpt
     def save_optimal_checkpoint(
         self, model: PreTrainedModel, configs: TrainConfig, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None, silence=True
     ):
@@ -162,9 +163,11 @@ class WatchDog:
             logger.debug("🚩 Saving optimal checkpoint ...")
             logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
-
-        model_to_save = model.module if hasattr(model, "module") else model
-        model_to_save.save_pretrained(output_dir)
+        if configs.parallel_mode == "deepspeed":
+            model.save_checkpoint(output_dir, ckpt_id=0)
+        else:
+            model_to_save = model.module if hasattr(model, "module") else model
+            model_to_save.save_pretrained(output_dir)
         if tokenizer is not None:
             tokenizer.save_pretrained(output_dir)
         configs.save(output_dir)
