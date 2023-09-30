@@ -13,54 +13,53 @@ CONFIG_NAME = "train_config.json"
 class TrainConfig(ConfigBase):
     def __init__(
         self,
+        seed: int = 0,
+        gpu: bool = True,
+        problem_type: str | None = None,
         dataset_name: str = "",
-        metric: str = "Loss",
-        epochs: int = 3,
-        train_batch_size: int = 16,
-        optimizer: str | None = None,
-        lr_scheduler: str | None = None,
-        learning_rate: float = 1e-3,
-        save_dir: Path | str | None = None,
-        infer_batch_size: int = None,
         train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
         test_file_path: Path | str | None = None,
         model_type: str = "",
-        model_dir: str | None = None,
         model_name: str = "",
-        problem_type: str | None = None,
-        seed: int = 0,
+        model_dir: str | None = None,
+        metric: str = "Loss",
+        epochs: int = 0,
+        train_batch_size: int = 0,
+        infer_batch_size: int = 0,
+        opt_type: str | None = None,
+        opt_lr: str | None = None,
+        opt_betas1: float = 0.9,
+        opt_betas2: float = 0.999,
+        opt_eps: float = 1e-8,
+        opt_weight_decay: float = 0.01,
+        sch_type: str | None = None,
+        sch_warmup_min_lr: float = 0,
+        sch_warmup_max_lr: float = 0,
+        sch_warmup_num_steps: int = 0,
+        sch_warmup_ratio_steps: float = 0,
+        save_dir: Path | str | None = None,
+        run_dir: Path | str | None = None,
         early_stop: bool = False,
         patience: int = -1,
         continue_train_more_patience: bool = False,
-        test_in_epoch: bool = False,
-        eval_step: int = 500,
-        weight_decay: float = 0.01,
-        epsilon: float = 1e-8,
+        eval_every_half_epoch: bool = False,
+        eval_step: int = 0,
+        save_all_ckpts: bool = False,
+        cache_dataset: bool | None = None,
         gradient_accumulation_steps: int = 1,
-        warmup_ratio: float = -1,
+        parallel_mode: str | None = None,
         fp16: bool = False,
         dashboard: str | None = None,
-        save_all_ckpts: bool = False,
-        run_dir: Path | str | None = None,
         shuffle: bool | None = None,
-        cache_dataset: bool | None = None,
-        gpu: bool = True,
-        parallel_mode: str | None = None,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        # attributes related to the task
-        self.dataset_name = dataset_name
-        self.train_file_path = Path(train_file_path) if train_file_path is not None else None
-        self.val_file_path = Path(val_file_path) if val_file_path is not None else None
-        self.test_file_path = Path(test_file_path) if test_file_path is not None else None
-        self.metric = metric
-        if self.metric not in MetricDict.support_metrics():
-            raise ValueError(
-                f"The config parameter `metric` was not understood: received `{self.metric}` "
-                f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
-            )
+        # initialize
+        self.seed = seed
+        self.gpu = gpu
+
+        # attributes related to the data
         self.problem_type = problem_type
         allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
         if self.problem_type is not None and self.problem_type not in allowed_problem_types:
@@ -68,52 +67,75 @@ class TrainConfig(ConfigBase):
                 f"The config parameter `problem_type` was not understood: received {self.problem_type} "
                 "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
             )
+        self.dataset_name = dataset_name
+        self.train_file_path = Path(train_file_path) if train_file_path is not None else None
+        self.val_file_path = Path(val_file_path) if val_file_path is not None else None
+        self.test_file_path = Path(test_file_path) if test_file_path is not None else None
+        self.check_data_file()
 
         # attributes related to the model
         self.model_type = model_type
-        self.model_dir = model_dir
         self.model_name = model_name
+        self.model_dir = model_dir
 
-        # attributes related to training
-        self.optimizer = optimizer
-        self.lr_scheduler = lr_scheduler
+        # attributes related to the metric
+        self.metric = metric
+        if self.metric not in MetricDict.support_metrics():
+            raise ValueError(
+                f"The config parameter `metric` was not understood: received `{self.metric}` "
+                f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
+            )
+
+        # attributes related to training steps
+        self.epochs = epochs
+        self.train_batch_size = train_batch_size
+        self.infer_batch_size = infer_batch_size if infer_batch_size != 0 else train_batch_size
+
+        # optimizer
+        self.opt_type = opt_type
+        self.opt_lr = opt_lr
+        self.opt_betas1 = opt_betas1
+        self.opt_betas2 = opt_betas2
+        self.opt_eps = opt_eps
+        self.opt_weight_decay = opt_weight_decay
+
+        # scheduler
+        self.sch_type = sch_type
+        self.sch_warmup_min_lr = sch_warmup_min_lr
+        self.sch_warmup_max_lr = sch_warmup_max_lr
+        self.sch_warmup_num_steps = sch_warmup_num_steps
+        self.sch_warmup_ratio_steps = sch_warmup_ratio_steps
+
+        # outputs dir
         self.save_dir = Path(save_dir) if save_dir is not None else None
         self.run_dir = Path(run_dir) if run_dir is not None else None
-        self.seed = seed
+
+        # during training
         self.early_stop = early_stop
         if self.early_stop:
             self.patience = patience
             self.continue_train_more_patience = continue_train_more_patience
-        self.test_in_epoch = test_in_epoch
+        self.eval_every_half_epoch = eval_every_half_epoch
+        self.eval_step = eval_step
         self.save_all_ckpts = save_all_ckpts
-        self.shuffle = shuffle
+
+        # Optimization about load and memory
         self.cache_dataset = cache_dataset
-        self.gpu = gpu
+        self.gradient_accumulation_steps = gradient_accumulation_steps
         assert parallel_mode in [None, "DDP", "deepspeed"], (
             f"[parallel_mode] Only `DDP` and `deepspeed` are supported, but got `{parallel_mode}`.\n"
             "if you do not need parallel, plase set it to `None`."
         )
         self.parallel_mode = parallel_mode
-
-        # optimization hyperparameter
-        self.epochs = epochs
-        self.train_batch_size = train_batch_size
-        self.learning_rate = learning_rate
-        self.weight_decay = weight_decay
-        self.epsilon = epsilon
-        self.gradient_accumulation_steps = gradient_accumulation_steps
-        self.warmup_ratio = warmup_ratio
         self.fp16 = fp16
 
-        # attributes related to validation and test
-        self.batch_size_infer = infer_batch_size if infer_batch_size is not None else train_batch_size
-
+        # 杂项
         assert dashboard in ["wandb", "tensorboard", None], (
             f"Only `wandb` and `tensorboard` dashboards are supported, but got `{dashboard}`.\n"
             "if you do not need dashboard, plase set it to `None`."
         )
         self.dashboard = dashboard
-        self.check_data_file()
+        self.shuffle = shuffle
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
@@ -138,6 +160,7 @@ class TrainConfig(ConfigBase):
         if self.test_file_path is not None:
             assert self.test_file_path.exists(), f"Test file: {self.test_file_path} dose not exists"
 
+    # 未使用
     def warning_default(self):
         default = self.__class__()
         attri_to_check = ("metric", "seed", "epochs", "batch_size", "learning_rate", "fp16")
