@@ -5,6 +5,7 @@ from typing import Callable, Type, TypeVar
 import torch
 import torch.distributed as dist
 import wandb
+from deepspeed import DeepSpeedEngine
 from torch import autocast
 from torch.cuda.amp import GradScaler
 from torch.optim import AdamW, RMSprop
@@ -43,7 +44,7 @@ class Trainer:
         task_type: str,
         evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
-        model: torch.nn.Module | PreTrainedModel,
+        model: torch.nn.Module | PreTrainedModel | DeepSpeedEngine,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
@@ -188,6 +189,7 @@ class Trainer:
         self.scaler = Scaler(self.scaler)
 
         # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
+        # TODO deepspeed加载时， 不需要自己控制
         if self.ckpt_manager.latest_dir.exists():
             self.optimizer.load(self.ckpt_manager.latest_dir, silence=False)
             if self.scheduler is not None:
@@ -252,6 +254,7 @@ class Trainer:
                         # forward
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                         loss = outputs["loss"] / self.config.gradient_accumulation_steps
+                        accumulate_loss = loss.item()
                         # backward
                         self.model.backward(loss)
                     else:

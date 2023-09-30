@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from pathlib import Path
 from typing import Self
 
@@ -28,7 +29,7 @@ class TrainConfig(ConfigBase):
         train_batch_size: int = 0,
         infer_batch_size: int = 0,
         opt_type: str | None = None,
-        opt_lr: str | None = None,
+        opt_lr: float = 1e-4,
         opt_betas1: float = 0.9,
         opt_betas2: float = 0.999,
         opt_eps: float = 1e-8,
@@ -38,6 +39,7 @@ class TrainConfig(ConfigBase):
         sch_warmup_max_lr: float = 0,
         sch_warmup_num_steps: int = 0,
         sch_warmup_ratio_steps: float = 0,
+        sch_total_num_steps: int = 0,
         save_dir: Path | str | None = None,
         run_dir: Path | str | None = None,
         early_stop: bool = False,
@@ -46,8 +48,9 @@ class TrainConfig(ConfigBase):
         eval_every_half_epoch: bool = False,
         eval_step: int = 0,
         save_all_ckpts: bool = False,
-        cache_dataset: bool | None = None,
+        cache_dataset: bool = False,
         gradient_accumulation_steps: int = 1,
+        gradient_clipping: float = 1.0,
         parallel_mode: str | None = None,
         fp16: bool = False,
         dashboard: str | None = None,
@@ -102,9 +105,10 @@ class TrainConfig(ConfigBase):
         # scheduler
         self.sch_type = sch_type
         self.sch_warmup_min_lr = sch_warmup_min_lr
-        self.sch_warmup_max_lr = sch_warmup_max_lr
+        self.sch_warmup_max_lr = sch_warmup_max_lr if sch_warmup_max_lr != 0 else opt_lr
         self.sch_warmup_num_steps = sch_warmup_num_steps
         self.sch_warmup_ratio_steps = sch_warmup_ratio_steps
+        self.sch_total_num_steps = sch_total_num_steps
 
         # outputs dir
         self.save_dir = Path(save_dir) if save_dir is not None else None
@@ -118,6 +122,7 @@ class TrainConfig(ConfigBase):
         self.eval_every_half_epoch = eval_every_half_epoch
         self.eval_step = eval_step
         self.save_all_ckpts = save_all_ckpts
+        self.gradient_clipping = gradient_clipping
 
         # Optimization about load and memory
         self.cache_dataset = cache_dataset
@@ -167,3 +172,32 @@ class TrainConfig(ConfigBase):
         for attri in attri_to_check:
             if getattr(self, attri) != getattr(default, attri):
                 logger.warning(f"`{attri}` is not specified, default value: `{getattr(default, attri)}`")
+
+    def set_deepspeed(self, deepspeed_config: OrderedDict):
+        if (fp16 := deepspeed_config.get("fp16", None)) is not None:
+            if fp16["enabled"] == "auto":
+                fp16["enabled"] = self.fp16
+        if (bf16 := deepspeed_config.get("bf16", None)) is not None:
+            if bf16["enabled"] == "auto":
+                bf16["enabled"] = self.bf16
+
+        if (opt := deepspeed_config.get("optimizer", None)) is not None:
+            if opt["type"] == "auto":
+                opt["type"] = self.opt_type
+            for key, value in opt["params"].items():
+                if value == "auto":
+                    if key != "betas":
+                        opt["params"][key] = getattr(self, f"opt_{key}")
+                    else:
+                        opt["params"][key] = [self.opt_betas1, self.opt_betas2]
+        if (sch := deepspeed_config.get("scheduler", None)) is not None:
+            if sch["type"] == "auto":
+                sch["type"] = self.sch_type
+            for key, value in sch["params"].items():
+                if value == "auto":
+                    sch["params"][key] = getattr(self, f"sch_{key}")
+
+        keys = ["gradient_accumulation_steps", "gradient_clipping", "train_batch_size"]
+        for key in keys:
+            if (value := deepspeed_config.get(key, None)) is not None:
+                deepspeed_config[key] = getattr(self, key) if value == "auto" else value
