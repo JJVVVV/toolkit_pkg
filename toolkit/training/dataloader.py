@@ -56,7 +56,7 @@ def get_dataloader(
         sampler = DistributedSampler(dataset, shuffle=False, drop_last=True) if world_size != 1 else None
         dataloader = DataLoader(
             dataset=dataset,
-            batch_size=configs.batch_size_infer // world_size // configs.gradient_accumulation_steps,
+            batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
             shuffle=False,
             pin_memory=True,
             sampler=sampler,
@@ -69,7 +69,7 @@ def get_dataloader(
         dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
         dataloader_tail = DataLoader(
             dataset=dataset_tail,
-            batch_size=configs.batch_size_infer // world_size // configs.gradient_accumulation_steps,
+            batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
             shuffle=False,
             **dataloader_kwargs,
         )

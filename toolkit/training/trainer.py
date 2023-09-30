@@ -166,8 +166,8 @@ class Trainer:
             optimizer = self.optimizer
         else:  # optimizer class
             if self.optimizer in [AdamW, RMSprop]:
-                optimizer_grouped_parameters = set_weight_decay(self.model, self.config.weight_decay)
-                optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.learning_rate, eps=self.config.epsilon)
+                optimizer_grouped_parameters = set_weight_decay(self.model, self.config.opt_weight_decay)
+                optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.opt_lr, eps=self.config.opt_eps)
             else:
                 # optimizer_grouped_parameters = self.model.parameters()
                 raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
@@ -177,8 +177,10 @@ class Trainer:
                 scheduler = self.scheduler
             else:  # a function that return a scheduler with a given optimizer
                 if self.scheduler is get_linear_schedule_with_warmup:
-                    assert 1 >= self.config.warmup_ratio >= 0, f"`warmup_ratio` must be between 0 and 1, but got {self.config.warmup_ratio}"
-                    warmupSteps = int(self.config.warmup_ratio * totalSteps)
+                    assert (
+                        1 >= self.config.sch_warmup_ratio_steps >= 0
+                    ), f"`warmup_ratio` must be between 0 and 1, but got {self.config.sch_warmup_ratio_steps}"
+                    warmupSteps = int(self.config.sch_warmup_ratio_steps * totalSteps)
                     scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
                 else:
                     raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
@@ -307,7 +309,7 @@ class Trainer:
                             )
                             self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
                 # * Evaluate after each half epoch
-                if self.config.test_in_epoch and curStepInEpoch == stepsPerEpoch >> 1:
+                if self.config.eval_every_half_epoch and curStepInEpoch == stepsPerEpoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
                     if local_rank == 0:

@@ -3,6 +3,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Self
 
+import hjson
+
 from ..logger import _getLogger
 
 CONFIG_NAME = "config.json"
@@ -75,7 +77,7 @@ class ConfigBase:
         # If we save using the predefined names, we can load using `from_pretrained`
         output_config_file_path = save_directory / json_file_name
 
-        self.to_json_file(output_config_file_path, use_diff=True)
+        self.to_json_file(output_config_file_path, only_diff=True)
         if not silence:
             logger.debug(f"✔️  Save configuration file in `{output_config_file_path}` successfully.")
 
@@ -161,6 +163,8 @@ class ConfigBase:
         with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         return json.loads(text)
+        # with open(json_file, "r", encoding="utf-8") as reader:
+        #     return hjson.load(reader)
 
     @staticmethod
     def dict_torch_dtype_to_str(d: Dict[str, Any]) -> None:
@@ -255,11 +259,12 @@ class ConfigBase:
             config_dict = self.to_diff_dict()
         else:
             config_dict = self.to_dict()
+        # return hjson.dumps(config_dict) + "\n"
         return json.dumps(config_dict, indent=2, sort_keys=False) + "\n"
 
-    def to_json_file(self, json_file_path: Path | str, use_diff: bool = True):
+    def to_json_file(self, json_file_path: Path | str, only_diff: bool = True):
         with open(json_file_path, "w", encoding="utf-8") as writer:
-            writer.write(self.to_json_string(only_diff=use_diff))
+            writer.write(self.to_json_string(only_diff=only_diff))
 
     def update(self, config_dict: Dict[str, Any]):
         for key, value in config_dict.items():
