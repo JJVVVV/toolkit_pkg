@@ -62,7 +62,8 @@ class Trainer:
         `optimizer`: "AdamW", "RMSprop"\n
         `scheduler`: "LinearWarmup"\n
         """
-        local_rank = dist.get_rank() if dist.is_initialized() else 0
+        self.local_rank = dist.get_rank() if dist.is_initialized() else 0
+        self.world_size = dist.get_world_size() if dist.is_initialized() else 1
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         self.config = config
         self.model = model
@@ -111,7 +112,7 @@ class Trainer:
                 self.dashboard_writer = dashboard_writer
                 if config.dashboard == "wandb":
                     assert self.dashboard_writer is wandb.run
-            elif local_rank == 0:  # 未传入 dashboard 的 writer, 自动定义
+            elif self.local_rank == 0:  # 未传入 dashboard 的 writer, 自动定义
                 if config.dashboard == "tensorboard":
                     dataset_name = config.dataset_name if config.dataset_name else "unk_dataset"
                     model_type = (
@@ -146,7 +147,6 @@ class Trainer:
 
     # TODO 自定义额外的模型输入, 如(is_train)
     def train(self) -> None:
-        local_rank = dist.get_rank() if dist.is_initialized() else 0
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         # # * Initalize seed
         if self.config.gpu:
@@ -198,17 +198,16 @@ class Trainer:
                 self.scaler.load(self.ckpt_manager.latest_dir, silence=False)
 
         # * Create or load watch dog
-        if local_rank == 0:
-            if self.ckpt_manager.latest_dir.exists():
-                watch_dog = WatchDog.load(self.ckpt_manager.latest_dir, silence=False)
-                # 如果因早停patience设置不合理导致训练不充分, 继续训练前: 需要重置WatchDog中的counter或增大patience
-                if self.config.early_stop and self.config.continue_train_more_patience:
-                    watch_dog.counter = 0
-            else:
-                watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric)
+        if self.ckpt_manager.latest_dir.exists():
+            watch_dog = WatchDog.load(self.ckpt_manager.latest_dir, silence=False)
+            # 如果因早停patience设置不合理导致训练不充分, 继续训练前: 需要重置WatchDog中的counter或增大patience
+            if self.config.early_stop and self.config.continue_train_more_patience:
+                watch_dog.counter = 0
+        else:
+            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric)
 
         # * Print some infomation for debug
-        if local_rank == 0:
+        if self.local_rank == 0:
             logger.debug("===== 🔥 Start training 🔥 =====")
             logger.debug(f"  Batch size = {self.config.train_batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
@@ -290,7 +289,7 @@ class Trainer:
                     self.optimizer.zero_grad()
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
-                if local_rank == 0:
+                if self.local_rank == 0:
                     if curStepInGlobal & 15 == 0:
                         if self.config.dashboard == "wandb":
                             wandb.run.log(
@@ -315,59 +314,31 @@ class Trainer:
                 if self.config.eval_every_half_epoch and curStepInEpoch == stepsPerEpoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
-                    if local_rank == 0:
-                        log_dict = dict()
-                        if val_metricdict is not None:
-                            log_dict[Split.VALIDATION.name] = dict(val_metricdict)
-                        if test_metricdict is not None:
-                            log_dict[Split.TEST.name] = dict(test_metricdict)
-                        if len(log_dict) == 0:
-                            log_dict["Training"] = {"cur_step_loss": accumulate_loss}
-                            val_metricdict = MetricDict(Loss=accumulate_loss)
-                        if self.config.dashboard == "wandb":
-                            wandb.run.log(log_dict, step=curStepInGlobal)
-                        elif self.config.dashboard == "tensorboard":
-                            for split, metricdict in log_dict.items():
-                                for metric, value in metricdict.items():
-                                    self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
-                        watch_dog(
-                            val_metricdict=val_metricdict,
-                            test_metricdict=test_metricdict,
-                            epoch=epoch,
-                            step_global=curStepInGlobal,
-                            model=self.model,
-                            tokenizer=self.tokenizer,
-                            configs=self.config,
-                        )
+                    watch_dog(
+                        val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(Loss=accumulate_loss),
+                        test_metricdict=test_metricdict,
+                        epoch=epoch,
+                        step_global=curStepInGlobal,
+                        model=self.model,
+                        tokenizer=self.tokenizer,
+                        configs=self.config,
+                    )
+                    self.log_metrics(val_metricdict, test_metricdict, loss, curStepInGlobal)
                 curStepInGlobal += 1
             # *----------------------------------one epoch finish-------------------------------------
             # * Evaluate after each epoch
             val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
             test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
-            if local_rank == 0:
-                log_dict = dict()
-                if val_metricdict is not None:
-                    log_dict[Split.VALIDATION.name] = dict(val_metricdict)
-                if test_metricdict is not None:
-                    log_dict[Split.TEST.name] = dict(test_metricdict)
-                if len(log_dict) == 0:
-                    log_dict["Training"] = {"cur_step_loss": accumulate_loss}
-                    val_metricdict = MetricDict(Loss=accumulate_loss)
-                if self.config.dashboard == "wandb":
-                    wandb.run.log(log_dict, step=curStepInGlobal)
-                elif self.config.dashboard == "tensorboard":
-                    for split, metricdict in log_dict.items():
-                        for metric, value in metricdict.items():
-                            self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
-                watch_dog(
-                    val_metricdict=val_metricdict,
-                    test_metricdict=test_metricdict,
-                    epoch=epoch,
-                    step_global=curStepInGlobal,
-                    model=self.model,
-                    tokenizer=self.tokenizer,
-                    configs=self.config,
-                )
+            watch_dog(
+                val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(Loss=accumulate_loss),
+                test_metricdict=test_metricdict,
+                epoch=epoch,
+                step_global=curStepInGlobal,
+                model=self.model,
+                tokenizer=self.tokenizer,
+                configs=self.config,
+            )
+            self.log_metrics(val_metricdict, test_metricdict, loss, curStepInGlobal)
 
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
@@ -375,7 +346,7 @@ class Trainer:
             if self.config.parallel_mode == "deepspeed":
                 if epoch < self.config.epochs:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
                     self.model.save_checkpoint(self.ckpt_manager.latest_dir)
-                    if local_rank == 0:
+                    if self.local_rank == 0:
                         if self.tokenizer is not None:
                             self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
                         logger.debug("✔️  Save model successfully.")
@@ -384,7 +355,7 @@ class Trainer:
                         logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
 
             else:
-                if local_rank == 0:
+                if self.local_rank == 0:
                     # * Save current checkpoint
                     if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
                         logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
@@ -425,7 +396,7 @@ class Trainer:
             if dist.is_initialized():
                 dist.barrier()
         # * ===========================================================训练结束===========================================================
-        if local_rank == 0:
+        if self.local_rank == 0:
             # * Report the final information
             watch_dog.final_report(self.config)
             if self.config.dashboard == "wandb":
@@ -521,3 +492,19 @@ class Trainer:
             mean_loss = sum(all_losses) / len(all_losses)
 
         return self.calculate_metric_callback(all_labels, all_logits, mean_loss)
+
+    def log_metrics(self, val_metricdict, test_metricdict, loss, curStepInGlobal):
+        if self.local_rank == 0:
+            log_dict = dict()
+            if val_metricdict is not None:
+                log_dict[Split.VALIDATION.name] = dict(val_metricdict)
+            if test_metricdict is not None:
+                log_dict[Split.TEST.name] = dict(test_metricdict)
+            if len(log_dict) == 0:
+                log_dict["Training"] = {"cur_step_loss": loss}
+            if self.config.dashboard == "wandb":
+                wandb.run.log(log_dict, step=curStepInGlobal)
+            elif self.config.dashboard == "tensorboard":
+                for split, metricdict in log_dict.items():
+                    for metric, value in metricdict.items():
+                        self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
