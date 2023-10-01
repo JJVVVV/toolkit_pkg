@@ -145,7 +145,6 @@ class Trainer:
             elif self.config.dashboard == "tensorboard":
                 self.dashboard_writer.close()
 
-    # TODO 自定义额外的模型输入, 如(is_train)
     def train(self) -> None:
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         # # * Initalize seed
@@ -153,7 +152,7 @@ class Trainer:
             self.model.cuda()
 
         # * Load training data, development data and test data
-        # TODO: 通用性: collate_fn 并不一定需要
+        # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
         dataloader_train, sampler = get_dataloader(
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         )
@@ -192,7 +191,6 @@ class Trainer:
             self.scaler = Scaler(self.scaler)
 
             # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
-            # TODO deepspeed加载时， 不需要自己控制
             if self.ckpt_manager.latest_dir.exists():
                 self.optimizer.load(self.ckpt_manager.latest_dir, silence=False)
                 if self.scheduler is not None:
