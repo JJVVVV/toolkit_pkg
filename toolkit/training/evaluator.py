@@ -33,7 +33,7 @@ class Evaluator:
         # todo prior deepspeed infer
         if self.config.parallel_mode == "deepspeed":
             raise NotImplementedError()
-        elif self.config.parallel_mode == "DDP":
+        else:
             local_rank = dist.get_rank() if dist.is_initialized() else 0
             world_size = dist.get_world_size() if dist.is_initialized() else 1
 

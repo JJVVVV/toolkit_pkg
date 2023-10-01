@@ -45,7 +45,7 @@ def get_dataloader(
             **dataloader_kwargs,
         )
         return (dataloader, None) if split == Split.TRAINING else dataloader
-    elif configs.parallel_mode == "DDP":
+    else:
 
         def split_batch(x, n):
             quotient, remainder = divmod(x, n)  # 计算每一份的基础值和剩余的单位数
