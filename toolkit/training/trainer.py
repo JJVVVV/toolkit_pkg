@@ -257,7 +257,7 @@ class Trainer:
                         accumulate_loss = loss.item()
                         # backward
                         self.model.backward(loss)
-                    elif self.config.parallel_mode == "DDP":
+                    else:
                         if self.config.fp16:
                             # forward
                             with autocast(device_type="cuda", dtype=torch.float16):
@@ -275,7 +275,7 @@ class Trainer:
 
                 if self.config.parallel_mode == "deepspeed":
                     self.model.step()
-                elif self.config.parallel_mode == "DDP":
+                else:
                     if self.config.fp16:
                         # update parameters
                         self.scaler.step(self.optimizer)
@@ -299,7 +299,7 @@ class Trainer:
                                 wandb.run.log({"training/loss": accumulate_loss}, step=curStepInGlobal)
                             elif self.config.dashboard == "tensorboard":
                                 self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
-                        elif self.config.parallel_mode == "DDP":
+                        else:
                             if self.config.dashboard == "wandb":
                                 wandb.run.log(
                                     {
@@ -363,7 +363,7 @@ class Trainer:
                         watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
                         logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
 
-            elif self.config.parallel_mode == "DDP":
+            else:
                 if self.local_rank == 0:
                     # * Save current checkpoint
                     if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
