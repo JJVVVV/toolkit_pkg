@@ -293,28 +293,34 @@ class Trainer:
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
                 # * log loss and learning rate
-                if self.local_rank == 0:
-                    # if curStepInGlobal & 15 == 0:
-                    if True:
-                        if self.config.dashboard == "wandb":
-                            wandb.run.log(
-                                {
-                                    "training/loss": accumulate_loss,
-                                    "training/learning_rate/downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
-                                    "training/learning_rate/pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
-                                },
-                                step=curStepInGlobal,
-                            )
-                        elif self.config.dashboard == "tensorboard":
-                            self.dashboard_writer.add_scalars(
-                                "training/learning_rate",
-                                {
-                                    "downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
-                                    "pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
-                                },
-                                curStepInGlobal,
-                            )
-                            self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
+                # if curStepInGlobal & 15 == 0:
+                if True:
+                    if self.local_rank == 0:
+                        if self.config.parallel_mode == "deepspeed":
+                            if self.config.dashboard == "wandb":
+                                wandb.run.log({"training/loss": accumulate_loss}, step=curStepInGlobal)
+                            elif self.config.dashboard == "tensorboard":
+                                self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
+                        elif self.config.parallel_mode == "DDP":
+                            if self.config.dashboard == "wandb":
+                                wandb.run.log(
+                                    {
+                                        "training/loss": accumulate_loss,
+                                        "training/learning_rate/downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
+                                        "training/learning_rate/pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
+                                    },
+                                    step=curStepInGlobal,
+                                )
+                            elif self.config.dashboard == "tensorboard":
+                                self.dashboard_writer.add_scalars(
+                                    "training/learning_rate",
+                                    {
+                                        "downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
+                                        "pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
+                                    },
+                                    curStepInGlobal,
+                                )
+                                self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
                 # * Evaluate after each half epoch
                 if self.config.eval_every_half_epoch and curStepInEpoch == stepsPerEpoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
