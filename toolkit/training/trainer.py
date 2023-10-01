@@ -252,11 +252,11 @@ class Trainer:
                     if self.config.parallel_mode == "deepspeed":
                         # forward
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
-                        loss = outputs["loss"] / self.config.gradient_accumulation_steps
+                        loss = outputs["loss"]
                         accumulate_loss = loss.item()
                         # backward
                         self.model.backward(loss)
-                    else:
+                    elif self.config.parallel_mode == "DDP":
                         if self.config.fp16:
                             # forward
                             with autocast(device_type="cuda", dtype=torch.float16):
@@ -271,10 +271,11 @@ class Trainer:
                             # backward
                             loss.backward()
                         accumulate_loss += loss.item()
-                # logger.error(f"loss: {accumulate_loss}")
+                        logger.error(f"{curStepInGlobal}: {loss}")
+
                 if self.config.parallel_mode == "deepspeed":
                     self.model.step()
-                else:
+                elif self.config.parallel_mode == "DDP":
                     if self.config.fp16:
                         # update parameters
                         self.scaler.step(self.optimizer)
@@ -289,8 +290,10 @@ class Trainer:
                     self.optimizer.zero_grad()
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
+                # * log loss and learning rate
                 if self.local_rank == 0:
-                    if curStepInGlobal & 15 == 0:
+                    # if curStepInGlobal & 15 == 0:
+                    if True:
                         if self.config.dashboard == "wandb":
                             wandb.run.log(
                                 {
@@ -354,7 +357,7 @@ class Trainer:
                         watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
                         logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
 
-            else:
+            elif self.config.parallel_mode == "DDP":
                 if self.local_rank == 0:
                     # * Save current checkpoint
                     if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1

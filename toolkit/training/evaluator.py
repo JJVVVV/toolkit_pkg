@@ -26,6 +26,7 @@ class Evaluator:
         self.calculate_metric_callback = calculate_metric_callback
         self.extral_args_evaluation = extral_args_evaluation
 
+    # todo deepspeed infer
     def eval(self, split: Split = Split.VALIDATION, cuda_id=None) -> MetricDict | None:
         """
         if specify the `cuda_id`, the model will run in it, ohterwise, default

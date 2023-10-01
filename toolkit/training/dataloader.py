@@ -22,7 +22,8 @@ def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generat
         if len(batch_in_accumulate) == accumulate_step:
             yield batch_in_accumulate
             batch_in_accumulate.clear()
-    yield batch_in_accumulate
+    if len(batch_in_accumulate) > 0:
+        yield batch_in_accumulate
 
 
 def get_dataloader(
