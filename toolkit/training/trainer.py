@@ -162,40 +162,43 @@ class Trainer:
         stepsPerEpoch = ceil(len(dataloader_train) / self.config.gradient_accumulation_steps)
         totalSteps = stepsPerEpoch * self.config.epochs
 
-        # * Initialize optimizer, scheduler, scaler
-        if isinstance(self.optimizer, torch.optim.Optimizer):  # optimizer
-            optimizer = self.optimizer
-        else:  # optimizer class
-            if self.optimizer in [AdamW, RMSprop]:
-                optimizer_grouped_parameters = set_weight_decay(self.model, self.config.opt_weight_decay)
-                optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.opt_lr, eps=self.config.opt_eps)
-            else:
-                # optimizer_grouped_parameters = self.model.parameters()
-                raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
-        self.optimizer = Optimizer(optimizer)
-        if self.scheduler is not None:  # scheduler
-            if isinstance(self.scheduler, torch.optim.lr_scheduler.LRScheduler):
-                scheduler = self.scheduler
-            else:  # a function that return a scheduler with a given optimizer
-                if self.scheduler is get_linear_schedule_with_warmup:
-                    assert (
-                        1 >= self.config.sch_warmup_ratio_steps >= 0
-                    ), f"`warmup_ratio` must be between 0 and 1, but got {self.config.sch_warmup_ratio_steps}"
-                    warmupSteps = int(self.config.sch_warmup_ratio_steps * totalSteps)
-                    scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
+        if self.config.parallel_mode == "deepspeed":
+            pass
+        else:
+            # * Initialize optimizer, scheduler, scaler
+            if isinstance(self.optimizer, torch.optim.Optimizer):  # optimizer
+                optimizer = self.optimizer
+            else:  # optimizer class
+                if self.optimizer in [AdamW, RMSprop]:
+                    optimizer_grouped_parameters = set_weight_decay(self.model, self.config.opt_weight_decay)
+                    optimizer = self.optimizer(optimizer_grouped_parameters, lr=self.config.opt_lr, eps=self.config.opt_eps)
                 else:
-                    raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
-        self.scheduler = Scheduler(scheduler)
-        self.scaler = Scaler(self.scaler)
+                    # optimizer_grouped_parameters = self.model.parameters()
+                    raise NotImplementedError(f"Initialization for {self.optimizer} have not been implemented.")
+            self.optimizer = Optimizer(optimizer)
+            if self.scheduler is not None:  # scheduler
+                if isinstance(self.scheduler, torch.optim.lr_scheduler.LRScheduler):
+                    scheduler = self.scheduler
+                else:  # a function that return a scheduler with a given optimizer
+                    if self.scheduler is get_linear_schedule_with_warmup:
+                        assert (
+                            1 >= self.config.sch_warmup_ratio_steps >= 0
+                        ), f"`warmup_ratio` must be between 0 and 1, but got {self.config.sch_warmup_ratio_steps}"
+                        warmupSteps = int(self.config.sch_warmup_ratio_steps * totalSteps)
+                        scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
+                    else:
+                        raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
+            self.scheduler = Scheduler(scheduler)
+            self.scaler = Scaler(self.scaler)
 
-        # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
-        # TODO deepspeed加载时， 不需要自己控制
-        if self.ckpt_manager.latest_dir.exists():
-            self.optimizer.load(self.ckpt_manager.latest_dir, silence=False)
-            if self.scheduler is not None:
-                self.scheduler.load(self.ckpt_manager.latest_dir, silence=False)
-            if self.scaler is not None:
-                self.scaler.load(self.ckpt_manager.latest_dir, silence=False)
+            # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
+            # TODO deepspeed加载时， 不需要自己控制
+            if self.ckpt_manager.latest_dir.exists():
+                self.optimizer.load(self.ckpt_manager.latest_dir, silence=False)
+                if self.scheduler is not None:
+                    self.scheduler.load(self.ckpt_manager.latest_dir, silence=False)
+                if self.scaler is not None:
+                    self.scaler.load(self.ckpt_manager.latest_dir, silence=False)
 
         # * Create or load watch dog
         if self.ckpt_manager.latest_dir.exists():
@@ -271,7 +274,6 @@ class Trainer:
                             # backward
                             loss.backward()
                         accumulate_loss += loss.item()
-                        logger.error(f"{curStepInGlobal}: {loss}")
 
                 if self.config.parallel_mode == "deepspeed":
                     self.model.step()
