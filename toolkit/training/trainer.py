@@ -323,7 +323,7 @@ class Trainer:
                         tokenizer=self.tokenizer,
                         configs=self.config,
                     )
-                    self.log_metrics(val_metricdict, test_metricdict, loss, curStepInGlobal)
+                    self.log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
                 curStepInGlobal += 1
             # *----------------------------------one epoch finish-------------------------------------
             # * Evaluate after each epoch
@@ -338,7 +338,7 @@ class Trainer:
                 tokenizer=self.tokenizer,
                 configs=self.config,
             )
-            self.log_metrics(val_metricdict, test_metricdict, loss, curStepInGlobal)
+            self.log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
 
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
