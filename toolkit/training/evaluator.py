@@ -30,7 +30,7 @@ class Evaluator:
         """
         if specify the `cuda_id`, the model will run in it, ohterwise, default
         """
-        # todo deepspeed infer
+        # todo prior deepspeed infer
         if self.config.parallel_mode == "deepspeed":
             raise NotImplementedError()
         elif self.config.parallel_mode == "DDP":

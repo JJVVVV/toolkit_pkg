@@ -157,7 +157,7 @@ class WatchDog:
         return ret
 
     # TODO 当前只支持 Transformers 中的 model 和 tokenizer
-    # TODO 保存最好的 n 个ckpt
+    # TODO prior 保存最好的 n 个ckpt
     def save_optimal_checkpoint(
         self, model: PreTrainedModel, configs: TrainConfig, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None, silence=True
     ):
