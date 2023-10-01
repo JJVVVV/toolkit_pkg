@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
-
+import torch.distributed as dist
 from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
@@ -37,6 +37,9 @@ class WatchDog:
                             监测数量的最小变化，以符合改进的要求
                             Default: 0
         """
+        self.local_rank = dist.get_rank() if dist.is_initialized() else 0
+        self.world_size = dist.get_world_size() if dist.is_initialized() else 1
+
         self.patience = patience
         self.counter = 0
 
@@ -76,11 +79,12 @@ class WatchDog:
             logger = file_logger
         else:
             logger = toolkit_logger
-        logger.info(f"epoch={epoch:03d} step={step_global:06d}")
-        self.report(val_metricdict, Split.VALIDATION, file_logger=logger)
-        if test_metricdict is not None:
-            self.report(test_metricdict, Split.TEST, file_logger=logger)
-        logger.info("")
+        if self.local_rank == 0:
+            logger.info(f"epoch={epoch:03d} step={step_global:06d}")
+            self.report(val_metricdict, Split.VALIDATION, file_logger=logger)
+            if test_metricdict is not None:
+                self.report(test_metricdict, Split.TEST, file_logger=logger)
+            logger.info("")
 
         if self.optimal_val_metricdict is None:
             self.best_checkpoint = (epoch, step_global)
@@ -97,7 +101,8 @@ class WatchDog:
             self.save_optimal_checkpoint(model, configs, tokenizer, silence)
         else:
             self.counter += 1
-            logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")
+            if self.local_rank==0:
+                logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")
             if self.counter >= self.patience:
                 self.need_to_stop = True
 
@@ -106,7 +111,8 @@ class WatchDog:
                 self.cheat_test_metricdict = MetricDict(test_metricdict)
             elif test_metricdict > self.cheat_test_metricdict:
                 self.cheat_test_metricdict.update(test_metricdict)
-        logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
+        if self.local_rank==0:
+            logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
 
     @staticmethod
     def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
@@ -155,39 +161,42 @@ class WatchDog:
     def save_optimal_checkpoint(
         self, model: PreTrainedModel, configs: TrainConfig, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None, silence=True
     ):
-        output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
-        if output_dir.exists():
-            shutil.rmtree(output_dir)
-        output_dir.mkdir()
-        if not silence:
+        if self.local_rank==0:
+            output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+            output_dir.mkdir()
+        if not silence and self.local_rank==0:
             logger.debug("🚩 Saving optimal checkpoint ...")
             logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
         if configs.parallel_mode == "deepspeed":
             model.save_checkpoint(output_dir, tag="optimal")
         else:
-            model_to_save = model.module if hasattr(model, "module") else model
-            model_to_save.save_pretrained(output_dir)
-        if tokenizer is not None:
+            if self.local_rank==0:
+                model_to_save = model.module if hasattr(model, "module") else model
+                model_to_save.save_pretrained(output_dir)
+        if tokenizer is not None and self.local_rank==0:
             tokenizer.save_pretrained(output_dir)
-        configs.save(output_dir)
-        with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
-            writer.write(
-                json.dumps(
-                    {
-                        "Validiton": dict(self.optimal_val_metricdict),
-                        "Test": dict(self.optimal_test_metricdict) if self.optimal_test_metricdict is not None else None,
-                    },
-                    indent=2,
-                    sort_keys=False,
+        if self.local_rank==0:
+            configs.save(output_dir)
+            with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
+                writer.write(
+                    json.dumps(
+                        {
+                            "Validiton": dict(self.optimal_val_metricdict),
+                            "Test": dict(self.optimal_test_metricdict) if self.optimal_test_metricdict is not None else None,
+                        },
+                        indent=2,
+                        sort_keys=False,
+                    )
+                    + "\n"
                 )
-                + "\n"
-            )
 
-        if not silence:
+        if not silence and self.local_rank==0:
             logger.debug(f"✅ Save optimal checkpoint successfully.")
-
-        self.save(output_dir)
+        if self.local_rank==0:
+            self.save(output_dir)
 
     def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
         if not silence:

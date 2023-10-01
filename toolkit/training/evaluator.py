@@ -76,17 +76,23 @@ class Evaluator:
 
         if world_size > 1:
             logger.debug(f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(all_losses)}")
+            mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
 
             labels_gather_list = [None for _ in range(world_size)]
             logits_gather_list = [None for _ in range(world_size)]
-            mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
+            loss_gather_list = [torch.zeros(1, dtype=torch.float32).cuda() for _ in range(world_size)]
 
-            dist.gather_object(all_labels, labels_gather_list if local_rank == 0 else None, dst=0)
-            dist.gather_object(all_logits, logits_gather_list if local_rank == 0 else None, dst=0)
-            dist.reduce(mean_loss, dst=0, op=dist.ReduceOp.SUM, async_op=False)
+            dist.all_gather_object(labels_gather_list, all_labels)
+            dist.all_gather_object(logits_gather_list, all_logits)
+            dist.all_gather(loss_gather_list, mean_loss)
+            mean_loss = sum(loss_gather_list)
 
-            if local_rank != 0:  # final result will be calculated on `local rank 0` process
-                return None
+            # dist.gather_object(all_labels, labels_gather_list if local_rank == 0 else None, dst=0)
+            # dist.gather_object(all_logits, logits_gather_list if local_rank == 0 else None, dst=0)
+            # dist.reduce(mean_loss, dst=0, op=dist.ReduceOp.SUM, async_op=False)
+
+            # if local_rank != 0:  # final result will be calculated on `local rank 0` process
+            #     return None
 
             all_labels = sum(labels_gather_list, [])
             all_logits = sum(logits_gather_list, [])
