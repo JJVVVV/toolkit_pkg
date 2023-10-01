@@ -12,7 +12,6 @@ from ..logger import _getLogger
 logger = _getLogger(__name__)
 
 
-# TODO: If the batches in one epoch is not divisible by accumulate_step, the last few splited batches will be discarded.
 def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generator[List[Dict], None, None]:
     """Get a generator used for gradient accumulate. \n
     yield a `list` of batches where the batches will be used for gradient accumulate"""
