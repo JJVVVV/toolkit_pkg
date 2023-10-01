@@ -101,7 +101,7 @@ class WatchDog:
             self.save_optimal_checkpoint(model, configs, tokenizer, silence)
         else:
             self.counter += 1
-            if self.local_rank==0:
+            if self.local_rank == 0:
                 logger.debug(f"WatchDog patience: {self.counter}/{self.patience}")
             if self.counter >= self.patience:
                 self.need_to_stop = True
@@ -111,7 +111,7 @@ class WatchDog:
                 self.cheat_test_metricdict = MetricDict(test_metricdict)
             elif test_metricdict > self.cheat_test_metricdict:
                 self.cheat_test_metricdict.update(test_metricdict)
-        if self.local_rank==0:
+        if self.local_rank == 0:
             logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
 
     @staticmethod
@@ -161,24 +161,24 @@ class WatchDog:
     def save_optimal_checkpoint(
         self, model: PreTrainedModel, configs: TrainConfig, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None, silence=True
     ):
-        if self.local_rank==0:
-            output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
+        output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
+        if self.local_rank == 0:
             if output_dir.exists():
                 shutil.rmtree(output_dir)
             output_dir.mkdir()
-        if not silence and self.local_rank==0:
+        if not silence and self.local_rank == 0:
             logger.debug("🚩 Saving optimal checkpoint ...")
             logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
         if configs.parallel_mode == "deepspeed":
             model.save_checkpoint(output_dir, tag="optimal")
         else:
-            if self.local_rank==0:
+            if self.local_rank == 0:
                 model_to_save = model.module if hasattr(model, "module") else model
                 model_to_save.save_pretrained(output_dir)
-        if tokenizer is not None and self.local_rank==0:
+        if tokenizer is not None and self.local_rank == 0:
             tokenizer.save_pretrained(output_dir)
-        if self.local_rank==0:
+        if self.local_rank == 0:
             configs.save(output_dir)
             with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
                 writer.write(
@@ -193,9 +193,9 @@ class WatchDog:
                     + "\n"
                 )
 
-        if not silence and self.local_rank==0:
+        if not silence and self.local_rank == 0:
             logger.debug(f"✅ Save optimal checkpoint successfully.")
-        if self.local_rank==0:
+        if self.local_rank == 0:
             self.save(output_dir)
 
     def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
