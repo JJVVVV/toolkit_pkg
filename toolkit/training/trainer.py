@@ -4,7 +4,7 @@ from typing import Callable, Type, TypeVar
 
 import torch
 import torch.distributed as dist
-import wandb
+
 from deepspeed import DeepSpeedEngine
 from torch import autocast
 from torch.cuda.amp import GradScaler
@@ -27,7 +27,10 @@ from .evaluator import Evaluator
 from .watchdog import WatchDog
 
 logger = _getLogger("Trainer")
-
+try:
+    import wandb
+except:
+    logger.warning("Can not import wandb, so you shoud not set the `dashboard` to 'wandb'")
 
 map_str2optm = {"AdamW": AdamW, "RMSprop": RMSprop}
 map_str2sche = {"LinearWarmup": get_linear_schedule_with_warmup}
@@ -290,7 +293,10 @@ class Trainer:
                     self.optimizer.zero_grad()
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
-                # * log loss and learning rate
+                # * log loss and learning rate on consoles
+                if self.config.logging_steps!=-1 and self.local_rank==0 and curStepInGlobal%self.config.logging_steps==0:
+                    toolkit_logger.info(f"Step={curStepInGlobal:5d} Loss={accumulate_loss:.4f}")
+                # * log loss and learning rate on dashboard
                 # if curStepInGlobal & 15 == 0:
                 if True:
                     if self.local_rank == 0:
