@@ -28,7 +28,8 @@ dependencies = [
     "numpy>=1.24.2",
     "tensorboard",
     "pandas",
-    "transformers"
+    "transformers",
+    "fire"
     'importlib-metadata; python_version<"3.12"',
 ]
 
