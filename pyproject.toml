@@ -30,7 +30,7 @@ dependencies = [
     "pandas",
     "transformers",
     "fire"
-    'importlib-metadata; python_version<"3.12"',
+    'importlib-metadata; python_version>="3.11.2"',
 ]
 
 dynamic = ["version"]
