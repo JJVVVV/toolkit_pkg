@@ -44,9 +44,11 @@ class NLPTrainingConfig(TrainConfig):
         gradient_accumulation_steps: int = 1,
         gradient_clipping: float = 1.0,
         parallel_mode: str | None = None,
+        ddp_timeout: int = 1800,
         fp16: bool = False,
         dashboard: str | None = None,
         shuffle: bool | None = None,
+        logging_steps: int = -1,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         max_length: int = 20,
@@ -101,9 +103,11 @@ class NLPTrainingConfig(TrainConfig):
             gradient_accumulation_steps,
             gradient_clipping,
             parallel_mode,
+            ddp_timeout,
             fp16,
             dashboard,
             shuffle,
+            logging_steps,
             **kwargs,
         )
         self.padding_side = padding_side

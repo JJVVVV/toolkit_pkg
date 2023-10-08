@@ -35,7 +35,7 @@ def setup_seed(seed: int) -> None:
         toolkit_logger.info(f"seed={seed}")
 
 
-def setup_parallel_ddp() -> Tuple[int, int]:
+def setup_parallel_ddp(ddp_timeout: int) -> Tuple[int, int]:
     """Initial parallel backend"""
     local_rank = int(os.environ.get("LOCAL_RANK", -1))
     world_size = int(os.environ.get("WORLD_SIZE", -1))
@@ -48,7 +48,7 @@ def setup_parallel_ddp() -> Tuple[int, int]:
             toolkit_logger.debug(f"NCCL_ASYNC_ERROR_HANDLING={os.environ['NCCL_ASYNC_ERROR_HANDLING']}")
         except:
             pass
-    dist.init_process_group("nccl", timeout=datetime.timedelta(seconds=7200))
+    dist.init_process_group("nccl", timeout=datetime.timedelta(seconds=ddp_timeout))
     torch.cuda.set_device(local_rank)
 
     return local_rank, world_size
@@ -92,7 +92,7 @@ def initialize(config: TrainConfig):
     cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
     if len(cuda_device_ids) > 1:
         if config.parallel_mode == "DDP":
-            local_rank, world_size = setup_parallel_ddp()
+            local_rank, world_size = setup_parallel_ddp(config.ddp_timeout)
         elif config.parallel_mode == "deepspeed":
             local_rank, world_size = setup_parallel_deepspeed()
         else:

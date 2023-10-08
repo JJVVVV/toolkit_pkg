@@ -2,7 +2,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Self
 
-from toolkit.config.config_base import ConfigBase, logger
+from .config_base import ConfigBase, logger
 
 from ..metric.metricdict import MetricDict
 from .config_base import ConfigBase
@@ -52,9 +52,11 @@ class TrainConfig(ConfigBase):
         gradient_accumulation_steps: int = 1,
         gradient_clipping: float = 1.0,
         parallel_mode: str | None = None,
+        ddp_timeout: int = 1800,
         fp16: bool = False,
         dashboard: str | None = None,
         shuffle: bool | None = None,
+        logging_steps: int = -1,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -141,6 +143,8 @@ class TrainConfig(ConfigBase):
         )
         self.dashboard = dashboard
         self.shuffle = shuffle
+        self.ddp_timeout = ddp_timeout
+        self.logging_steps = logging_steps
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
@@ -174,6 +178,9 @@ class TrainConfig(ConfigBase):
                 logger.warning(f"`{attri}` is not specified, default value: `{getattr(default, attri)}`")
 
     def set_deepspeed(self, deepspeed_config: OrderedDict):
+        """
+        fill `auto` field of deepspeed config with trainer config
+        """
         if (fp16 := deepspeed_config.get("fp16", None)) is not None:
             if fp16["enabled"] == "auto":
                 fp16["enabled"] = self.fp16
