@@ -381,11 +381,10 @@ class Trainer:
                         self.config.save(self.ckpt_manager.latest_dir, silence=False)
                         watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
                         logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
-                if self.local_rank==0:
+                if self.local_rank == 0:
                     # * delete last checkpoint
                     if not self.config.save_all_ckpts:
                         self.ckpt_manager.delete_last_checkpoint()
-                    self.ckpt_manager.next()
 
                     # * save WatchDog
                     if epoch == self.config.epochs - 1:
@@ -395,7 +394,6 @@ class Trainer:
                     # * Whether early stop is triggered
                     if self.config.early_stop and watch_dog.need_to_stop:
                         break
-
             else:
                 if self.local_rank == 0:
                     # * Save current checkpoint
@@ -425,7 +423,6 @@ class Trainer:
                     # * delete last checkpoint
                     if not self.config.save_all_ckpts:
                         self.ckpt_manager.delete_last_checkpoint()
-                    self.ckpt_manager.next()
 
                     # * save WatchDog
                     if epoch == self.config.epochs - 1:
@@ -435,6 +432,11 @@ class Trainer:
                     # * Whether early stop is triggered
                     if self.config.early_stop and watch_dog.need_to_stop:
                         break
+
+            # * next ckpt
+            self.ckpt_manager.next()
+
+            # * sync
             if dist.is_initialized():
                 dist.barrier()
         # * ===========================================================训练结束===========================================================
