@@ -29,6 +29,7 @@ from .watchdog import WatchDog
 logger = _getLogger("Trainer")
 try:
     import wandb
+
     WandbWriter = wandb.run.__class__
 except:
     logger.warning("Can not import wandb, so you shoud not set the `dashboard` to 'wandb'")
@@ -153,7 +154,8 @@ class Trainer:
     def train(self) -> None:
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         # # * Initalize seed
-        if self.config.parallel_mode=='deepspeed':
+        if self.config.parallel_mode == "deepspeed":
+            # self.model.cuda()
             pass
         else:
             if self.config.gpu:
@@ -166,7 +168,10 @@ class Trainer:
         )
 
         # * Define training parameters
-        stepsPerEpoch = ceil(len(dataloader_train) / self.config.gradient_accumulation_steps)
+        if self.config.parallel_mode == "deepspeed":
+            stepsPerEpoch = len(dataloader_train)
+        else:
+            stepsPerEpoch = ceil(len(dataloader_train) / self.config.gradient_accumulation_steps)
         totalSteps = stepsPerEpoch * self.config.epochs
 
         if self.config.parallel_mode == "deepspeed":
@@ -238,7 +243,9 @@ class Trainer:
                 sampler.set_epoch(epoch)
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
-                enumerate(gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)),
+                enumerate(
+                    gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps if self.config.parallel_mode != "deepspeed" else 1)
+                ),
                 total=stepsPerEpoch,
                 desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
@@ -266,10 +273,6 @@ class Trainer:
                         # backward
                         self.model.backward(loss)
                     else:
-                        # copy batch to GPU memory
-                        if self.config.gpu:
-                            batch = {key: value.cuda() for key, value in batch.items()}
-                        # import pdb; pdb.set_trace()
                         if self.config.fp16:
                             # forward
                             with autocast(device_type="cuda", dtype=torch.float16):
@@ -303,7 +306,7 @@ class Trainer:
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
                 # * log loss and learning rate on consoles
-                if self.config.logging_steps!=-1 and self.local_rank==0 and curStepInGlobal%self.config.logging_steps==0:
+                if self.config.logging_steps != -1 and self.local_rank == 0 and curStepInGlobal % self.config.logging_steps == 0:
                     toolkit_logger.info(f"Step={curStepInGlobal:5d} Loss={accumulate_loss:.4f}")
                 # * log loss and learning rate on dashboard
                 # if curStepInGlobal & 15 == 0:
@@ -368,6 +371,7 @@ class Trainer:
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
             # TODO 保存最后 n 个ckpt
             if self.config.parallel_mode == "deepspeed":
+                # * Save current checkpoint
                 if epoch < self.config.epochs:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
                     self.model.save_checkpoint(self.ckpt_manager.latest_dir)
                     if self.local_rank == 0:
@@ -377,6 +381,20 @@ class Trainer:
                         self.config.save(self.ckpt_manager.latest_dir, silence=False)
                         watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
                         logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
+                if self.local_rank==0:
+                    # * delete last checkpoint
+                    if not self.config.save_all_ckpts:
+                        self.ckpt_manager.delete_last_checkpoint()
+                    self.ckpt_manager.next()
+
+                    # * save WatchDog
+                    if epoch == self.config.epochs - 1:
+                        watch_dog.finish()
+                    watch_dog.save(self.config.save_dir)
+
+                    # * Whether early stop is triggered
+                    if self.config.early_stop and watch_dog.need_to_stop:
+                        break
 
             else:
                 if self.local_rank == 0:
