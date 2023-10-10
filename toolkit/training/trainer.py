@@ -266,6 +266,10 @@ class Trainer:
                         # backward
                         self.model.backward(loss)
                     else:
+                        # copy batch to GPU memory
+                        if self.config.gpu:
+                            batch = {key: value.cuda() for key, value in batch.items()}
+                        # import pdb; pdb.set_trace()
                         if self.config.fp16:
                             # forward
                             with autocast(device_type="cuda", dtype=torch.float16):
