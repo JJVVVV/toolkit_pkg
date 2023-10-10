@@ -29,8 +29,10 @@ from .watchdog import WatchDog
 logger = _getLogger("Trainer")
 try:
     import wandb
+    WandbWriter = wandb.run.__class__
 except:
     logger.warning("Can not import wandb, so you shoud not set the `dashboard` to 'wandb'")
+    WandbWriter = object
 
 map_str2optm = {"AdamW": AdamW, "RMSprop": RMSprop}
 map_str2sche = {"LinearWarmup": get_linear_schedule_with_warmup}
@@ -55,7 +57,7 @@ class Trainer:
         optimizer: Type[OptimizerClass] | str | torch.optim.Optimizer | None = None,
         scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | torch.optim.lr_scheduler.LRScheduler | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
-        dashboard_writer: SummaryWriter | wandb.run.__class__ | None = None,
+        dashboard_writer: SummaryWriter | WandbWriter | None = None,
         project_name: str = "untitled",
         extral_args_training: dict | None = None,
         extral_args_evaluation: dict | None = None,
