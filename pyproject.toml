@@ -29,7 +29,7 @@ dependencies = [
     "tensorboard",
     "pandas",
     "transformers",
-    "fire"
+    "fire",
     'importlib-metadata; python_version>="3.11.2"',
 ]
 
