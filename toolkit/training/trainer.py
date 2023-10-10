@@ -153,8 +153,11 @@ class Trainer:
     def train(self) -> None:
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
         # # * Initalize seed
-        if self.config.gpu:
-            self.model.cuda()
+        if self.config.parallel_mode=='deepspeed':
+            pass
+        else:
+            if self.config.gpu:
+                self.model.cuda()
 
         # * Load training data, development data and test data
         # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
@@ -250,11 +253,7 @@ class Trainer:
 
                 accumulate_loss = 0
                 for batch in batch_in_accumulate:
-                    # copy batch to GPU memory
                     custom_inputs = batch.pop("custom_inputs", dict())
-                    if self.config.gpu:
-                        batch = {key: value.cuda() for key, value in batch.items()}
-                    # import pdb; pdb.set_trace()
                     if self.config.parallel_mode == "deepspeed":
                         # forward
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
@@ -263,6 +262,10 @@ class Trainer:
                         # backward
                         self.model.backward(loss)
                     else:
+                        # copy batch to GPU memory
+                        if self.config.gpu:
+                            batch = {key: value.cuda() for key, value in batch.items()}
+                        # import pdb; pdb.set_trace()
                         if self.config.fp16:
                             # forward
                             with autocast(device_type="cuda", dtype=torch.float16):
