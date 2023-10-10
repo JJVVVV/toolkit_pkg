@@ -88,16 +88,24 @@ def allocate_gpu_memory(ratio=0.8) -> None:
 
 def initialize(config: TrainConfig):
     setup_seed(config.seed)
-    cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
-    cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
-    if len(cuda_device_ids) > 1:
+    if "CUDA_VISIBLE_DEVICES" in os.environ:
+        cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+        cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
+        if len(cuda_device_ids) > 1:
+            if config.parallel_mode == "DDP":
+                local_rank, world_size = setup_parallel_ddp(config.ddp_timeout)
+            elif config.parallel_mode == "deepspeed":
+                local_rank, world_size = setup_parallel_deepspeed()
+            else:
+                raise ValueError("You are using multi-gpu, and you must specify the `parallel_mode`")
+        else:
+            setup_single_gpu()
+            local_rank, world_size = 0, 1
+    else:
         if config.parallel_mode == "DDP":
             local_rank, world_size = setup_parallel_ddp(config.ddp_timeout)
         elif config.parallel_mode == "deepspeed":
             local_rank, world_size = setup_parallel_deepspeed()
-        else:
-            raise ValueError("You are using multi-gpu, and you must specify the `parallel_mode`")
-    else:
-        setup_single_gpu()
-        local_rank, world_size = 0, 1
+        elif config.parallel_mode is None:
+            local_rank, world_size = setup_single_gpu()
     return local_rank, world_size
