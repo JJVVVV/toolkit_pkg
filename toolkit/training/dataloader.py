@@ -81,18 +81,21 @@ def get_dataloader(
     # logger.debug(f'\n{tokenizer.decode(dataset.tokenized_dict["input_ids"][0][0], skip_special_tokens=False)}\n')
 
     # * If there is a tail in development dataset, concatenate it. (Max length of tail: world_size.)
-    if local_rank == 0 and not split == Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
-        dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
-        dataloader_tail = DataLoader(
-            dataset=dataset_tail,
-            batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
-            shuffle=False,
-            **dataloader_kwargs,
-        )
-        logger.debug(f"Tail batch num: {len(dataloader_tail)}")
-        dataloader = DataLoader(
-            list(itertools.chain(dataloader, dataloader_tail)), batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True
-        )
+    if split != Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
+        # * if deepspeed is not used, that means infer in DDP or single GPU, only need one GPU to deal with the tail
+        # * otherwise, in model parallel(MP), the tail must be passed to all GPU.
+        if local_rank == 0 and configs.parallel_mode != "deepspeed":
+            dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
+            dataloader_tail = DataLoader(
+                dataset=dataset_tail,
+                batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
+                shuffle=False,
+                **dataloader_kwargs,
+            )
+            logger.debug(f"Tail batch num: {len(dataloader_tail)}")
+            dataloader = DataLoader(
+                list(itertools.chain(dataloader, dataloader_tail)), batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True
+            )
 
     # * warning about accumulate
     if split == split.TRAINING:
