@@ -32,27 +32,13 @@ def get_dataloader(
     local_rank = dist.get_rank() if dist.is_initialized() else 0
     world_size = dist.get_world_size() if dist.is_initialized() else 1
 
-    # if configs.parallel_mode == "deepspeed":
-    #     g = torch.Generator()
-    #     g.manual_seed(configs.seed)
-    #     dataloader = DataLoader(
-    #         dataset=dataset,
-    #         batch_size=configs.train_batch_size,
-    #         shuffle=(split == Split.TRAINING) if shuffle is None else shuffle,
-    #         pin_memory=True,
-    #         #   worker_init_fn=seed_worker,
-    #         generator=g,
-    #         **dataloader_kwargs,
-    #     )
-    #     return (dataloader, None) if split == Split.TRAINING else dataloader
-    # else:
-
     def split_batch(x, n):
         quotient, remainder = divmod(x, n)  # 计算每一份的基础值和剩余的单位数
         return [(quotient + 1 if i < remainder else quotient) for i in range(n)]
 
     # 训练
     if split == Split.TRAINING:
+        # deepspeed会处理梯度累计，因此不需要裁切batch_size
         if configs.parallel_mode == "deepspeed":
             sampler = None
             g = torch.Generator()
