@@ -2,12 +2,14 @@ import pathlib
 from math import ceil
 from typing import Callable, Type, TypeVar
 
+import deepspeed
+import hjson
 import torch
 import torch.distributed as dist
-
 from deepspeed import DeepSpeedEngine
 from torch import autocast
 from torch.cuda.amp import GradScaler
+from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import AdamW, RMSprop
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
@@ -127,7 +129,7 @@ class Trainer:
             self.scheduler = map_str2sche[scheduler]
         else:
             self.scheduler = scheduler
-        self.scaler = GradScaler() if config.fp16 else None
+        self.scaler = GradScaler() if config.fp16 and config.parallel_mode != "deepspeed" else None
         self.ckpt_manager = CheckpointManager(config.save_dir)
         # self.dashboard_writer = dashboard_writer
         if config.dashboard is not None:
@@ -178,7 +180,7 @@ class Trainer:
             if self.config.gpu:
                 self.model.cuda()
 
-        # * Load training data, development data and test data
+        # * Load training data
         # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
         dataloader_train, sampler = get_dataloader(
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
@@ -187,6 +189,9 @@ class Trainer:
         # * Calculate some training parameters
         self.set_training_steps(dataloader_train)
         self.set_sch_warmup()
+
+        # * wrap model
+        self.model = self.wrap_model(self.model)
 
         if self.config.parallel_mode == "deepspeed":
             pass
@@ -589,5 +594,21 @@ class Trainer:
         calculate the warmup steps and total steps in scheduler,
         if `sch_warmup_ratio_steps` is set after `set_training_steps` is called.
         """
-        self.config.sch_warmup_num_steps = round(self.config.total_steps_num * self.config.sch_warmup_ratio_steps)
         self.config.sch_total_num_steps = self.config.total_steps_num
+        if self.config.sch_warmup_ratio_steps != -1 and self.config.sch_warmup_num_steps != -1:
+            raise ValueError("❌ `sch_warmup_num_steps` and `sch_warmup_ratio_steps` cannot be set simultaneously.")
+        elif self.config.sch_warmup_num_steps == -1:
+            self.config.sch_warmup_num_steps = round(self.config.sch_total_num_steps * self.config.sch_warmup_ratio_steps)
+
+    def wrap_model(self, model):
+        """
+        warp model with deepspeed engine or DDP if necessary
+        """
+        if self.config.parallel_mode == "DDP":
+            model = DDP(model, device_ids=[self.local_rank], find_unused_parameters=False)
+        elif self.config.parallel_mode == "deepspeed":
+            deepspeed_config = hjson.load(open(self.config.deepspeed_config, "r"))
+            self.config.set_deepspeed(deepspeed_config)
+            model, self.optimizer, _, self.scheduler = deepspeed.initialize(model=model, config=deepspeed_config)
+
+        return model
