@@ -48,6 +48,7 @@ class TrainConfig(ConfigBase):
         eval_every_half_epoch: bool = False,
         eval_step: int = 0,
         save_all_ckpts: bool = False,
+        max_optimal_ckpt_num: int = 1,
         cache_dataset: bool = False,
         gradient_accumulation_steps: int = 1,
         gradient_clipping: float = 1.0,
@@ -125,6 +126,7 @@ class TrainConfig(ConfigBase):
         self.eval_step = eval_step
         self.save_all_ckpts = save_all_ckpts
         self.gradient_clipping = gradient_clipping
+        self.max_optimal_ckpt_num = max_optimal_ckpt_num
 
         # Optimization about load and memory
         self.cache_dataset = cache_dataset
