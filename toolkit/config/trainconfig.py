@@ -138,6 +138,10 @@ class TrainConfig(ConfigBase):
         self.parallel_mode = parallel_mode
         self.fp16 = fp16
 
+        # 自动计算的一些值
+        self.total_steps_num = -1
+        self.steps_per_epoch = -1
+        
         # 杂项
         assert dashboard in ["wandb", "tensorboard", None], (
             f"Only `wandb` and `tensorboard` dashboards are supported, but got `{dashboard}`.\n"

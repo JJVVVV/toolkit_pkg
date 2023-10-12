@@ -183,12 +183,9 @@ class Trainer:
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         )
 
-        # * Define training parameters
-        if self.config.parallel_mode == "deepspeed":
-            stepsPerEpoch = len(dataloader_train)
-        else:
-            stepsPerEpoch = ceil(len(dataloader_train) / self.config.gradient_accumulation_steps)
-        totalSteps = stepsPerEpoch * self.config.epochs
+        # * Calculate some training parameters
+        self.set_training_steps(dataloader_train)
+        self.set_sch_warmup()
 
         if self.config.parallel_mode == "deepspeed":
             pass
@@ -212,8 +209,8 @@ class Trainer:
                         assert (
                             1 >= self.config.sch_warmup_ratio_steps >= 0
                         ), f"`warmup_ratio` must be between 0 and 1, but got {self.config.sch_warmup_ratio_steps}"
-                        warmupSteps = int(self.config.sch_warmup_ratio_steps * totalSteps)
-                        scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, totalSteps)
+                        warmupSteps = int(self.config.sch_warmup_ratio_steps * self.config.total_steps_num)
+                        scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, self.config.total_steps_num)
                     else:
                         raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
             self.scheduler = Scheduler(scheduler)
@@ -241,8 +238,8 @@ class Trainer:
             logger.debug("===== 🔥 Start training 🔥 =====")
             logger.debug(f"  Batch size = {self.config.train_batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
-            logger.debug(f"  Steps per epoch = {stepsPerEpoch:d}")
-            logger.debug(f"  Total steps = {totalSteps:d}")
+            logger.debug(f"  Steps per epoch = {self.config.steps_per_epoch:d}")
+            logger.debug(f"  Total steps = {self.config.total_steps_num:d}")
             # if self.config.warmup_ratio >= 0:
             #     logger.debug(f"  Warmup steps = {warmupSteps:d}")
             logger.debug(f"  Model type = {self.config.model_type}")
@@ -250,7 +247,7 @@ class Trainer:
             logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
 
         self.ckpt_manager.next()
-        curStepInGlobal = self.ckpt_manager.latest_id * stepsPerEpoch  # 总共已训练步数
+        curStepInGlobal = self.ckpt_manager.latest_id * self.config.steps_per_epoch  # 总共已训练步数
 
         # log_losses = []
         # * ===========================================================训练===========================================================
@@ -262,7 +259,7 @@ class Trainer:
                 enumerate(
                     gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps if self.config.parallel_mode != "deepspeed" else 1)
                 ),
-                total=stepsPerEpoch,
+                total=self.config.steps_per_epoch,
                 desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
                 unit="batch",
@@ -354,7 +351,7 @@ class Trainer:
                                 )
                                 self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
                 # * Evaluate after each half epoch
-                if self.config.eval_every_half_epoch and curStepInEpoch == stepsPerEpoch >> 1:
+                if self.config.eval_every_half_epoch and curStepInEpoch == self.config.steps_per_epoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
                     watch_dog(
@@ -568,3 +565,28 @@ class Trainer:
                 for split, metricdict in log_dict.items():
                     for metric, value in metricdict.items():
                         self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
+
+    def set_training_steps(self, dataloader):
+        """
+        calculate the training steps per epoch and the total steps after dataloader initialized.
+        """
+        if self.config.parallel_mode == "deepspeed":
+            # 使用deepspeed时，dataloader中的 batch 为真实的一个 batch，梯度累计以及分卡将由deepspeed处理
+            # 因此实际一个epoch的step数就是dataloader的长度
+            stepsPerEpoch = len(dataloader)
+        else:
+            # 使用DDP时， dataloader中的 batch 为某卡的某一个累计的 micro_batch,
+            # 因此在该卡上一个epoch的step数为 dataloader的长度除梯度累计步数，
+            # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
+            stepsPerEpoch = ceil(len(dataloader) / self.config.gradient_accumulation_steps)
+        totalSteps = stepsPerEpoch * self.config.epochs
+        self.config.total_steps_num = totalSteps
+        self.config.steps_per_epoch = stepsPerEpoch
+
+    def set_sch_warmup(self):
+        """
+        calculate the warmup steps and total steps in scheduler,
+        if `sch_warmup_ratio_steps` is set after `set_training_steps` is called.
+        """
+        self.config.sch_warmup_num_steps = round(self.config.total_steps_num * self.config.sch_warmup_ratio_steps)
+        self.config.sch_total_num_steps = self.config.total_steps_num
