@@ -78,12 +78,28 @@ class Trainer:
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.evaluater_val = (
-            Evaluator(task_type, config, model, tokenizer, dataset_val, calculate_metric_callback, extral_args_evaluation)
+            Evaluator(
+                task_type,
+                config,
+                model.module if hasattr(model, "module") else model,
+                tokenizer,
+                dataset_val,
+                calculate_metric_callback,
+                extral_args_evaluation,
+            )
             if dataset_val is not None
             else None
         )
         self.evaluater_test = (
-            Evaluator(task_type, config, model, tokenizer, dataset_test, calculate_metric_callback, extral_args_evaluation)
+            Evaluator(
+                task_type,
+                config,
+                model.module if hasattr(model, "module") else model,
+                tokenizer,
+                dataset_test,
+                calculate_metric_callback,
+                extral_args_evaluation,
+            )
             if dataset_test is not None
             else None
         )
