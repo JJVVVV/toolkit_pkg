@@ -510,6 +510,7 @@ class TextDataset(Dataset):
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
         
+        # todoe 不应该在这里计算
         # calculate total steps of training
         if split==Split.TRAINING:
             configs.sch_total_num_steps = ceil(len(dataset)/configs.train_batch_size)*configs.epochs

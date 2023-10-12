@@ -1,1 +1,1 @@
-from .data import split_data
+# from .data import split_data
