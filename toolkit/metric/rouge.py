@@ -12,3 +12,5 @@ def calculate_rouge(pred: list[str], tgt: list[str], rouge_keys: str | tuple[str
             ret_dict = rouge_score(pred, tgt, rouge_keys=rouge_keys, tokenizer=list, normalizer=lambda x: x)
             ret += MetricDict({key: ret_dict[key + "_fmeasure"].item() for key in rouge_keys})
         return ret / len(pred)
+    else:
+        raise NotImplementedError()
