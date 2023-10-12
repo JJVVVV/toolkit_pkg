@@ -19,6 +19,7 @@ from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokeniz
 from .. import toolkit_logger
 from ..config import TrainConfig
 from ..enums import Split
+from ..integration.deepspeed import fill_ds_config
 from ..logger import _getLogger
 from ..metric import MetricDict
 from ..nlp.config import NLPTrainingConfig
@@ -608,7 +609,8 @@ class Trainer:
             model = DDP(model, device_ids=[self.local_rank], find_unused_parameters=False)
         elif self.config.parallel_mode == "deepspeed":
             deepspeed_config = hjson.load(open(self.config.deepspeed_config, "r"))
-            self.config.set_deepspeed(deepspeed_config)
+            # self.config.set_deepspeed(deepspeed_config)
+            fill_ds_config(deepspeed_config, self.config, self.model.config)
             model, self.optimizer, _, self.scheduler = deepspeed.initialize(model=model, config=deepspeed_config)
 
         return model
