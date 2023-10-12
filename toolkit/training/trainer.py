@@ -67,6 +67,7 @@ class Trainer:
         `task_type`: "generate", "classify", "regress"\n
         `optimizer`: "AdamW", "RMSprop"\n
         `scheduler`: "LinearWarmup"\n
+        `calculate_metric_callback` will be called as `calculate_metric_callback(all_labels, all_logits, mean_loss)`
         """
         self.local_rank = dist.get_rank() if dist.is_initialized() else 0
         self.world_size = dist.get_world_size() if dist.is_initialized() else 1
