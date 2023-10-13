@@ -98,7 +98,7 @@ def fill_ds_config(deepspeed_config: OrderedDict, train_config: TrainConfig, mod
             if value == "auto":
                 sch["params"][key] = getattr(train_config, f"sch_{key}")
 
-    keys = ["gradient_accumulation_steps", "gradient_clipping", "train_batch_size"]
+    keys = ["gradient_accumulation_steps", "gradient_clipping", "train_batch_size", "train_micro_batch_size_per_gpu"]
     for key in keys:
         if (value := deepspeed_config.get(key, None)) is not None:
             deepspeed_config[key] = getattr(train_config, key) if value == "auto" else value

@@ -6,7 +6,6 @@ import deepspeed
 import hjson
 import torch
 import torch.distributed as dist
-from deepspeed import DeepSpeedEngine
 from torch import autocast
 from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
@@ -15,6 +14,7 @@ from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
+from transformers.integrations import HfDeepSpeedConfig
 
 from .. import toolkit_logger
 from ..config import TrainConfig
@@ -46,6 +46,10 @@ SchedulerClass = TypeVar("SchedulerClass", bound=torch.optim.lr_scheduler.LRSche
 
 allowed_task_type = ("generate", "classify", "regress")
 
+# dschf: HfDeepSpeedConfig
+# instructs transformers to partition the model directly over multiple gpus using
+# deepspeed.zero.Init when model's `from_pretrained` method is called.
+dschf = None
 
 class Trainer:
     def __init__(
@@ -53,7 +57,7 @@ class Trainer:
         task_type: str,
         evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
-        model: torch.nn.Module | PreTrainedModel | DeepSpeedEngine,
+        model: torch.nn.Module | PreTrainedModel,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
@@ -89,7 +93,7 @@ class Trainer:
                 tokenizer,
                 dataset_val,
                 calculate_metric_callback,
-                extral_args_evaluation,
+                extral_args_evaluation if extral_args_evaluation is not None else dict(),
             )
             if dataset_val is not None
             else None
@@ -102,7 +106,7 @@ class Trainer:
                 tokenizer,
                 dataset_test,
                 calculate_metric_callback,
-                extral_args_evaluation,
+                extral_args_evaluation if extral_args_evaluation is not None else dict(),
             )
             if dataset_test is not None
             else None
@@ -192,7 +196,7 @@ class Trainer:
         self.set_sch_warmup()
 
         # * wrap model
-        self.model = self.wrap_model(self.model)
+        self.wrap_model()
 
         if self.config.parallel_mode == "deepspeed":
             pass
@@ -599,16 +603,17 @@ class Trainer:
         elif self.config.sch_warmup_num_steps == -1:
             self.config.sch_warmup_num_steps = round(self.config.sch_total_num_steps * self.config.sch_warmup_ratio_steps)
 
-    def wrap_model(self, model):
+    def wrap_model(self):
         """
         warp model with deepspeed engine or DDP if necessary
         """
         if self.config.parallel_mode == "DDP":
-            model = DDP(model, device_ids=[self.local_rank], find_unused_parameters=False)
+            self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=False)
         elif self.config.parallel_mode == "deepspeed":
+            # global dschf
             deepspeed_config = hjson.load(open(self.config.deepspeed_config, "r"))
-            # self.config.set_deepspeed(deepspeed_config)
             fill_ds_config(deepspeed_config, self.config, self.model.config)
-            model, self.optimizer, _, self.scheduler = deepspeed.initialize(model=model, config=deepspeed_config)
+            # dschf = HfDeepSpeedConfig(deepspeed_config)
+            # self.model = self.model(self.tokenizer)
+            self.model, self.optimizer, _, self.scheduler = deepspeed.initialize(model=self.model, config=deepspeed_config)
 
-        return model

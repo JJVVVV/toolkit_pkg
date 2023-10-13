@@ -473,7 +473,9 @@ class TextDataset(Dataset):
     ) -> Self:
         """Load dataset from file with the given `NLPTrainingConfig`."""
         if data_file_path is None:
-            raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received NoneType).")
+            logger.warning(f"⚠️ Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
+            return None
+            # raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
         if isinstance(data_file_path, str):
             data_file_path = Path(data_file_path)
         if not data_file_path.exists():
@@ -510,15 +512,6 @@ class TextDataset(Dataset):
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
 
-        # # todoe 不应该在这里计算
-        # # calculate total steps of training
-        # if split == Split.TRAINING:
-        #     configs.total_steps_num = ceil(len(dataset) / configs.train_batch_size) * configs.epochs
-        #     if configs.sch_warmup_ratio_steps != -1:
-        #         if configs.sch_warmup_num_steps == -1:
-        #             configs.sch_warmup_num_steps = round(configs.total_steps_num * configs.sch_warmup_ratio_steps)
-        #         else:
-        #             raise ValueError("❌ `sch_warmup_num_steps` and `sch_warmup_ratio_steps` cannot be set simultaneously.")
         return dataset
 
     @staticmethod

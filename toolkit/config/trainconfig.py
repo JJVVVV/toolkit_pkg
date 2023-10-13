@@ -55,6 +55,7 @@ class TrainConfig(ConfigBase):
         parallel_mode: str | None = None,
         ddp_timeout: int = 1800,
         fp16: bool = False,
+        bf16: bool = False,
         dashboard: str | None = None,
         shuffle: bool | None = None,
         logging_steps: int = -1,
@@ -137,11 +138,12 @@ class TrainConfig(ConfigBase):
         )
         self.parallel_mode = parallel_mode
         self.fp16 = fp16
+        self.bf16 = bf16
 
         # 自动计算的一些值
         self.total_steps_num = -1
         self.steps_per_epoch = -1
-        
+
         # 杂项
         assert dashboard in ["wandb", "tensorboard", None], (
             f"Only `wandb` and `tensorboard` dashboards are supported, but got `{dashboard}`.\n"
