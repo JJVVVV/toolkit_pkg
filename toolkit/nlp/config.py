@@ -53,8 +53,8 @@ class NLPTrainingConfig(TrainConfig):
         logging_steps: int = -1,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
-        max_length: int | None = None,
-        max_new_tokens: int | None = 100,
+        max_length: int | None = 20,
+        max_new_tokens: int | None = None,
         do_sample: bool = False,
         num_beams: int = 1,
         early_stopping: bool = False,
@@ -121,8 +121,6 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_label = max_length_label
 
         self.generate_kwargs = {
-            "max_length": max_length,
-            "max_new_tokens": max_new_tokens,
             "do_sample": do_sample,
             "num_beams": num_beams,
             "early_stopping": early_stopping,
@@ -134,6 +132,11 @@ class NLPTrainingConfig(TrainConfig):
             "repetition_penalty": repetition_penalty,
             "length_penalty": length_penalty,
         }
+        # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer
+        if max_new_tokens is not None:
+            self.generate_kwargs["max_new_tokens"] = max_new_tokens
+        else:
+            self.generate_kwargs["max_length"] = max_length
         # self.pretrained_model_path = pretrained_model_path
 
     # def print_some_info(self):
