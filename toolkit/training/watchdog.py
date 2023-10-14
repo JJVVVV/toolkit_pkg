@@ -6,8 +6,9 @@ from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
-from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
 import torch.distributed as dist
+from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
+
 from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
@@ -172,6 +173,7 @@ class WatchDog:
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
         if configs.parallel_mode == "deepspeed":
             model.save_checkpoint(output_dir, tag="optimal")
+            model.module.config.save_pretrained(output_dir)
         else:
             if self.local_rank == 0:
                 model_to_save = model.module if hasattr(model, "module") else model
