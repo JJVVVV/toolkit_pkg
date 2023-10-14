@@ -13,7 +13,7 @@ from torch.optim import AdamW, RMSprop
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
-from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
+from transformers import PretrainedConfig, PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
 from transformers.integrations import HfDeepSpeedConfig
 
 from .. import toolkit_logger
@@ -51,13 +51,16 @@ allowed_task_type = ("generate", "classify", "regress")
 # deepspeed.zero.Init when model's `from_pretrained` method is called.
 dschf = None
 
+
 class Trainer:
     def __init__(
         self,
         task_type: str,
         evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
-        model: torch.nn.Module | PreTrainedModel,
+        model: torch.nn.Module | PreTrainedModel | None = None,
+        model_config: PretrainedConfig | None = None,
+        model_class: Type[PreTrainedModel] | None = None,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
@@ -79,42 +82,18 @@ class Trainer:
         self.local_rank = dist.get_rank() if dist.is_initialized() else 0
         self.world_size = dist.get_world_size() if dist.is_initialized() else 1
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
+        self.task_type = task_type
         self.config = config
         self.model = model
+        self.model_config = model_config
+        self.model_class = model_class
         self.tokenizer = tokenizer
         self.dataset_train = dataset_train
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
-        self.evaluater_val = (
-            Evaluator(
-                task_type,
-                config,
-                model.module if hasattr(model, "module") else model,
-                tokenizer,
-                dataset_val,
-                calculate_metric_callback,
-                extral_args_evaluation if extral_args_evaluation is not None else dict(),
-            )
-            if dataset_val is not None
-            else None
-        )
-        self.evaluater_test = (
-            Evaluator(
-                task_type,
-                config,
-                model.module if hasattr(model, "module") else model,
-                tokenizer,
-                dataset_test,
-                calculate_metric_callback,
-                extral_args_evaluation if extral_args_evaluation is not None else dict(),
-            )
-            if dataset_test is not None
-            else None
-        )
         self.calculate_metric_callback = calculate_metric_callback
         if task_type not in allowed_task_type:
             raise ValueError(f"The parameter `task_type` was not understood: received `{task_type}` " f"but only {allowed_task_type} are valid.")
-        self.task_type = task_type
         self.extral_args_training = extral_args_training if extral_args_training is not None else dict()
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
         if evaluate_only:
@@ -197,6 +176,9 @@ class Trainer:
 
         # * wrap model
         self.wrap_model()
+
+        # * Do some preliminary preparations
+        self.set_evaluator()
 
         if self.config.parallel_mode == "deepspeed":
             pass
@@ -394,7 +376,7 @@ class Trainer:
             # TODO 保存最后 n 个ckpt
             if self.config.parallel_mode == "deepspeed":
                 # * Save current checkpoint
-                if epoch < self.config.epochs:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
+                if epoch < self.config.epochs - (not self.config.save_latest_ckpt):
                     self.model.save_checkpoint(self.ckpt_manager.latest_dir)
                     if self.local_rank == 0:
                         if self.tokenizer is not None:
@@ -419,7 +401,7 @@ class Trainer:
             else:
                 if self.local_rank == 0:
                     # * Save current checkpoint
-                    if epoch < self.config.epochs - 1:  # 当前设置为保存最后的checkpoint, 如果不需要, 则将configs.epochs改为configs.epochs - 1
+                    if epoch < self.config.epochs - (not self.config.save_latest_ckpt):
                         logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
                         self.ckpt_manager.latest_dir.mkdir()
                         logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
@@ -475,9 +457,9 @@ class Trainer:
     def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
         # if (split == Split.TEST and self.dataset_test is None) or (split == Split.VALIDATION and self.dataset_val is None):
         #     return None
-        if split == Split.TEST and self.dataset_test is not None:
+        if split == Split.TEST and self.evaluater_test is not None:
             evaluater = self.evaluater_test
-        elif split == Split.VALIDATION and self.dataset_val is not None:
+        elif split == Split.VALIDATION and self.evaluater_val is not None:
             evaluater = self.evaluater_val
         else:
             return None
@@ -607,13 +589,48 @@ class Trainer:
         """
         warp model with deepspeed engine or DDP if necessary
         """
+        if self.config.parallel_mode is None:
+            return
+        logger.debug("Wrapping the model ...")
         if self.config.parallel_mode == "DDP":
             self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=False)
         elif self.config.parallel_mode == "deepspeed":
-            # global dschf
             deepspeed_config = hjson.load(open(self.config.deepspeed_config, "r"))
-            fill_ds_config(deepspeed_config, self.config, self.model.config)
-            # dschf = HfDeepSpeedConfig(deepspeed_config)
-            # self.model = self.model(self.tokenizer)
+            if self.model is not None and isinstance(self.model, PreTrainedModel):
+                logger.warning(
+                    (
+                        "⚠️  You loaded a model with `from_pretrained` before setting deepspeed config, "
+                        "so the model will be loaded to cpu memory before loaded to GPU."
+                        "It is less efficient and when there is little CPU RAM may fail."
+                        "We recommend you just offer the `model_config` and `model_class`."
+                        "Then we will load the model directly to GPU."
+                    )
+                )
+                fill_ds_config(deepspeed_config, self.config, self.model.config)
+            else:
+                fill_ds_config(deepspeed_config, self.config, self.model_config)
+                global dschf
+                dschf = HfDeepSpeedConfig(deepspeed_config)
+                self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config)
             self.model, self.optimizer, _, self.scheduler = deepspeed.initialize(model=self.model, config=deepspeed_config)
 
+    def set_evaluator(self):
+        self.evaluater_val = Evaluator(
+            self.task_type,
+            self.config,
+            self.model.module if hasattr(self.model, "module") else self.model,
+            self.dataset_val,
+            self.calculate_metric_callback,
+            self.extral_args_evaluation if self.extral_args_evaluation is not None else dict(),
+            self.tokenizer,
+        )
+
+        self.evaluater_test = Evaluator(
+            self.task_type,
+            self.config,
+            self.model.module if hasattr(self.model, "module") else self.model,
+            self.dataset_test,
+            self.calculate_metric_callback,
+            self.extral_args_evaluation if self.extral_args_evaluation is not None else dict(),
+            self.tokenizer,
+        )
