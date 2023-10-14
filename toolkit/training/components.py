@@ -34,6 +34,7 @@ class StateDictMixin:
     default_file_name: str = ""
 
     def __new__(cls, object_with_state_dict) -> Self:
+        "if the object is `None`, then do not wrap it and just return `None`"
         if object_with_state_dict is None:
             return None
         return super().__new__(cls)

@@ -1,3 +1,5 @@
+from typing import Callable, Self
+
 import torch
 import torch.distributed as dist
 from torch.utils.data import Dataset
@@ -12,12 +14,38 @@ from .dataloader import get_dataloader
 logger = _getLogger("Evaluater")
 
 
+# todo 当前必须只适配 nlp 任务， 因此必须提供 tokenizer
 class Evaluator:
     """
+    If any of `model`, `dataset`, or `calculate_metric_callback` is `None`, then return `None`\n
     `task_type`: "generate", "classify", "regress"\n
     """
 
-    def __init__(self, task_type, config: TrainConfig, model, tokenizer, dataset: Dataset, calculate_metric_callback, extral_args_evaluation) -> None:
+    def __new__(
+        cls,
+        task_type: str,
+        config: TrainConfig,
+        model,
+        dataset: Dataset,
+        calculate_metric_callback: Callable,
+        extral_args_evaluation: dict,
+        tokenizer=None,
+    ) -> Self:
+        "if the object is `None`, then do not wrap it and just return `None`"
+        if model is None or dataset is None or calculate_metric_callback is None:
+            return None
+        return super().__new__(cls)
+
+    def __init__(
+        self,
+        task_type: str,
+        config: TrainConfig,
+        model,
+        dataset: Dataset,
+        calculate_metric_callback: Callable,
+        extral_args_evaluation: dict,
+        tokenizer=None,
+    ) -> None:
         self.task_type = task_type
         self.config = config
         self.model = model
