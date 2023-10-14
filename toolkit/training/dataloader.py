@@ -83,7 +83,7 @@ def get_dataloader(
     # * If there is a tail in development dataset, concatenate it. (Max length of tail: world_size.)
     if split != Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
         # * if deepspeed is not used, that means infer in DDP or single GPU, only need one GPU to deal with the tail
-        # * otherwise, in model parallel(MP), the tail must be passed to all GPU.
+        # * otherwise, in model parallel(MP, ZERO3), the tail must be passed to all GPU.
         if local_rank == 0 and configs.parallel_mode != "deepspeed":
             dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
             dataloader_tail = DataLoader(
