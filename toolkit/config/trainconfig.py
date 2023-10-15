@@ -58,6 +58,7 @@ class TrainConfig(ConfigBase):
         dashboard: str | None = None,
         shuffle: bool | None = None,
         logging_steps: int = -1,
+        torch_dtype: str = "auto",
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -153,6 +154,7 @@ class TrainConfig(ConfigBase):
         self.shuffle = shuffle
         self.ddp_timeout = ddp_timeout
         self.logging_steps = logging_steps
+        self.torch_dtype = torch_dtype
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):

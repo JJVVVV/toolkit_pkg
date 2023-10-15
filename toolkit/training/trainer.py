@@ -169,6 +169,15 @@ class Trainer:
         dataloader_train, sampler = get_dataloader(
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         )
+        # todo: 问题: 如果要用deepspeed的dataloader， 就无法提前获得dataloader， 就无法调用set_training_steps以及set_sch_warmup 就无法在sch中使用 `auto`
+        # todo: 解决: 手动计算 training_steps。
+        # if self.config.parallel_mode=="deepspeed":
+        #     dataloader_train, sampler = self.training_dataloader, None
+        # else:
+        #     # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
+        #     dataloader_train, sampler = get_dataloader(
+        #         self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
+        #     )
 
         # * Calculate some training parameters
         self.set_training_steps(dataloader_train)
@@ -181,6 +190,7 @@ class Trainer:
         self.set_evaluator()
 
         if self.config.parallel_mode == "deepspeed":
+            # todo: 当前只支持用使用deepspeed自带的optimizer以及scheduler
             pass
         else:
             # * Initialize optimizer, scheduler, scaler
@@ -248,8 +258,8 @@ class Trainer:
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
                 enumerate(
-                    gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps if self.config.parallel_mode != "deepspeed" else 1)
-                ),
+                    gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)
+                ),  # 如果使用deepspeed，无需手动累计梯度，DeepspeedEngine会实现梯度累计，但输入依旧是micro_batch而不是training_batch
                 total=self.config.steps_per_epoch,
                 desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
@@ -273,9 +283,11 @@ class Trainer:
                         # forward
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                         loss = outputs["loss"]
-                        accumulate_loss = loss.item()
                         # backward
                         self.model.backward(loss)
+                        # update parameters
+                        self.model.step()
+                        accumulate_loss += loss.item() / self.config.gradient_accumulation_steps
                     else:
                         if self.config.fp16:
                             # forward
@@ -293,7 +305,8 @@ class Trainer:
                         accumulate_loss += loss.item()
 
                 if self.config.parallel_mode == "deepspeed":
-                    self.model.step()
+                    # already called step() in accumulate loop
+                    pass
                 else:
                     if self.config.fp16:
                         # update parameters
@@ -561,15 +574,15 @@ class Trainer:
         """
         calculate the training steps per epoch and the total steps after dataloader initialized.
         """
-        if self.config.parallel_mode == "deepspeed":
-            # 使用deepspeed时，dataloader中的 batch 为真实的一个 batch，梯度累计以及分卡将由deepspeed处理
-            # 因此实际一个epoch的step数就是dataloader的长度
-            stepsPerEpoch = len(dataloader)
-        else:
-            # 使用DDP时， dataloader中的 batch 为某卡的某一个累计的 micro_batch,
-            # 因此在该卡上一个epoch的step数为 dataloader的长度除梯度累计步数，
-            # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
-            stepsPerEpoch = ceil(len(dataloader) / self.config.gradient_accumulation_steps)
+        # if self.config.parallel_mode == "deepspeed":
+        #     # 使用deepspeed时，dataloader中的 batch 为真实的一个 batch，梯度累计以及分卡将由deepspeed处理
+        #     # 因此实际一个epoch的step数就是dataloader的长度
+        #     stepsPerEpoch = len(dataloader)
+        # else:
+        # 使用DDP或deepspeed时， dataloader中的 batch 为某卡的某一个累计的 micro_batch,
+        # 因此在该卡上一个epoch的step数为 dataloader的长度除梯度累计步数，
+        # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
+        stepsPerEpoch = ceil(len(dataloader) / self.config.gradient_accumulation_steps)
         totalSteps = stepsPerEpoch * self.config.epochs
         self.config.total_steps_num = totalSteps
         self.config.steps_per_epoch = stepsPerEpoch
@@ -612,7 +625,9 @@ class Trainer:
                 global dschf
                 dschf = HfDeepSpeedConfig(deepspeed_config)
                 self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config)
-            self.model, self.optimizer, _, self.scheduler = deepspeed.initialize(model=self.model, config=deepspeed_config)
+            self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
+                model=self.model, config=deepspeed_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
+            )
 
     def set_evaluator(self):
         self.evaluater_val = Evaluator(
