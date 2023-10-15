@@ -38,21 +38,6 @@ def get_dataloader(
 
     # 训练
     if split == Split.TRAINING:
-        # # deepspeed会处理梯度累计，因此不需要裁切batch_size
-        # if configs.parallel_mode == "deepspeed":
-        #     sampler = None
-        #     g = torch.Generator()
-        #     g.manual_seed(configs.seed)
-        #     dataloader = DataLoader(
-        #         dataset=dataset,
-        #         batch_size=configs.train_batch_size,
-        #         shuffle=(split == Split.TRAINING) if shuffle is None else shuffle,
-        #         pin_memory=True,
-        #         #   worker_init_fn=seed_worker,
-        #         generator=g,
-        #         **dataloader_kwargs,
-        #     )
-        # else:
         batch_size_per_prog = split_batch(configs.train_batch_size, world_size)
         sampler = DistributedSampler(dataset, shuffle=True, drop_last=False, seed=configs.seed) if world_size != 1 else None
         g = torch.Generator()

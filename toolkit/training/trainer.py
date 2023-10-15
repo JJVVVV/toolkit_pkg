@@ -574,11 +574,6 @@ class Trainer:
         """
         calculate the training steps per epoch and the total steps after dataloader initialized.
         """
-        # if self.config.parallel_mode == "deepspeed":
-        #     # 使用deepspeed时，dataloader中的 batch 为真实的一个 batch，梯度累计以及分卡将由deepspeed处理
-        #     # 因此实际一个epoch的step数就是dataloader的长度
-        #     stepsPerEpoch = len(dataloader)
-        # else:
         # 使用DDP或deepspeed时， dataloader中的 batch 为某卡的某一个累计的 micro_batch,
         # 因此在该卡上一个epoch的step数为 dataloader的长度除梯度累计步数，
         # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
