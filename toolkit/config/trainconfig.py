@@ -138,6 +138,7 @@ class TrainConfig(ConfigBase):
             "if you do not need parallel, plase set it to `None`."
         )
         self.parallel_mode = parallel_mode
+        assert not (fp16 and bf16), f"❌  `fp16` and `bf16` cannot be enabled at the same time!"
         self.fp16 = fp16
         self.bf16 = bf16
 
