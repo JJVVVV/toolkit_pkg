@@ -245,6 +245,7 @@ class Trainer:
             logger.debug(f"  Total steps = {self.config.total_steps_num:d}")
             logger.debug(f"  Model type = {self.config.model_type}")
             logger.debug(f"  fp16: {self.config.fp16}\n")
+            logger.debug(f"  bf16: {self.config.bf16}\n")
             logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
 
         self.ckpt_manager.next()
@@ -292,6 +293,12 @@ class Trainer:
                         if self.config.fp16:
                             # forward
                             with autocast(device_type="cuda", dtype=torch.float16):
+                                outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
+                                loss = outputs["loss"] / self.config.gradient_accumulation_steps
+                            # backward
+                            self.scaler.scale(loss).backward()
+                        elif self.config.bf16:
+                            with autocast(device_type="cuda", dtype=torch.bfloat16):
                                 outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                                 loss = outputs["loss"] / self.config.gradient_accumulation_steps
                             # backward
