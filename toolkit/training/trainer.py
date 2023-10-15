@@ -409,7 +409,7 @@ class Trainer:
             # TODO 保存最后 n 个ckpt
             if self.config.parallel_mode == "deepspeed":
                 # * Save current checkpoint
-                if epoch < self.config.epochs - (not self.config.save_latest_ckpt):
+                if epoch < self.config.epochs - (not self.config.save_last_ckpt):
                     self.model.save_checkpoint(self.ckpt_manager.latest_dir)
                     if self.local_rank == 0:
                         if self.tokenizer is not None:
@@ -434,7 +434,7 @@ class Trainer:
             else:
                 if self.local_rank == 0:
                     # * Save current checkpoint
-                    if epoch < self.config.epochs - (not self.config.save_latest_ckpt):
+                    if epoch < self.config.epochs - (not self.config.save_last_ckpt):
                         logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
                         self.ckpt_manager.latest_dir.mkdir()
                         logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
