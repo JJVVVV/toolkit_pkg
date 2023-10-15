@@ -179,8 +179,7 @@ class Trainer:
         dataloader_train, sampler = get_dataloader(
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         )
-        # # todo: 问题: 如果要用deepspeed的dataloader， 就无法提前获得dataloader， 就无法调用set_training_steps以及set_sch_warmup 就无法在sch中使用 `auto`
-        # # todo: 解决: 手动计算 training_steps。
+
         # if self.config.parallel_mode == "deepspeed":
         #     dataloader_train, sampler = self.training_dataloader, None
         # else:
