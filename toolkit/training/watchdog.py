@@ -172,14 +172,22 @@ class WatchDog:
             logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
         if configs.parallel_mode == "deepspeed":
-            model.save_checkpoint(output_dir, tag="optimal")
-            model.module.config.save_pretrained(output_dir)
+            if model.zero_optimization_partition_weights():
+                if model.zero_gather_16bit_weights_on_model_save():
+                    # consolidation is expensive in time and memory and therefore isn't a default
+                    state_dict = model._zero3_consolidated_16bit_state_dict()
+                else:
+                    # the model will be bogus if not consolidated so don't confuse the user by saving it
+                    logger.error(f"Did not save the model {output_dir} because `stage3_gather_16bit_weights_on_model_save` is False")
+                    exit(1)
+            model.module.save_pretrained(output_dir, is_main_process=self.local_rank == 0, state_dict=state_dict, max_shard_size="200MB")
+            model.module.config.save_pretrained(output_dir, is_main_process=self.local_rank == 0)
         else:
             if self.local_rank == 0:
                 model_to_save = model.module if hasattr(model, "module") else model
-                model_to_save.save_pretrained(output_dir)
+                model_to_save.save_pretrained(output_dir, is_main_process=self.local_rank == 0, max_shard_size="200MB")
         if tokenizer is not None and self.local_rank == 0:
-            tokenizer.save_pretrained(output_dir)
+            tokenizer.save_pretrained(output_dir, is_main_process=self.local_rank == 0)
         if self.local_rank == 0:
             configs.save(output_dir)
             with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
