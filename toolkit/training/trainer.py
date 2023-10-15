@@ -156,7 +156,7 @@ class Trainer:
 
     def train(self) -> None:
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
-        # # * Initalize seed
+        # * Initalize to gpu
         if self.config.parallel_mode == "deepspeed":
             # self.model.cuda()
             pass
@@ -164,14 +164,24 @@ class Trainer:
             if self.config.gpu:
                 self.model.cuda()
 
+        # # * Calculate some training parameters
+        # self.set_training_steps_dataset()
+        # self.set_sch_warmup()
+
+        # # * wrap model
+        # self.wrap_model()
+
+        # # * Do some preliminary preparations
+        # self.set_evaluator()
+
         # * Load training data
         # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
         dataloader_train, sampler = get_dataloader(
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         )
-        # todo: 问题: 如果要用deepspeed的dataloader， 就无法提前获得dataloader， 就无法调用set_training_steps以及set_sch_warmup 就无法在sch中使用 `auto`
-        # todo: 解决: 手动计算 training_steps。
-        # if self.config.parallel_mode=="deepspeed":
+        # # todo: 问题: 如果要用deepspeed的dataloader， 就无法提前获得dataloader， 就无法调用set_training_steps以及set_sch_warmup 就无法在sch中使用 `auto`
+        # # todo: 解决: 手动计算 training_steps。
+        # if self.config.parallel_mode == "deepspeed":
         #     dataloader_train, sampler = self.training_dataloader, None
         # else:
         #     # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
@@ -377,6 +387,10 @@ class Trainer:
                     self.log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
                 curStepInGlobal += 1
             # *----------------------------------one epoch finish-------------------------------------
+            # * sync
+            if dist.is_initialized():
+                dist.barrier()
+
             # * Evaluate after each epoch
             val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
             test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
@@ -589,6 +603,18 @@ class Trainer:
         self.config.total_steps_num = totalSteps
         self.config.steps_per_epoch = stepsPerEpoch
 
+    def set_training_steps_dataset(self):
+        """
+        calculate the training steps per epoch and the total steps after dataset initialized.
+        """
+        # 使用DDP或deepspeed时， dataloader中的 batch 为某卡的某一个累计的 micro_batch,
+        # 因此在该卡上一个epoch的step数为 dataloader的长度除梯度累计步数，
+        # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
+        stepsPerEpoch = ceil(len(self.dataset_train) / self.config.train_batch_size)
+        totalSteps = stepsPerEpoch * self.config.epochs
+        self.config.total_steps_num = totalSteps
+        self.config.steps_per_epoch = stepsPerEpoch
+
     def set_sch_warmup(self):
         """
         calculate the warmup steps and total steps in scheduler,
@@ -633,6 +659,9 @@ class Trainer:
             )
 
     def set_evaluator(self):
+        """
+        Important: must initialize self.model before call this function
+        """
         self.evaluater_val = Evaluator(
             self.task_type,
             self.config,
