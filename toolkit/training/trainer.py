@@ -627,6 +627,7 @@ class Trainer:
                 global dschf
                 dschf = HfDeepSpeedConfig(deepspeed_config)
                 self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config)
+            # todo prior: 使用deepspeed的dataloader
             self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
                 model=self.model, config=deepspeed_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
             )
