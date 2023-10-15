@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
 import torch.distributed as dist
-from transformers import PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast
+from transformers import PreTrainedTokenizer
 
 from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
@@ -69,9 +69,9 @@ class WatchDog:
         test_metricdict: MetricDict | None,
         epoch: int,
         step_global: int,
-        model: PreTrainedModel,
+        model,
         configs: TrainConfig,
-        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
+        tokenizer: PreTrainedTokenizer | None = None,
         file_logger: Logger | None = None,
         silence: bool = False,
     ):
@@ -159,9 +159,7 @@ class WatchDog:
 
     # TODO 当前只支持 Transformers 中的 model 和 tokenizer
     # TODO prior 保存最好的 n 个ckpt
-    def save_optimal_checkpoint(
-        self, model: PreTrainedModel, configs: TrainConfig, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None, silence=True
-    ):
+    def save_optimal_checkpoint(self, model, configs: TrainConfig, tokenizer: PreTrainedTokenizer | None = None, silence=True):
         output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
         if self.local_rank == 0:
             if output_dir.exists():
@@ -171,23 +169,33 @@ class WatchDog:
             logger.debug("🚩 Saving optimal checkpoint ...")
             logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
-        if configs.parallel_mode == "deepspeed":
-            if model.zero_optimization_partition_weights():
-                if model.zero_gather_16bit_weights_on_model_save():
-                    # consolidation is expensive in time and memory and therefore isn't a default
-                    state_dict = model._zero3_consolidated_16bit_state_dict()
-                else:
-                    # the model will be bogus if not consolidated so don't confuse the user by saving it
-                    logger.error(f"Did not save the model {output_dir} because `stage3_gather_16bit_weights_on_model_save` is False")
-                    exit(1)
-            model.module.save_pretrained(output_dir, is_main_process=self.local_rank == 0, state_dict=state_dict, max_shard_size="200MB")
+
+        # save model
+        # 如果使用deepspeed并行是ZERO3模式
+        if configs.parallel_mode == "deepspeed" and model.zero_optimization_partition_weights():
+            if model.zero_gather_16bit_weights_on_model_save():
+                # consolidation is expensive in time and memory and therefore isn't a default
+                state_dict = model._zero3_consolidated_16bit_state_dict()
+            else:
+                # the model will be bogus if not consolidated so don't confuse the user by saving it
+                logger.error(f"Did not save the model {output_dir} because `stage3_gather_16bit_weights_on_model_save` is False")
+                exit(1)
+            model.module.save_pretrained(output_dir, is_main_process=self.local_rank == 0, state_dict=state_dict, max_shard_size="300MB")
             model.module.config.save_pretrained(output_dir, is_main_process=self.local_rank == 0)
+            # 奇怪的bug，会多存一个没有用的 "pytorch_model.bin"
+            if (output_dir / "pytorch_model.bin.index.json").exists() and (dummy_fie := (output_dir / "pytorch_model.bin")).exists():
+                dummy_fie.unlink()
         else:
-            if self.local_rank == 0:
-                model_to_save = model.module if hasattr(model, "module") else model
-                model_to_save.save_pretrained(output_dir, is_main_process=self.local_rank == 0, max_shard_size="200MB")
+            model_to_save = model.module if hasattr(model, "module") else model
+            model_to_save.save_pretrained(
+                output_dir, is_main_process=self.local_rank == 0, state_dict=model_to_save.state_dict(), max_shard_size="200MB"
+            )
+
+        # save tokenizer
         if tokenizer is not None and self.local_rank == 0:
             tokenizer.save_pretrained(output_dir, is_main_process=self.local_rank == 0)
+
+        # write performance
         if self.local_rank == 0:
             configs.save(output_dir)
             with open(output_dir / "performance.json", "w", encoding="utf-8") as writer:
@@ -205,6 +213,8 @@ class WatchDog:
 
         if not silence and self.local_rank == 0:
             logger.debug(f"✅ Save optimal checkpoint successfully.")
+
+        # save watch dog(self)
         if self.local_rank == 0:
             self.save(output_dir)
 
