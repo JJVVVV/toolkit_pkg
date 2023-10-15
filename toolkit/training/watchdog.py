@@ -180,14 +180,16 @@ class WatchDog:
                 # the model will be bogus if not consolidated so don't confuse the user by saving it
                 logger.error(f"Did not save the model {output_dir} because `stage3_gather_16bit_weights_on_model_save` is False")
                 exit(1)
-            model.module.save_pretrained(output_dir, is_main_process=self.local_rank == 0, state_dict=state_dict, max_shard_size="10GB")
-            model.module.config.save_pretrained(output_dir, is_main_process=self.local_rank == 0)
-            # 奇怪的bug，会多存一个没有用的 "pytorch_model.bin"
-            if (output_dir / "pytorch_model.bin.index.json").exists() and (dummy_fie := (output_dir / "pytorch_model.bin")).exists():
-                dummy_fie.unlink()
+            if self.local_rank == 0:
+                model.module.save_pretrained(output_dir, is_main_process=self.local_rank == 0, state_dict=state_dict, max_shard_size="10GB")
+                model.module.config.save_pretrained(output_dir, is_main_process=self.local_rank == 0)
+                # 奇怪的bug，会多存一个没有用的 "pytorch_model.bin"
+                if (output_dir / "pytorch_model.bin.index.json").exists() and (dummy_fie := (output_dir / "pytorch_model.bin")).exists():
+                    dummy_fie.unlink()
         else:
-            model_to_save = model.module if hasattr(model, "module") else model
-            model_to_save.save_pretrained(output_dir, is_main_process=self.local_rank == 0, max_shard_size="10GB")
+            if self.local_rank == 0:
+                model_to_save = model.module if hasattr(model, "module") else model
+                model_to_save.save_pretrained(output_dir, is_main_process=self.local_rank == 0, max_shard_size="100MB")
 
         # save tokenizer
         if tokenizer is not None and self.local_rank == 0:
