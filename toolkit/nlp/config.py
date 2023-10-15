@@ -52,6 +52,7 @@ class NLPTrainingConfig(TrainConfig):
         dashboard: str | None = None,
         shuffle: bool | None = None,
         logging_steps: int = -1,
+        torch_dtype: str = "auto",
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         max_length: int | None = 20,
@@ -116,6 +117,7 @@ class NLPTrainingConfig(TrainConfig):
             dashboard,
             shuffle,
             logging_steps,
+            torch_dtype,
             **kwargs,
         )
         self.padding_side = padding_side
