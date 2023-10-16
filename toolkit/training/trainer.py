@@ -176,12 +176,7 @@ class Trainer:
         # # * Do some preliminary preparations
         # self.set_evaluator()
 
-        # * Load training data
-        # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
-        dataloader_train, sampler = get_dataloader(
-            self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
-        )
-
+        # # * Load training data
         # if self.config.parallel_mode == "deepspeed":
         #     dataloader_train, sampler = self.training_dataloader, None
         # else:
@@ -189,6 +184,12 @@ class Trainer:
         #     dataloader_train, sampler = get_dataloader(
         #         self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         #     )
+
+        # * Load training data
+        # TODO: 通用性: collate_fn 并不一定需要, nlp任务中使用collate_fn裁剪batch中样本的pad来加速训练，但其他任务可能不需要
+        dataloader_train, sampler = get_dataloader(
+            self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
+        )
 
         # * Calculate some training parameters
         self.set_training_steps(dataloader_train)
@@ -299,8 +300,7 @@ class Trainer:
                         # backward
                         self.model.backward(loss)
                         # update parameters
-                        if self.model.is_gradient_accumulation_boundary():
-                            self.model.step()
+                        self.model.step()
                         accumulate_loss += loss.item() / self.config.gradient_accumulation_steps
                     else:
                         if self.config.fp16:
@@ -327,6 +327,7 @@ class Trainer:
                 # call step()
                 if self.config.parallel_mode == "deepspeed":
                     # already called step() in accumulate loop
+                    # self.model.step()
                     pass
                 else:
                     if self.config.fp16:
