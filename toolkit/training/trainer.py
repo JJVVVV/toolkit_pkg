@@ -499,10 +499,10 @@ class Trainer:
     def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
         # if (split == Split.TEST and self.dataset_test is None) or (split == Split.VALIDATION and self.dataset_val is None):
         #     return None
-        if split == Split.TEST and self.evaluater_test is not None:
-            evaluater = self.evaluater_test
-        elif split == Split.VALIDATION and self.evaluater_val is not None:
-            evaluater = self.evaluater_val
+        if split == Split.TEST and self.evaluator_test is not None:
+            evaluater = self.evaluator_test
+        elif split == Split.VALIDATION and self.evaluator_val is not None:
+            evaluater = self.evaluator_val
         else:
             return None
         if self.local_rank == 0:
@@ -601,7 +601,7 @@ class Trainer:
         """
         Important: must initialize self.model before call this function
         """
-        self.evaluater_val = Evaluator(
+        self.evaluator_val = Evaluator(
             self.task_type,
             self.config,
             self.model.module if hasattr(self.model, "module") else self.model,
@@ -611,7 +611,7 @@ class Trainer:
             self.tokenizer,
         )
 
-        self.evaluater_test = Evaluator(
+        self.evaluator_test = Evaluator(
             self.task_type,
             self.config,
             self.model.module if hasattr(self.model, "module") else self.model,

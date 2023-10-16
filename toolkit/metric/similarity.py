@@ -17,7 +17,7 @@ def rouge(pred: list[str], tgt: list[str], rouge_keys: str | tuple[str, ...] = "
     else:
         raise NotImplementedError()
 
-    for p, t in tqdm(zip(pred, tgt), total=len(pred)):
+    for p, t in tqdm(zip(pred, tgt), total=len(pred), desc="Calculating rouge: "):
         ret_dict = rouge_score(p, t, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
         ret += MetricDict({key: ret_dict[key + "_fmeasure"].item() for key in rouge_keys})
     return ret / len(pred)
