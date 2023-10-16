@@ -1,6 +1,8 @@
 import numpy as np
 
-from .. import metric_base, utils
+from . import utils
+
+from . import metric_base
 
 
 class DistinctNgrams(metric_base.DiversityMetric):

@@ -1,6 +1,6 @@
 from torchmetrics.functional.text.rouge import rouge_score
 from tqdm.auto import tqdm
-from .metricdict import MetricDict
+from ._metricdict import MetricDict
 
 
 def rouge(pred: list[str], tgt: list[str], rouge_keys: str | tuple[str, ...] = "rougeL", language="zh"):
