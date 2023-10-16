@@ -14,7 +14,6 @@ from .dataloader import get_dataloader
 logger = _getLogger("Evaluater")
 
 
-# todo 当前必须只适配 nlp 任务， 因此必须提供 tokenizer
 class Evaluator:
     """
     If any of `model`, `dataset`, or `calculate_metric_callback` is `None`, then return `None`\n
