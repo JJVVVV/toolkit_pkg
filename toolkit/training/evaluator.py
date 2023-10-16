@@ -27,7 +27,7 @@ class Evaluator:
         model,
         dataset: Dataset,
         calculate_metric_callback: Callable,
-        extral_args_evaluation: dict,
+        extral_args_evaluation: dict | None,
         tokenizer=None,
     ) -> Self:
         "if the object is `None`, then do not wrap it and just return `None`"
@@ -42,7 +42,7 @@ class Evaluator:
         model,
         dataset: Dataset,
         calculate_metric_callback: Callable,
-        extral_args_evaluation: dict,
+        extral_args_evaluation: dict | None,
         tokenizer=None,
     ) -> None:
         self.task_type = task_type
@@ -51,7 +51,7 @@ class Evaluator:
         self.tokenizer = tokenizer
         self.dataset = dataset
         self.calculate_metric_callback = calculate_metric_callback
-        self.extral_args_evaluation = extral_args_evaluation
+        self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
 
     def eval(self, split: Split = Split.VALIDATION, cuda_id=None) -> MetricDict | None:
         """

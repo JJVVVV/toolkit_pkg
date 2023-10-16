@@ -201,11 +201,11 @@ class Trainer:
         # * Do some preliminary preparations
         self.set_evaluator()
 
+        # * Initialize optimizer, scheduler, scaler
         if self.config.parallel_mode == "deepspeed":
             # todo: 当前只支持用使用deepspeed自带的optimizer以及scheduler
             pass
         else:
-            # * Initialize optimizer, scheduler, scaler
             if isinstance(self.optimizer, torch.optim.Optimizer):  # optimizer
                 optimizer = self.optimizer
             else:  # optimizer class
@@ -607,7 +607,7 @@ class Trainer:
             self.model.module if hasattr(self.model, "module") else self.model,
             self.dataset_val,
             self.calculate_metric_callback,
-            self.extral_args_evaluation if self.extral_args_evaluation is not None else dict(),
+            self.extral_args_evaluation,
             self.tokenizer,
         )
 
@@ -617,7 +617,7 @@ class Trainer:
             self.model.module if hasattr(self.model, "module") else self.model,
             self.dataset_test,
             self.calculate_metric_callback,
-            self.extral_args_evaluation if self.extral_args_evaluation is not None else dict(),
+            self.extral_args_evaluation,
             self.tokenizer,
         )
 
