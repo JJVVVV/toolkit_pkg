@@ -298,10 +298,11 @@ class Trainer:
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                         loss = outputs["loss"]
                         # backward
-                        self.model.backward(loss)
+                        loss = self.model.backward(loss)
                         # update parameters
                         self.model.step()
-                        accumulate_loss += loss.item() / self.config.gradient_accumulation_steps
+                        # accumulate_loss += loss.item() / self.config.gradient_accumulation_steps
+                        accumulate_loss += loss.item()
                     else:
                         if self.config.fp16:
                             # forward
