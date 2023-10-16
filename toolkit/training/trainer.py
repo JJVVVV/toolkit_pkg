@@ -256,9 +256,9 @@ class Trainer:
             logger.debug(f"  Steps per epoch = {self.config.steps_per_epoch:d}")
             logger.debug(f"  Total steps = {self.config.total_steps_num:d}")
             logger.debug(f"  Model type = {self.config.model_type}")
-            logger.debug(f"  fp16: {self.config.fp16}\n")
-            logger.debug(f"  bf16: {self.config.bf16}\n")
-            logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
+            logger.debug(f"  fp16: {self.config.fp16}")
+            logger.debug(f"  bf16: {self.config.bf16}")
+            logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}\n")
 
         self.ckpt_manager.next()
         curStepInGlobal = self.ckpt_manager.latest_id * self.config.steps_per_epoch  # 总共已训练步数
