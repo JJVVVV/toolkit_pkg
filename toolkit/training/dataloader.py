@@ -69,6 +69,7 @@ def get_dataloader(
     if split != Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
         # * if deepspeed is not used, that means infer in DDP or single GPU, only need one GPU to deal with the tail
         # * otherwise, in model parallel(MP, ZERO3), the tail must be passed to all GPU.
+        # todo 当前做法是丢弃最后的 tail, 如过不丢弃, 应该为 `if local_rank == 0 or configs.parallel_mode == "deepspeed":`
         if local_rank == 0 and configs.parallel_mode != "deepspeed":
             dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
             dataloader_tail = DataLoader(

@@ -505,83 +505,11 @@ class Trainer:
             evaluater = self.evaluater_val
         else:
             return None
-        logger.debug("")
-        logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
-        logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
+        if self.local_rank == 0:
+            logger.debug("")
+            logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
+            logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         return evaluater.eval(split)
-
-    def evaluate(self, split: Split, cuda_id=None) -> MetricDict | None:
-        local_rank = dist.get_rank() if dist.is_initialized() else 0
-        world_size = dist.get_world_size() if dist.is_initialized() else 1
-
-        if split == Split.TEST and self.dataset_test is not None:
-            dataloader = (
-                get_dataloader(self.dataset_test, self.config, Split.TEST, collate_fn=self.dataset_test.collate_fn)
-                if not hasattr(self, "dataloader_test")
-                else self.dataloader_test
-            )
-        elif split == Split.VALIDATION and self.dataset_val is not None:
-            dataloader = (
-                get_dataloader(self.dataset_val, self.config, Split.VALIDATION, collate_fn=self.dataset_val.collate_fn)
-                if not hasattr(self, "dataloader_val")
-                else self.dataloader_val
-            )
-        else:
-            return None
-
-        all_losses = []
-        all_labels = []
-        all_logits = []
-        if cuda_id is not None:
-            torch.cuda.set_device(cuda_id)
-            self.model.cuda()
-        self.model.eval()
-        match self.task_type:
-            case "generate":
-                for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
-                    with torch.no_grad():
-                        labels = batch.pop("labels")
-                        custom_inputs = batch.pop("custom_inputs", dict())
-                        batch = {key: value.cuda() for key, value in batch.items()}
-                        outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
-                        texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
-                        all_losses.append(-1)
-                        all_labels.extend(labels)
-                        all_logits.extend(texts)
-            case "classify" | "regress":
-                for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
-                    with torch.no_grad():
-                        custom_inputs = batch.pop("custom_inputs", dict())
-                        batch = {key: value.cuda() for key, value in batch.items()}
-                        labels = batch["labels"]
-                        outputs = self.model(**batch, **custom_inputs, **self.extral_args_evaluation)
-                        loss, logits = outputs["loss"], outputs["logits"]
-                        all_losses.append(loss.item())
-                        all_labels.extend(labels.numpy(force=True).tolist())
-                        all_logits.extend(logits.numpy(force=True).tolist())
-        self.model.train()
-
-        if world_size > 1:
-            logger.debug(f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(all_losses)}")
-
-            labels_gather_list = [None for _ in range(world_size)]
-            logits_gather_list = [None for _ in range(world_size)]
-            mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
-
-            dist.gather_object(all_labels, labels_gather_list if local_rank == 0 else None, dst=0)
-            dist.gather_object(all_logits, logits_gather_list if local_rank == 0 else None, dst=0)
-            dist.reduce(mean_loss, dst=0, op=dist.ReduceOp.SUM, async_op=False)
-
-            if local_rank != 0:  # final result will be calculated on `local rank 0` process
-                return None
-
-            all_labels = sum(labels_gather_list, [])
-            all_logits = sum(logits_gather_list, [])
-            mean_loss = (mean_loss / world_size).item()
-        else:
-            mean_loss = sum(all_losses) / len(all_losses)
-
-        return self.calculate_metric_callback(all_labels, all_logits, mean_loss)
 
     def log_metrics(self, val_metricdict, test_metricdict, loss, curStepInGlobal):
         if self.local_rank == 0:
@@ -692,3 +620,77 @@ class Trainer:
             self.extral_args_evaluation if self.extral_args_evaluation is not None else dict(),
             self.tokenizer,
         )
+
+    # ! deprecate
+    # def evaluate(self, split: Split, cuda_id=None) -> MetricDict | None:
+    #     local_rank = dist.get_rank() if dist.is_initialized() else 0
+    #     world_size = dist.get_world_size() if dist.is_initialized() else 1
+
+    #     if split == Split.TEST and self.dataset_test is not None:
+    #         dataloader = (
+    #             get_dataloader(self.dataset_test, self.config, Split.TEST, collate_fn=self.dataset_test.collate_fn)
+    #             if not hasattr(self, "dataloader_test")
+    #             else self.dataloader_test
+    #         )
+    #     elif split == Split.VALIDATION and self.dataset_val is not None:
+    #         dataloader = (
+    #             get_dataloader(self.dataset_val, self.config, Split.VALIDATION, collate_fn=self.dataset_val.collate_fn)
+    #             if not hasattr(self, "dataloader_val")
+    #             else self.dataloader_val
+    #         )
+    #     else:
+    #         return None
+
+    #     all_losses = []
+    #     all_labels = []
+    #     all_logits = []
+    #     if cuda_id is not None:
+    #         torch.cuda.set_device(cuda_id)
+    #         self.model.cuda()
+    #     self.model.eval()
+    #     match self.task_type:
+    #         case "generate":
+    #             for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
+    #                 with torch.no_grad():
+    #                     labels = batch.pop("labels")
+    #                     custom_inputs = batch.pop("custom_inputs", dict())
+    #                     batch = {key: value.cuda() for key, value in batch.items()}
+    #                     outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
+    #                     texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+    #                     all_losses.append(-1)
+    #                     all_labels.extend(labels)
+    #                     all_logits.extend(texts)
+    #         case "classify" | "regress":
+    #             for batch in tqdm(dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
+    #                 with torch.no_grad():
+    #                     custom_inputs = batch.pop("custom_inputs", dict())
+    #                     batch = {key: value.cuda() for key, value in batch.items()}
+    #                     labels = batch["labels"]
+    #                     outputs = self.model(**batch, **custom_inputs, **self.extral_args_evaluation)
+    #                     loss, logits = outputs["loss"], outputs["logits"]
+    #                     all_losses.append(loss.item())
+    #                     all_labels.extend(labels.numpy(force=True).tolist())
+    #                     all_logits.extend(logits.numpy(force=True).tolist())
+    #     self.model.train()
+
+    #     if world_size > 1:
+    #         logger.debug(f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(all_losses)}")
+
+    #         labels_gather_list = [None for _ in range(world_size)]
+    #         logits_gather_list = [None for _ in range(world_size)]
+    #         mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
+
+    #         dist.gather_object(all_labels, labels_gather_list if local_rank == 0 else None, dst=0)
+    #         dist.gather_object(all_logits, logits_gather_list if local_rank == 0 else None, dst=0)
+    #         dist.reduce(mean_loss, dst=0, op=dist.ReduceOp.SUM, async_op=False)
+
+    #         if local_rank != 0:  # final result will be calculated on `local rank 0` process
+    #             return None
+
+    #         all_labels = sum(labels_gather_list, [])
+    #         all_logits = sum(logits_gather_list, [])
+    #         mean_loss = (mean_loss / world_size).item()
+    #     else:
+    #         mean_loss = sum(all_losses) / len(all_losses)
+
+    #     return self.calculate_metric_callback(all_labels, all_logits, mean_loss)
