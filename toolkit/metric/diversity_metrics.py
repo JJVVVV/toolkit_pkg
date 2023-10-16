@@ -2,6 +2,7 @@ from ._metricdict import MetricDict
 from .utils.utils_distinct_n import ngrams
 from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 import numpy as np
+from numpy.typing import NDArray
 
 
 def distinct_n_sentence_level(sentence, n):
@@ -27,7 +28,7 @@ def distinct_n_corpus_level(sentences, n):
     return sum(distinct_n_sentence_level(sentence, n) for sentence in sentences) / len(sentences)
 
 
-def self_bleu_one_set(s: list[str], weights=(0.25, 0.25, 0.25, 0.25), smoothing_level=0, language="zh") -> float | list[float]:
+def self_bleu_one_set(s: list[str], weights=(0.25, 0.25, 0.25, 0.25), smoothing_level: int = 0, language: str = "zh") -> NDArray:
     """
     Smoothing level 0: No smoothing.\n
     Smoothing level 1: Add epsilon counts to precision with 0 counts.\n
@@ -55,7 +56,7 @@ def self_bleu_one_set(s: list[str], weights=(0.25, 0.25, 0.25, 0.25), smoothing_
     return 1 - np.array(scores)
 
 
-def self_bleu(sets_list: list[list[str]], weights=(0.25, 0.25, 0.25, 0.25), smoothing_level=0, language="zh"):
+def self_bleu(sets_list: list[list[str]], weights=(0.25, 0.25, 0.25, 0.25), smoothing_level: int = 0, language: str = "zh") -> NDArray:
     # sets_list: 一个列表, 其中的每个元素是一个集合, 要计算每个集合中各个元素之间的多样性程度, 然后求平均
     score = 0
     for s in sets_list:
