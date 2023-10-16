@@ -1,5 +1,5 @@
 from torchmetrics.functional.text.rouge import rouge_score
-
+from tqdm.auto import tqdm
 from .metricdict import MetricDict
 
 
@@ -9,14 +9,15 @@ def calculate_rouge(pred: list[str], tgt: list[str], rouge_keys: str | tuple[str
     """
     ret = MetricDict({key: 0 for key in rouge_keys})
     if language == "zh":
-        for p, t in zip(pred, tgt):
-            ret_dict = rouge_score(pred, tgt, rouge_keys=rouge_keys, tokenizer=list, normalizer=lambda x: x)
-            ret += MetricDict({key: ret_dict[key + "_fmeasure"].item() for key in rouge_keys})
-        return ret / len(pred)
+        tokenizer = list
+        normalizer = lambda x: x
     elif language == "en":
-        for p, t in zip(pred, tgt):
-            ret_dict = rouge_score(pred, tgt, rouge_keys=rouge_keys, tokenizer=lambda s: s.split(), normalizer=lambda x: x)
-            ret += MetricDict({key: ret_dict[key + "_fmeasure"].item() for key in rouge_keys})
-        return ret / len(pred)
+        tokenizer = lambda s: s.split()
+        normalizer = lambda x: x
     else:
         raise NotImplementedError()
+
+    for p, t in tqdm(zip(pred, tgt), total=len(pred)):
+        ret_dict = rouge_score(p, t, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
+        ret += MetricDict({key: ret_dict[key + "_fmeasure"].item() for key in rouge_keys})
+    return ret / len(pred)
