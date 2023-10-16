@@ -32,7 +32,7 @@ def setup_seed(seed: int) -> None:
     # if you are using multi-GPU. 为所有GPU设置随机种子
     torch.cuda.manual_seed_all(seed)
     if local_rank == 0:
-        toolkit_logger.info(f"seed={seed}")
+        toolkit_logger.debug(f"seed={seed}")
 
 
 def setup_parallel_ddp(ddp_timeout: int) -> Tuple[int, int]:
