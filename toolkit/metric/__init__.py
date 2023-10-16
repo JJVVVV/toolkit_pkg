@@ -1,3 +1,2 @@
-from .metricdict import MetricDict
-from .similarity import rouge
-from .diversity import DistinctNgrams, AveragedDistinctNgrams
+from ._metricdict import MetricDict
+from .similarity_metrics import rouge

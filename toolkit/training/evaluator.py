@@ -30,7 +30,7 @@ class Evaluator:
         extral_args_evaluation: dict | None,
         tokenizer=None,
     ) -> Self:
-        "if the object is `None`, then do not wrap it and just return `None`"
+        "if any of the following objects is `None`, then just return `None`"
         if model is None or dataset is None or calculate_metric_callback is None:
             return None
         return super().__new__(cls)

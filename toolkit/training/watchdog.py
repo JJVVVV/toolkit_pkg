@@ -13,7 +13,7 @@ from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
-from ..metric.metricdict import MetricDict
+from ..metric._metricdict import MetricDict
 from ..utils.misc import find_file
 
 logger = _getLogger("WatchDog")
