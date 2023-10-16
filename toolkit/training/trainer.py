@@ -72,6 +72,7 @@ class Trainer:
         project_name: str = "untitled",
         extral_args_training: dict | None = None,
         extral_args_evaluation: dict | None = None,
+        from_pretrained_kwargs: dict | None = None,
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
@@ -96,6 +97,7 @@ class Trainer:
             raise ValueError(f"The parameter `task_type` was not understood: received `{task_type}` " f"but only {allowed_task_type} are valid.")
         self.extral_args_training = extral_args_training if extral_args_training is not None else dict()
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
+        self.from_pretrained_kwargs = from_pretrained_kwargs
         if evaluate_only:
             return
 
@@ -651,7 +653,10 @@ class Trainer:
                 fill_ds_config(deepspeed_config, self.config, self.model_config)
                 global dschf
                 dschf = HfDeepSpeedConfig(deepspeed_config)
-                self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config)
+                if self.from_pretrained_kwargs is None:
+                    self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config)
+                else:
+                    self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config, **self.from_pretrained_kwargs)
             # todo prior: 使用deepspeed的dataloader
             self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
                 model=self.model, config=deepspeed_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
