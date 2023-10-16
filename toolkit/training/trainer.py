@@ -284,6 +284,7 @@ class Trainer:
                 #     else:
                 #         logger.debug(f'\n{self.tokenizer.decode(batch_in_accumulate[0]["input_ids"][0], skip_special_tokens=True)}\n')
 
+                # forward and backward
                 accumulate_loss = 0
                 for batch in batch_in_accumulate:
                     custom_inputs = batch.pop("custom_inputs", dict())
@@ -298,7 +299,8 @@ class Trainer:
                         # backward
                         self.model.backward(loss)
                         # update parameters
-                        self.model.step()
+                        if self.model.is_gradient_accumulation_boundary():
+                            self.model.step()
                         accumulate_loss += loss.item() / self.config.gradient_accumulation_steps
                     else:
                         if self.config.fp16:
@@ -322,6 +324,7 @@ class Trainer:
                             loss.backward()
                         accumulate_loss += loss.item()
 
+                # call step()
                 if self.config.parallel_mode == "deepspeed":
                     # already called step() in accumulate loop
                     pass
@@ -338,8 +341,10 @@ class Trainer:
                         self.scheduler.step()
 
                     self.optimizer.zero_grad()
+
                 # # 梯度截断
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
+
                 # * log loss and learning rate on consoles
                 if self.config.logging_steps != -1 and self.local_rank == 0 and curStepInGlobal % self.config.logging_steps == 0:
                     toolkit_logger.info(f"Step={curStepInGlobal:5d} Loss={accumulate_loss:.4f}")
