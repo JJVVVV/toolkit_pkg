@@ -1,2 +1,3 @@
 from .metricdict import MetricDict
-from .rouge import calculate_rouge
+from .similarity import rouge
+from .diversity import DistinctNgrams, AveragedDistinctNgrams

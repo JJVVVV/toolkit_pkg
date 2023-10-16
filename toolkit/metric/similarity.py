@@ -3,7 +3,7 @@ from tqdm.auto import tqdm
 from .metricdict import MetricDict
 
 
-def calculate_rouge(pred: list[str], tgt: list[str], rouge_keys: str | tuple[str, ...] = "rougeL", language="zh"):
+def rouge(pred: list[str], tgt: list[str], rouge_keys: str | tuple[str, ...] = "rougeL", language="zh"):
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
     """
