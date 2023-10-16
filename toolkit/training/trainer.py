@@ -349,7 +349,7 @@ class Trainer:
 
                 # * log loss and learning rate on consoles
                 if self.config.logging_steps != -1 and self.local_rank == 0 and curStepInGlobal % self.config.logging_steps == 0:
-                    toolkit_logger.info(f"Step={curStepInGlobal:5d} Loss={accumulate_loss:.4f}")
+                    toolkit_logger.warning(f"Step={curStepInGlobal:5d} Loss={accumulate_loss:.4f}")
                 # * log loss and learning rate on dashboard
                 # if curStepInGlobal & 15 == 0:
                 if True:
