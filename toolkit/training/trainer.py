@@ -260,6 +260,7 @@ class Trainer:
             logger.debug(f"  bf16: {self.config.bf16}")
             logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}\n")
 
+        # * Enter into a new ckpt
         self.ckpt_manager.next()
         curStepInGlobal = self.ckpt_manager.latest_id * self.config.steps_per_epoch  # 总共已训练步数
 
@@ -270,9 +271,7 @@ class Trainer:
                 sampler.set_epoch(epoch)
             self.model.train()
             for curStepInEpoch, batch_in_accumulate in tqdm(
-                enumerate(
-                    gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)
-                ),  # 如果使用deepspeed，无需手动累计梯度，DeepspeedEngine会实现梯度累计，但输入依旧是micro_batch而不是training_batch
+                enumerate(gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)),
                 total=self.config.steps_per_epoch,
                 desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
@@ -293,6 +292,7 @@ class Trainer:
                     if self.config.gpu:
                         batch = {key: value.cuda() for key, value in batch.items()}
                     # import pdb; pdb.set_trace()
+                    # 如果使用deepspeed，无需手动累计梯度，DeepspeedEngine会实现梯度累计，但输入依旧是micro_batch而不是training_batch
                     if self.config.parallel_mode == "deepspeed":
                         # forward
                         outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
@@ -392,7 +392,7 @@ class Trainer:
                         tokenizer=self.tokenizer,
                         configs=self.config,
                     )
-                    self.log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
+                    self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
                 curStepInGlobal += 1
             # *----------------------------------one epoch finish-------------------------------------
             # * sync
@@ -411,7 +411,7 @@ class Trainer:
                 tokenizer=self.tokenizer,
                 configs=self.config,
             )
-            self.log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
+            self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
 
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
@@ -511,7 +511,11 @@ class Trainer:
             logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         return evaluater.eval(split)
 
-    def log_metrics(self, val_metricdict, test_metricdict, loss, curStepInGlobal):
+    def dashboard_log_metrics(self, val_metricdict, test_metricdict, loss, curStepInGlobal):
+        """
+        log metrics to dashboard if dashboard is not None.
+        if no evaluation, just log the loss of current step.
+        """
         if self.local_rank == 0:
             log_dict = dict()
             if val_metricdict is not None:

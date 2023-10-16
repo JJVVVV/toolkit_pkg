@@ -1,8 +1,7 @@
 import json
 from typing import Any
 
-from .enums import Metric
-from .utils import MetricDict
+from .metric import MetricDict
 
 
 class JsonEncoder(json.JSONEncoder):
@@ -10,8 +9,5 @@ class JsonEncoder(json.JSONEncoder):
         if isinstance(o, MetricDict):
             print("MetricDict")
             return o.to_json()
-        if isinstance(o, Metric):
-            print("Metric")
-            return o.name
 
         return super().default(o)
