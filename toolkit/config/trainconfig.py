@@ -2,7 +2,7 @@ from collections import OrderedDict
 from pathlib import Path
 from typing import Self
 
-from ..metric._metricdict import MetricDict
+from ..metric import MetricDict
 from .config_base import ConfigBase, logger
 
 # SILENCE = True

@@ -13,7 +13,7 @@ from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
-from ..metric._metricdict import MetricDict
+from ..metric import MetricDict
 from ..utils.misc import find_file
 
 logger = _getLogger("WatchDog")
@@ -187,8 +187,8 @@ class WatchDog:
                 if (output_dir / "pytorch_model.bin.index.json").exists() and (dummy_fie := (output_dir / "pytorch_model.bin")).exists():
                     dummy_fie.unlink()
         else:
-            # 已知bug: 使用deepspeed 0-2时,无法shard模型, 
-            # 原因是transformers中关于shard model的实现中, 会将有相同 id_storage 的 state_dict 存到一起, 
+            # 已知bug: 使用deepspeed 0-2时,无法shard模型,
+            # 原因是transformers中关于shard model的实现中, 会将有相同 id_storage 的 state_dict 存到一起,
             # 而当使用deepspeed 0-2时, 不知为何所有的 state_dict 都有相同的 i_storage
             if self.local_rank == 0:
                 model_to_save = model.module if hasattr(model, "module") else model

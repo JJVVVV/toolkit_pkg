@@ -1,8 +1,8 @@
-from ._metricdict import MetricDict
-from .utils.utils_distinct_n import ngrams
-from nltk.translate.bleu_score import corpus_bleu, SmoothingFunction
 import numpy as np
+from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 from numpy.typing import NDArray
+
+from .utils.utils_distinct_n import ngrams
 
 
 def distinct_n_sentence_level(sentence, n):
