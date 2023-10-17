@@ -1,7 +1,9 @@
 import numpy as np
 from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 from numpy.typing import NDArray
+from tqdm.auto import tqdm
 
+from . import MetricDict, bleu
 from .utils.utils_distinct_n import ngrams
 
 
@@ -34,49 +36,51 @@ bleu_keys2weights = dict(
 
 
 def self_bleu_one_set(
-    s: list[str], bleu_keys: str | tuple[str] = "bleu4", weights: tuple[int] | list[tuple[int]] = None, smoothing_level: int = 0, language: str = "zh"
-) -> NDArray:
+    s: list[str],
+    language: str,
+    bleu_keys: str | tuple[str] = "bleu4",
+    weights: tuple[float] | list[tuple[float]] | None = None,
+    smoothing_level: int = 0,
+) -> MetricDict | list[float]:
     """
-    if `weights` is set, the `bleu_keys` will be ignored.
+    if `weights` is set, the `bleu_keys` will be ignored.\n
+    if `bleu_keys` is ignored, then can not return MetricDict, just return the list of self-bleu score\n
     Smoothing level 0: No smoothing.\n
     Smoothing level 1: Add epsilon counts to precision with 0 counts.\n
-    Detail: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
+    More detail about smoothing: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
     """
-    if isinstance(bleu_keys, str):
-        bleu_keys = (bleu_keys,)
-    if weights is None:
-        weights = []
-        for key in bleu_keys:
-            weights.append(bleu_keys2weights[key])
-
-    chencherry = SmoothingFunction()
-    smoothing_function = getattr(chencherry, f"method{smoothing_level}")
-
-    if language == "zh":
-        tokenizer = list
-    elif language == "en":
-        tokenizer = lambda x: x.split()
-    s = [tokenizer(x) for x in s]
     refs = []
     hyps = []
     for i in range(len(s)):
         for j in range(i + 1, len(s)):
             hyps.append(s[i])
-            refs.append([s[j]])
-    scores = corpus_bleu(refs, hyps, weights, smoothing_function)
-
-    return 1 - np.array(scores)
+            refs.append(s[j])
+    metric = bleu(refs, hyps, language, bleu_keys, weights, smoothing_level)
+    if isinstance(metric, MetricDict):
+        return 1 - MetricDict({f"self-{key}": value for key, value in metric.items()})
+    else:
+        return [1 - score for score in metric]
 
 
 def self_bleu(
-    sets_list: list[list[str]],
+    sets_list: list[str],
+    language: str,
     bleu_keys: str | tuple[str] = "bleu4",
-    weights: tuple[int] | list[tuple[int]] = None,
+    weights: tuple[float] | list[tuple[float]] | None = None,
     smoothing_level: int = 0,
-    language: str = "zh",
-) -> NDArray:
+) -> MetricDict | list[float]:
+    """
+    if `weights` is set, the `bleu_keys` will be ignored.\n
+    if `bleu_keys` is ignored, then can not return MetricDict, just return the list of self-bleu score\n
+    Smoothing level 0: No smoothing.\n
+    Smoothing level 1: Add epsilon counts to precision with 0 counts.\n
+    More detail about smoothing: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
+    """
     # sets_list: 一个列表, 其中的每个元素是一个集合, 要计算每个集合中各个元素之间的多样性程度, 然后求平均
-    score = 0
-    for s in sets_list:
-        score += self_bleu_one_set(s, bleu_keys, weights, smoothing_level, language)
-    return score / len(sets_list)
+    if weights is None:
+        score = 0
+        for s in tqdm(sets_list):
+            score += self_bleu_one_set(s, language, bleu_keys, weights, smoothing_level)
+        return score / len(sets_list)
+    else:
+        raise NotImplementedError()
