@@ -142,6 +142,6 @@ conv_instruct = Conversation(
     sep2="### End",
 )
 
-conv_blank = Conversation(system="", roles=("", ""), messages=[], offset=0, conversation_style=ConversationStyle.BLANK, sep=" ", sep2="<\s>")
+conv_blank = Conversation(system="", roles=("", ""), messages=[], offset=0, conversation_style=ConversationStyle.BLANK, sep=" ", sep2=r"<\s>")
 
 default_conv = {ConversationStyle.INSTRUCTION: conv_instruct, ConversationStyle.BLANK: conv_blank}

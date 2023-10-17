@@ -1,4 +1,5 @@
 import pathlib
+from collections import defaultdict
 from math import ceil
 from typing import Callable, Type, TypeVar
 
@@ -73,6 +74,7 @@ class Trainer:
         extral_args_training: dict | None = None,
         extral_args_evaluation: dict | None = None,
         from_pretrained_kwargs: dict | None = None,
+        extral_evaluators: list[tuple] | None = None,
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
@@ -98,6 +100,7 @@ class Trainer:
         self.extral_args_training = extral_args_training if extral_args_training is not None else dict()
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
         self.from_pretrained_kwargs = from_pretrained_kwargs
+        self.extral_evaluators = extral_evaluators if extral_evaluators is not None else []
         if evaluate_only:
             return
 
@@ -497,19 +500,32 @@ class Trainer:
                 self.dashboard_writer.close()
 
     def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
-        # if (split == Split.TEST and self.dataset_test is None) or (split == Split.VALIDATION and self.dataset_val is None):
-        #     return None
-        if split == Split.TEST and self.evaluator_test is not None:
-            evaluater = self.evaluator_test
-        elif split == Split.VALIDATION and self.evaluator_val is not None:
-            evaluater = self.evaluator_val
-        else:
+        evaluators = self.evaluators[split]
+        if len(evaluators) == 0:
             return None
         if self.local_rank == 0:
             logger.debug("")
             logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
             logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
-        return evaluater.eval(split)
+        metricdict = MetricDict()
+        for evaluator in evaluators:
+            metricdict.update(evaluator.eval())
+        return metricdict
+
+    # def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
+    #     # if (split == Split.TEST and self.dataset_test is None) or (split == Split.VALIDATION and self.dataset_val is None):
+    #     #     return None
+    #     if split == Split.TEST and self.evaluator_test is not None:
+    #         evaluater = self.evaluator_test
+    #     elif split == Split.VALIDATION and self.evaluator_val is not None:
+    #         evaluater = self.evaluator_val
+    #     else:
+    #         return None
+    #     if self.local_rank == 0:
+    #         logger.debug("")
+    #         logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
+    #         logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
+    #     return evaluater.eval()
 
     def dashboard_log_metrics(self, val_metricdict, test_metricdict, loss, curStepInGlobal):
         """
@@ -605,25 +621,43 @@ class Trainer:
         """
         Important: must initialize self.model before call this function
         """
-        self.evaluator_val = Evaluator(
-            self.task_type,
-            self.config,
-            self.model.module if hasattr(self.model, "module") else self.model,
-            self.dataset_val,
-            self.calculate_metric_callback,
-            self.extral_args_evaluation,
-            self.tokenizer,
-        )
+        all_evaluator_class = [(Evaluator, self.calculate_metric_callback)] + self.extral_evaluators
+        self.evaluators: defaultdict[Split, list[Evaluator]] = defaultdict(list)
+        for split in (Split.VALIDATION, Split.TEST):
+            for evaluator_class, calculate_metric_callback in all_evaluator_class:
+                evaluator = evaluator_class(
+                    task_type=self.task_type,
+                    split=split,
+                    config=self.config,
+                    model=self.model.module if hasattr(self.model, "module") else self.model,
+                    dataset=self.dataset_val if split == Split.VALIDATION else self.dataset_test,
+                    calculate_metric_callback=calculate_metric_callback,
+                    extral_args_evaluation=self.extral_args_evaluation,
+                    tokenizer=self.tokenizer,
+                )
+                if evaluator is not None:
+                    self.evaluators[split].append(evaluator)
+        # self.evaluator_val = Evaluator(
+        #     self.task_type,
+        #     Split.VALIDATION,
+        #     self.config,
+        #     self.model.module if hasattr(self.model, "module") else self.model,
+        #     self.dataset_val,
+        #     self.calculate_metric_callback,
+        #     self.extral_args_evaluation,
+        #     self.tokenizer,
+        # )
 
-        self.evaluator_test = Evaluator(
-            self.task_type,
-            self.config,
-            self.model.module if hasattr(self.model, "module") else self.model,
-            self.dataset_test,
-            self.calculate_metric_callback,
-            self.extral_args_evaluation,
-            self.tokenizer,
-        )
+        # self.evaluator_test = Evaluator(
+        #     self.task_type,
+        #     Split.TEST,
+        #     self.config,
+        #     self.model.module if hasattr(self.model, "module") else self.model,
+        #     self.dataset_test,
+        #     self.calculate_metric_callback,
+        #     self.extral_args_evaluation,
+        #     self.tokenizer,
+        # )
 
     # ! deprecate
     # def evaluate(self, split: Split, cuda_id=None) -> MetricDict | None:

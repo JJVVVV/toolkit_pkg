@@ -16,7 +16,7 @@ class NLPTrainingConfig(TrainConfig):
         model_type: str = "",
         model_name: str = "",
         model_dir: str | None = None,
-        metric: str = "Loss",
+        metric: str = "loss",
         epochs: int = 0,
         train_batch_size: int = 0,
         infer_batch_size: int = 0,
@@ -53,6 +53,7 @@ class NLPTrainingConfig(TrainConfig):
         shuffle: bool | None = None,
         logging_steps: int = -1,
         torch_dtype: str = "auto",
+        cut_input_from_output: bool = False,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         max_length: int | None = 20,
@@ -118,6 +119,7 @@ class NLPTrainingConfig(TrainConfig):
             shuffle,
             logging_steps,
             torch_dtype,
+            cut_input_from_output,
             **kwargs,
         )
         self.padding_side = padding_side

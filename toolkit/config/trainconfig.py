@@ -22,7 +22,7 @@ class TrainConfig(ConfigBase):
         model_type: str = "",
         model_name: str = "",
         model_dir: str | None = None,
-        metric: str = "Loss",
+        metric: str = "loss",
         epochs: int = 0,
         train_batch_size: int = 0,
         infer_batch_size: int = 0,
@@ -59,6 +59,7 @@ class TrainConfig(ConfigBase):
         shuffle: bool | None = None,
         logging_steps: int = -1,
         torch_dtype: str = "auto",
+        cut_input_from_output: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -156,6 +157,7 @@ class TrainConfig(ConfigBase):
         self.ddp_timeout = ddp_timeout
         self.logging_steps = logging_steps
         self.torch_dtype = torch_dtype
+        self.cut_input_from_output = cut_input_from_output
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
