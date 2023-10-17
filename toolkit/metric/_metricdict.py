@@ -11,20 +11,27 @@ MetricDictGroup = List["MetricDictGroup"] | Tuple["MetricDictGroup"]
 
 
 class MetricDict(UserDict):
-    "Support metrics: `Accuracy`, `F1-score`, `Loss`, `Bleu-4`, rougeL`, `Hit@1`, `MRR`, `rouge1-3`"
+    ("Support metrics: `accuracy`, `F1-score`, `loss`, `bleu(1~4)`, `rougeL`, `hit@1`, `MRR`, `rouge(1~3)`, `self-bleu(1~4)`")
     __metric_for_compare = None
-    # metric_scale = defaultdict(lambda: 1, {2:-1})
+
     __metric_scale_map = {
-        "Accuracy": 1,
+        "accuracy": 1,
         "F1-score": 1,
-        "Loss": -1,
-        "Bleu-4": 1,
+        "loss": -1,
+        "bleu1": 1,
+        "bleu2": 1,
+        "bleu3": 1,
+        "bleu4": 1,
         "rougeL": 1,
-        "Hit@1": 1,
+        "hit@1": 1,
         "MRR": 1,
         "rouge1": 1,
         "rouge2": 1,
         "rouge3": 1,
+        "self-bleu1": 1,
+        "self-bleu2": 1,
+        "self-bleu3": 1,
+        "self-bleu4": 1,
     }
 
     # def __init__(self, *args):
@@ -62,6 +69,11 @@ class MetricDict(UserDict):
         if cls.__metric_for_compare not in cls.__metric_scale_map:
             raise KeyError("The metric' scale is undefined in `MetricDict.metric_scale` dict.")
 
+    def round(self, precision=4):
+        "Round the values to a given precision in decimal digits."
+        for key, value in self.items():
+            self[key] = round(value, precision)
+
     def __eq__(self, other):
         self._check()
         if isinstance(other, MetricDict):
@@ -70,7 +82,6 @@ class MetricDict(UserDict):
                 == other.get(MetricDict.__metric_for_compare) * MetricDict.__metric_scale_map[self.__metric_for_compare]
             )
         raise NotImplementedError()
-        # return NotImplemented
 
     def __ne__(self, other):
         try:
@@ -87,7 +98,6 @@ class MetricDict(UserDict):
                 < other.get(MetricDict.__metric_for_compare) * MetricDict.__metric_scale_map[self.__metric_for_compare]
             )
         raise NotImplementedError()
-        # return NotImplemented
 
     def __le__(self, other):
         self._check()
@@ -97,7 +107,6 @@ class MetricDict(UserDict):
                 <= other.get(MetricDict.__metric_for_compare) * MetricDict.__metric_scale_map[self.__metric_for_compare]
             )
         raise NotImplementedError()
-        # return NotImplemented
 
     def __gt__(self, other):
         self._check()
@@ -107,7 +116,6 @@ class MetricDict(UserDict):
                 > other.get(MetricDict.__metric_for_compare) * MetricDict.__metric_scale_map[self.__metric_for_compare]
             )
         raise NotImplementedError()
-        # return NotImplemented
 
     def __ge__(self, other):
         self._check()
@@ -117,18 +125,45 @@ class MetricDict(UserDict):
                 >= other.get(MetricDict.__metric_for_compare) * MetricDict.__metric_scale_map[self.__metric_for_compare]
             )
         raise NotImplementedError()
-        # return NotImplemented
 
-    def __add__(self, other):
-        if isinstance(other, MetricDict):
+    def __neg__(self):
+        return MetricDict({key: -value for key, value in self.items()})
+
+    def __add__(self, addend):
+        if isinstance(addend, MetricDict):
             result = MetricDict()
-            if not self.keys() == other.keys():
-                raise KeyError(f"The keys of the two MetricsDict {self.keys()}, {other.keys()} are not exactly the same.")
+            if not self.keys() == addend.keys():
+                raise KeyError(f"The keys of the two MetricsDict {self.keys()}, {addend.keys()} are not exactly the same.")
             for key, value in self.items():
-                result[key] = value + other[key]
+                result[key] = value + addend[key]
+            return result
+        elif isinstance(addend, (int, float)):
+            result = MetricDict()
+            for key, value in self.items():
+                result[key] = value + addend
             return result
         raise NotImplementedError()
-        # return NotImplemented
+
+    def __radd__(self, augend):
+        if isinstance(augend, MetricDict):
+            result = MetricDict()
+            if not self.keys() == augend.keys():
+                raise KeyError(f"The keys of the two MetricsDict {self.keys()}, {augend.keys()} are not exactly the same.")
+            for key, value in augend.items():
+                result[key] = value + self[key]
+            return result
+        elif isinstance(augend, (int, float)):
+            result = MetricDict()
+            for key, value in self.items():
+                result[key] = augend + value
+            return result
+        raise NotImplementedError()
+
+    def __sub__(self, subtrahend):
+        return self + (-subtrahend)
+
+    def __rsub__(self, minuend):
+        return minuend + (-self)
 
     def __truediv__(self, divisor):
         if isinstance(divisor, (int, float)):
@@ -137,7 +172,14 @@ class MetricDict(UserDict):
                 result[key] = value / divisor
             return result
         raise NotImplementedError()
-        # return NotImplemented
+
+    def __rtruediv__(self, dividend):
+        if isinstance(dividend, (int, float)):
+            result = MetricDict()
+            for key, value in self.items():
+                result[key] = dividend / value
+            return result
+        raise NotImplementedError()
 
     def __mul__(self, multiplier):
         if isinstance(multiplier, (int, float)):
@@ -146,7 +188,11 @@ class MetricDict(UserDict):
                 result[key] = value * multiplier
             return result
         raise NotImplementedError()
-        # return NotImplemented
+
+    def __rmul__(self, multiplicand):
+        if isinstance(multiplicand, (int, float)):
+            return self * multiplicand
+        raise NotImplementedError()
 
     @staticmethod
     def mean_top_k(metric_dicts: MetricDictGroup, top_k: int | None = None) -> "MetricDict" | MetricDictGroup:
