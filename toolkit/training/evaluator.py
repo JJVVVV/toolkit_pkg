@@ -23,11 +23,12 @@ class Evaluator:
     def __new__(
         cls,
         task_type: str,
+        split: Split,
         config: TrainConfig,
         model,
         dataset: Dataset,
-        calculate_metric_callback: Callable,
-        extral_args_evaluation: dict | None,
+        calculate_metric_callback: Callable[..., MetricDict],
+        extral_args_evaluation: dict | None = None,
         tokenizer=None,
     ) -> Self:
         "if any of the following objects is `None`, then just return `None`"
@@ -38,14 +39,16 @@ class Evaluator:
     def __init__(
         self,
         task_type: str,
+        split: Split,
         config: TrainConfig,
         model,
         dataset: Dataset,
-        calculate_metric_callback: Callable,
-        extral_args_evaluation: dict | None,
+        calculate_metric_callback: Callable[..., MetricDict],
+        extral_args_evaluation: dict | None = None,
         tokenizer=None,
     ) -> None:
         self.task_type = task_type
+        self.split = split
         self.config = config
         self.model = model
         self.tokenizer = tokenizer
@@ -53,7 +56,7 @@ class Evaluator:
         self.calculate_metric_callback = calculate_metric_callback
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
 
-    def eval(self, split: Split = Split.VALIDATION, cuda_id=None) -> MetricDict | None:
+    def eval(self, cuda_id=None) -> MetricDict:
         """
         if specify the `cuda_id`, the model will run in it, ohterwise, default
         """
@@ -61,7 +64,7 @@ class Evaluator:
         world_size = dist.get_world_size() if dist.is_initialized() else 1
 
         self.dataloader = (
-            get_dataloader(self.dataset, self.config, split, collate_fn=self.dataset.collate_fn)
+            get_dataloader(self.dataset, self.config, self.split, collate_fn=self.dataset.collate_fn)
             if not hasattr(self, "dataloader")
             else self.dataloader
         )
@@ -78,19 +81,24 @@ class Evaluator:
 
         match self.task_type:
             case "generate":
-                for batch in tqdm(self.dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
+                for batch in tqdm(self.dataloader, desc=self.split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     with torch.no_grad():
                         labels = batch.pop("labels")
                         custom_inputs = batch.pop("custom_inputs", dict())
                         if self.config.gpu:
                             batch = {key: value.cuda() for key, value in batch.items()}
                         outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
-                        texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
+                        if self.config.cut_input_from_output:
+                            texts = []
+                            for idx, output in enumerate(outputs):
+                                texts.append(self.tokenizer.decode(output[batch["input_ids"][idx].size(0) :], skip_special_tokens=True))
+                        else:
+                            texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                         all_losses.append(-1)
                         all_labels.extend(labels)
                         all_logits.extend(texts)
             case "classify" | "regress":
-                for batch in tqdm(self.dataloader, desc=split.name, colour="BLUE", unit="batch", smoothing=0.9):
+                for batch in tqdm(self.dataloader, desc=self.split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     with torch.no_grad():
                         custom_inputs = batch.pop("custom_inputs", dict())
                         if self.config.gpu:
@@ -104,7 +112,9 @@ class Evaluator:
         self.model.train()
 
         if world_size > 1:
-            logger.debug(f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(all_losses)}")
+            logger.debug(
+                f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(self.dataloader)}"
+            )
             mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
 
             labels_gather_list = [None for _ in range(world_size)]

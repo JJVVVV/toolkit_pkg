@@ -95,7 +95,7 @@ class TextDataset(Dataset):
     from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
 
-    def load_data_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kargs):
+    def load_data_fn(data_file_path: Path | str, model_type: str, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, split: Split, **kwargs):
         special_tokens_map = tokenizer.special_tokens_map
         BOS = special_tokens_map["bos_token"] if "bos_token" in special_tokens_map.keys() else None
         EOS = special_tokens_map["eos_token"] if "eos_token" in special_tokens_map.keys() else None
