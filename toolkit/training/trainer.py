@@ -423,10 +423,13 @@ class Trainer:
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
             # TODO 保存最后 n 个ckpt
-            if self.config.parallel_mode == "deepspeed" and self.config.use_deepspeed_ckpt:
+            if self.config.parallel_mode == "deepspeed":
                 # * Save current checkpoint
                 if epoch < self.config.epochs - (not self.config.save_last_ckpt):
-                    self.model.save_checkpoint(self.ckpt_manager.latest_dir)
+                    if self.config.use_deepspeed_ckpt:
+                        self.model.save_checkpoint(self.ckpt_manager.latest_dir)
+                    else:
+                        watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
                     if self.local_rank == 0:
                         if self.tokenizer is not None:
                             self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)

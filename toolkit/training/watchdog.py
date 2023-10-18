@@ -158,6 +158,9 @@ class WatchDog:
         return ret
 
     def save_hf_model(self, configs, output_dir, model, tokenizer):
+        """
+        This function should be called in all subprocess.
+        """
         # save model
         # 如果使用 deepspeed 的 ZeRO3 模式， 此时模型的参数在被分到了不同的卡上，需要save前先gather到同一卡上
         if configs.parallel_mode == "deepspeed" and model.zero_optimization_partition_weights():
