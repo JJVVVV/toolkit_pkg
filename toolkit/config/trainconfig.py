@@ -46,7 +46,7 @@ class TrainConfig(ConfigBase):
         eval_every_half_epoch: bool = False,
         eval_step: int = 0,
         save_all_ckpts: bool = False,
-        save_last_ckpt: bool = True,
+        save_last_ckpt: bool = False,
         max_optimal_ckpt_num: int = 1,
         cache_dataset: bool = False,
         gradient_accumulation_steps: int = 1,
@@ -60,6 +60,7 @@ class TrainConfig(ConfigBase):
         logging_steps: int = -1,
         torch_dtype: str = "auto",
         cut_input_from_output: bool = False,
+        use_deepspeed_ckpt: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -146,6 +147,7 @@ class TrainConfig(ConfigBase):
         # 自动计算的一些值
         self.total_steps_num = -1
         self.steps_per_epoch = -1
+        self.training_runtime = None
 
         # 杂项
         assert dashboard in ["wandb", "tensorboard", None], (
@@ -158,6 +160,7 @@ class TrainConfig(ConfigBase):
         self.logging_steps = logging_steps
         self.torch_dtype = torch_dtype
         self.cut_input_from_output = cut_input_from_output
+        self.use_deepspeed_ckpt = use_deepspeed_ckpt
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):

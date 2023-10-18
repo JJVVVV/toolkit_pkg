@@ -160,7 +160,8 @@ class Trainer:
                 self.dashboard_writer.close()
 
     def train(self) -> None:
-        # world_size = dist.get_world_size() if dist.is_initialized() else 1
+        self.config.training_runtime = dict()
+
         # * Initalize to gpu
         if self.config.parallel_mode == "deepspeed":
             # self.model.cuda()
@@ -266,10 +267,12 @@ class Trainer:
         # * Enter into a new ckpt
         self.ckpt_manager.next()
         curStepInGlobal = self.ckpt_manager.latest_id * self.config.steps_per_epoch  # 总共已训练步数
+        self.config.training_runtime['cur_step'] = curStepInGlobal
 
         # log_losses = []
         # * ===========================================================训练===========================================================
         for epoch in range(self.ckpt_manager.latest_id, self.config.epochs):
+            self.config.training_runtime['cur_epoch'] = epoch
             if sampler is not None:
                 sampler.set_epoch(epoch)
             self.model.train()
@@ -397,6 +400,7 @@ class Trainer:
                     )
                     self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
                 curStepInGlobal += 1
+                self.config.training_runtime['cur_step'] = curStepInGlobal
             # *----------------------------------one epoch finish-------------------------------------
             # * sync
             if dist.is_initialized():
@@ -419,7 +423,7 @@ class Trainer:
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
             # TODO 保存最后 n 个ckpt
-            if self.config.parallel_mode == "deepspeed":
+            if self.config.parallel_mode == "deepspeed" and self.config.use_deepspeed_ckpt:
                 # * Save current checkpoint
                 if epoch < self.config.epochs - (not self.config.save_last_ckpt):
                     self.model.save_checkpoint(self.ckpt_manager.latest_dir)
@@ -452,10 +456,11 @@ class Trainer:
                         logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
                         logger.debug("💾 Saving model ...")
-                        model_to_save = self.model.module if hasattr(self.model, "module") else self.model
-                        model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
-                        if self.tokenizer is not None:
-                            self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        # model_to_save = self.model.module if hasattr(self.model, "module") else self.model
+                        # model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
+                        # if self.tokenizer is not None:
+                        #     self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
                         logger.debug("✔️  Save model successfully.")
 
                         self.config.save(self.ckpt_manager.latest_dir, silence=False)
