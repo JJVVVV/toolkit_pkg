@@ -92,14 +92,14 @@ class WatchDog:
             self.optimal_val_metricdict = MetricDict(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict = MetricDict(test_metricdict)
-            self.save_optimal_checkpoint(model, configs, tokenizer, silence)
+            self.save_optimal_model(model, configs, tokenizer, silence)
         elif val_metricdict > self.optimal_val_metricdict:
             self.best_checkpoint = (epoch, step_global)
             self.optimal_val_metricdict.update(val_metricdict)
             if test_metricdict is not None:
                 self.optimal_test_metricdict.update(test_metricdict)
             self.counter = 0
-            self.save_optimal_checkpoint(model, configs, tokenizer, silence)
+            self.save_optimal_model(model, configs, tokenizer, silence)
         else:
             self.counter += 1
             if self.local_rank == 0:
@@ -157,19 +157,7 @@ class WatchDog:
                     ret[prefix + key] = value
         return ret
 
-    # TODO 当前只支持 Transformers 中的 model 和 tokenizer
-    # TODO prior 保存最好的 n 个ckpt
-    def save_optimal_checkpoint(self, model, configs: TrainConfig, tokenizer: PreTrainedTokenizer | None = None, silence=True):
-        output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
-        if self.local_rank == 0:
-            if output_dir.exists():
-                shutil.rmtree(output_dir)
-            output_dir.mkdir()
-        if not silence and self.local_rank == 0:
-            logger.debug("🚩 Saving optimal checkpoint ...")
-            logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
-            # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
-
+    def save_hf_model(self, configs, output_dir, model, tokenizer):
         # save model
         # 如果使用 deepspeed 的 ZeRO3 模式， 此时模型的参数在被分到了不同的卡上，需要save前先gather到同一卡上
         if configs.parallel_mode == "deepspeed" and model.zero_optimization_partition_weights():
@@ -197,6 +185,22 @@ class WatchDog:
         # save tokenizer
         if tokenizer is not None and self.local_rank == 0:
             tokenizer.save_pretrained(output_dir, is_main_process=(self.local_rank == 0))
+
+    # TODO 当前只支持 Transformers 中的 model 和 tokenizer
+    # TODO prior 保存最好的 n 个ckpt
+    def save_optimal_model(self, model, configs: TrainConfig, tokenizer: PreTrainedTokenizer | None = None, silence=True):
+        output_dir = Path(configs.save_dir, OPTIMAL_CHECKPOINT_NAME)
+        if self.local_rank == 0:
+            if output_dir.exists():
+                shutil.rmtree(output_dir)
+            output_dir.mkdir()
+        if not silence and self.local_rank == 0:
+            logger.debug("🚩 Saving optimal checkpoint ...")
+            logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
+            # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
+
+        # save model and tokenizer
+        self.save_hf_model(configs, output_dir, model, tokenizer)
 
         # write performance
         if self.local_rank == 0:

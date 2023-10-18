@@ -54,6 +54,7 @@ class NLPTrainingConfig(TrainConfig):
         logging_steps: int = -1,
         torch_dtype: str = "auto",
         cut_input_from_output: bool = False,
+        use_deepspeed_ckpt: bool = False,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         max_length: int | None = 20,
@@ -120,6 +121,7 @@ class NLPTrainingConfig(TrainConfig):
             logging_steps,
             torch_dtype,
             cut_input_from_output,
+            use_deepspeed_ckpt,
             **kwargs,
         )
         self.padding_side = padding_side
