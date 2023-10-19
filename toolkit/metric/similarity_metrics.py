@@ -7,10 +7,20 @@ from tqdm.auto import tqdm
 from . import MetricDict
 
 
-def rouge(preds: list[str], tgts: list[str], language: str, rouge_keys: str | tuple[str, ...] = "rougeL") -> MetricDict:
+def rouge(preds: str | list[str], tgts: str | list[str] | list[list[str]], language: str, rouge_keys: str | tuple[str, ...] = "rougeL") -> MetricDict:
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
     """
+    if isinstance(preds, str):
+        preds = [preds]
+
+    if isinstance(tgts, str):
+        tgts = [tgts]
+    if isinstance(tgts[0], str):
+        tgts = [[tgt] for tgt in tgts]
+    # now preds: list[str], tgts: list[list[str]]
+    assert len(preds) == len(tgts), f"The number of `preds` and `tgts` are not equal: len(preds)={len(preds)}, len(tgts)={len(tgts)}."
+
     ret = 0
     if language == "zh":
         tokenizer = list
@@ -21,9 +31,12 @@ def rouge(preds: list[str], tgts: list[str], language: str, rouge_keys: str | tu
     else:
         raise NotImplementedError(f"Do NOT support language: `{language}`")
 
-    for pred, tgt in tqdm(zip(preds, tgts), total=len(preds), desc="Calculating rouge: "):
-        ret_dict = rouge_score(pred, tgt, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
-        ret += MetricDict({key: ret_dict[key + "_fmeasure"].item() for key in rouge_keys})
+    for pred, tgt_list in tqdm(zip(preds, tgts), total=len(preds), desc="Calculating rouge: "):
+        a_pair = 0
+        for tgt in tgt_list:
+            rouge_dict = rouge_score(pred, tgt, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
+            a_pair += MetricDict({key: rouge_dict[key + "_fmeasure"].item() for key in rouge_keys})
+        ret += (a_pair/len(tgt_list))
 
     return ret / len(preds)
 

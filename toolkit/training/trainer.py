@@ -52,6 +52,10 @@ allowed_task_type = ("generate", "classify", "regress")
 # deepspeed.zero.Init when model's `from_pretrained` method is called.
 dschf = None
 
+def sync():
+    # * sync
+    if dist.is_initialized():
+        dist.barrier()
 
 class Trainer:
     def __init__(
@@ -170,6 +174,16 @@ class Trainer:
             if self.config.gpu:
                 self.model.cuda()
 
+        # * Create or load watch dog
+        if self.ckpt_manager.latest_dir.exists():
+            watch_dog = WatchDog.load(self.ckpt_manager.latest_dir, silence=False)
+            # 如果因早停patience设置不合理导致训练不充分, 继续训练前: 需要重置WatchDog中的counter或增大patience
+            if self.config.early_stop and self.config.continue_train_more_patience:
+                watch_dog.counter = 0
+        else:
+            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric)
+        sync()
+
         # # * Calculate some training parameters
         # self.set_training_steps_dataset()
         # self.set_sch_warmup()
@@ -194,6 +208,7 @@ class Trainer:
         dataloader_train, sampler = get_dataloader(
             self.dataset_train, self.config, Split.TRAINING, collate_fn=self.dataset_train.collate_fn, shuffle=self.config.shuffle
         )
+        sync()
 
         # * Calculate some training parameters
         self.set_training_steps(dataloader_train)
@@ -242,15 +257,6 @@ class Trainer:
                     self.scheduler.load(self.ckpt_manager.latest_dir, silence=False)
                 if self.scaler is not None:
                     self.scaler.load(self.ckpt_manager.latest_dir, silence=False)
-
-        # * Create or load watch dog
-        if self.ckpt_manager.latest_dir.exists():
-            watch_dog = WatchDog.load(self.ckpt_manager.latest_dir, silence=False)
-            # 如果因早停patience设置不合理导致训练不充分, 继续训练前: 需要重置WatchDog中的counter或增大patience
-            if self.config.early_stop and self.config.continue_train_more_patience:
-                watch_dog.counter = 0
-        else:
-            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric)
 
         # * Print some infomation for debug
         if self.local_rank == 0:
@@ -616,10 +622,11 @@ class Trainer:
                 fill_ds_config(deepspeed_config, self.config, self.model_config)
                 global dschf
                 dschf = HfDeepSpeedConfig(deepspeed_config)
+                model_dir = self.config.model_dir if self.ckpt_manager.latest_id<0 else self.ckpt_manager.latest_dir
                 if self.from_pretrained_kwargs is None:
-                    self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config)
+                    self.model = self.model_class.from_pretrained(model_dir, config=self.model_config)
                 else:
-                    self.model = self.model_class.from_pretrained(self.config.model_dir, config=self.model_config, **self.from_pretrained_kwargs)
+                    self.model = self.model_class.from_pretrained(model_dir, config=self.model_config, **self.from_pretrained_kwargs)
             # todo prior: 使用deepspeed的dataloader
             self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
                 model=self.model, config=deepspeed_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn

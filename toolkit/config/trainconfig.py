@@ -195,34 +195,34 @@ class TrainConfig(ConfigBase):
             if getattr(self, attri) != getattr(default, attri):
                 logger.warning(f"`{attri}` is not specified, default value: `{getattr(default, attri)}`")
 
-    def set_deepspeed(self, deepspeed_config: OrderedDict):
-        """
-        fill `auto` field of deepspeed config with trainer config
-        """
-        if (fp16 := deepspeed_config.get("fp16", None)) is not None:
-            if fp16["enabled"] == "auto":
-                fp16["enabled"] = self.fp16
-        if (bf16 := deepspeed_config.get("bf16", None)) is not None:
-            if bf16["enabled"] == "auto":
-                bf16["enabled"] = self.bf16
+    # def set_deepspeed(self, deepspeed_config: OrderedDict):
+    #     """
+    #     fill `auto` field of deepspeed config with trainer config
+    #     """
+    #     if (fp16 := deepspeed_config.get("fp16", None)) is not None:
+    #         if fp16["enabled"] == "auto":
+    #             fp16["enabled"] = self.fp16
+    #     if (bf16 := deepspeed_config.get("bf16", None)) is not None:
+    #         if bf16["enabled"] == "auto":
+    #             bf16["enabled"] = self.bf16
 
-        if (opt := deepspeed_config.get("optimizer", None)) is not None:
-            if opt["type"] == "auto":
-                opt["type"] = self.opt_type
-            for key, value in opt["params"].items():
-                if value == "auto":
-                    if key != "betas":
-                        opt["params"][key] = getattr(self, f"opt_{key}")
-                    else:
-                        opt["params"][key] = [self.opt_betas1, self.opt_betas2]
-        if (sch := deepspeed_config.get("scheduler", None)) is not None:
-            if sch["type"] == "auto":
-                sch["type"] = self.sch_type
-            for key, value in sch["params"].items():
-                if value == "auto":
-                    sch["params"][key] = getattr(self, f"sch_{key}")
+    #     if (opt := deepspeed_config.get("optimizer", None)) is not None:
+    #         if opt["type"] == "auto":
+    #             opt["type"] = self.opt_type
+    #         for key, value in opt["params"].items():
+    #             if value == "auto":
+    #                 if key != "betas":
+    #                     opt["params"][key] = getattr(self, f"opt_{key}")
+    #                 else:
+    #                     opt["params"][key] = [self.opt_betas1, self.opt_betas2]
+    #     if (sch := deepspeed_config.get("scheduler", None)) is not None:
+    #         if sch["type"] == "auto":
+    #             sch["type"] = self.sch_type
+    #         for key, value in sch["params"].items():
+    #             if value == "auto":
+    #                 sch["params"][key] = getattr(self, f"sch_{key}")
 
-        keys = ["gradient_accumulation_steps", "gradient_clipping", "train_batch_size"]
-        for key in keys:
-            if (value := deepspeed_config.get(key, None)) is not None:
-                deepspeed_config[key] = getattr(self, key) if value == "auto" else value
+    #     keys = ["gradient_accumulation_steps", "gradient_clipping", "train_batch_size"]
+    #     for key in keys:
+    #         if (value := deepspeed_config.get(key, None)) is not None:
+    #             deepspeed_config[key] = getattr(self, key) if value == "auto" else value
