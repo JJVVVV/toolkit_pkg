@@ -73,6 +73,7 @@ class MetricDict(UserDict):
         "Round the values to a given precision in decimal digits."
         for key, value in self.items():
             self[key] = round(value, precision)
+        return self
 
     def __eq__(self, other):
         self._check()

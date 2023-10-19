@@ -79,7 +79,7 @@ def self_bleu(
     # sets_list: 一个列表, 其中的每个元素是一个集合, 要计算每个集合中各个元素之间的多样性程度, 然后求平均
     if weights is None:
         score = 0
-        for s in tqdm(sets_list):
+        for s in tqdm(sets_list, desc="Calculate self-bleu: "):
             score += self_bleu_one_set(s, language, bleu_keys, weights, smoothing_level)
         return score / len(sets_list)
     else:
