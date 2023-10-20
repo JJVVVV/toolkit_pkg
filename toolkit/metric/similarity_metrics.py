@@ -7,19 +7,19 @@ from tqdm.auto import tqdm
 from . import MetricDict
 
 
-def rouge(preds: str | list[str], tgts: str | list[str] | list[list[str]], language: str, rouge_keys: str | tuple[str, ...] = "rougeL") -> MetricDict:
+def rouge(preds: str | list[str] | list[list[str]], labels: str | list[str], language: str, rouge_keys: str | tuple[str, ...] = "rougeL") -> MetricDict:
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
     """
+    if isinstance(labels, str):
+        labels = [labels]
+
     if isinstance(preds, str):
         preds = [preds]
-
-    if isinstance(tgts, str):
-        tgts = [tgts]
-    if isinstance(tgts[0], str):
-        tgts = [[tgt] for tgt in tgts]
-    # now preds: list[str], tgts: list[list[str]]
-    assert len(preds) == len(tgts), f"The number of `preds` and `tgts` are not equal: len(preds)={len(preds)}, len(tgts)={len(tgts)}."
+    if isinstance(preds[0], str):
+        preds = [[tgt] for tgt in preds]
+    # now labels: list[str], preds: list[list[str]]
+    assert len(labels) == len(preds), f"The number of `preds` and `tgts` are not equal: len(preds)={len(labels)}, len(tgts)={len(preds)}."
 
     ret = 0
     if language == "zh":
@@ -31,14 +31,14 @@ def rouge(preds: str | list[str], tgts: str | list[str] | list[list[str]], langu
     else:
         raise NotImplementedError(f"Do NOT support language: `{language}`")
 
-    for pred, tgt_list in tqdm(zip(preds, tgts), total=len(preds), desc="Calculating rouge: "):
+    for pred_list, label in tqdm(zip(preds, labels), total=len(labels), desc="Calculating rouge: "):
         a_pair = 0
-        for tgt in tgt_list:
-            rouge_dict = rouge_score(pred, tgt, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
+        for pred in pred_list:
+            rouge_dict = rouge_score(pred, label, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
             a_pair += MetricDict({key: rouge_dict[key + "_fmeasure"].item() for key in rouge_keys})
-        ret += (a_pair/len(tgt_list))
+        ret += (a_pair/len(pred_list))
 
-    return ret / len(preds)
+    return ret / len(labels)
 
 
 # bleu_keys2weights = dict(
@@ -57,7 +57,7 @@ def bleu_key2weights(bleu_key: str) -> tuple[float]:
 
 def bleu(
     preds: str | list[str],
-    tgts: str | list[str] | list[list[str]],
+    labels: str | list[str] | list[list[str]],
     language: str,
     bleu_keys: str | tuple[str, ...] = "bleu4",
     weights: tuple[float] | list[tuple[float]] | None = None,
@@ -74,12 +74,12 @@ def bleu(
     if isinstance(preds, str):
         preds = [preds]
 
-    if isinstance(tgts, str):
-        tgts = [tgts]
-    if isinstance(tgts[0], str):
-        tgts = [[tgt] for tgt in tgts]
-    # now preds: list[str], tgts: list[list[str]]
-    assert len(preds) == len(tgts), f"The number of `preds` and `tgts` are not equal: len(preds)={len(preds)}, len(tgts)={len(tgts)}."
+    if isinstance(labels, str):
+        labels = [labels]
+    if isinstance(labels[0], str):
+        labels = [[tgt] for tgt in labels]
+    # now preds: list[str], labels: list[list[str]]
+    assert len(preds) == len(labels), f"The number of `preds` and `tgts` are not equal: len(preds)={len(preds)}, len(tgts)={len(labels)}."
 
     if isinstance(bleu_keys, str):
         bleu_keys = (bleu_keys,)
@@ -97,9 +97,9 @@ def bleu(
         tokenizer = lambda x: x.split()
 
     preds = [tokenizer(pred) for pred in preds]
-    tgts = [[tokenizer(one_of_tgt) for one_of_tgt in tgt] for tgt in tgts]
+    labels = [[tokenizer(one_of_tgt) for one_of_tgt in tgt] for tgt in labels]
 
-    scores = corpus_bleu(tgts, preds, weights, smoothing_function)
+    scores = corpus_bleu(labels, preds, weights, smoothing_function)
     if isinstance(scores, float):
         scores = [scores]
 
