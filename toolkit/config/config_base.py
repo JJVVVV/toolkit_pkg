@@ -185,13 +185,14 @@ class ConfigBase:
         Convert objects' type to the types that can be encoded by json.
         For example: `Path` -> `str`
         """
-        dict_kv = []
+        dict_need2parse = []
         for key, value in d.items():
             if isinstance(value, Path):
                 d[key] = str(value)
             if isinstance(value, dict):
-                dict_kv.append((key, value))
-        for key, value in dict_kv:
+                if key == "generate_kwargs":
+                    dict_need2parse.append((key, value))
+        for key, value in dict_need2parse:
             d.pop(key)
             d.update(value)
 
@@ -237,7 +238,7 @@ class ConfigBase:
         # get class specific config dict (including attributes defined in subclass)
         default_values_subclass = self.__class__().to_dict()
         # print(f"class specific: {class_config_dict}")
-        serializable_config_dict = {}
+        # serializable_config_dict = {}
 
         # only serialize values that differ from the default config
         serializable_config_dict = {}
