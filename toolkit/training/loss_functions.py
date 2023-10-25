@@ -45,8 +45,11 @@ class CoSentLoss(ContrastLoss):
         super().__init__(temperature)
 
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor, text_neg_embeddings: torch.Tensor) -> torch.Tensor:
-        sim_pos_vector = torch.cosine_similarity(text_embeddings, text_pos_embeddings, dim=-1) / self.temperature
-        sim_neg_vector = torch.cosine_similarity(text_embeddings, text_neg_embeddings, dim=-1) / self.temperature
+        # text_embddings: (n, bedding_size)
+        # text_pos_embeddings: (n, bedding_size)
+        # text_neg_embeddings: (n, bedding_size)
+        sim_pos_vector = torch.cosine_similarity(text_embeddings, text_pos_embeddings, dim=-1) / self.temperature  # (n)
+        sim_neg_vector = torch.cosine_similarity(text_embeddings, text_neg_embeddings, dim=-1) / self.temperature  # (n)
         sim_matrix_diff = sim_neg_vector[:, None] - sim_pos_vector[None, :]
         # loss = torch.logsumexp(sim_matrix_diff, dim=1).mean()
         loss = torch.logsumexp(sim_matrix_diff)
@@ -72,6 +75,8 @@ class CoSentLoss_logits(ContrastLoss):
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegCoSentLoss(ContrastLoss):
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor) -> torch.Tensor:
+        # text_embddings: (n, bedding_size)
+        # text_pos_embeddings: (n, bedding_size)
         sim_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_pos_embeddings.unsqueeze(0), dim=-1)
         sim_matrix = sim_matrix / self.temperature
         sim_matrix_diag = sim_matrix.diag()
@@ -91,6 +96,9 @@ class TripletInBatchNegCoSentLoss(ContrastLoss):
             self._pair_contrast_softmax_loss = None
 
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor, text_neg_embeddings: torch.Tensor) -> torch.Tensor:
+        # text_embddings: (n, bedding_size)
+        # text_pos_embeddings: (n, bedding_size)
+        # text_neg_embeddings: (n, bedding_size)
         sim_pos_vector = torch.cosine_similarity(text_embeddings, text_pos_embeddings, dim=-1)
         sim_neg_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_neg_embeddings.unsqueeze(0), dim=-1)
         sim_matrix = torch.cat([sim_pos_vector.unsqueeze(1), sim_neg_matrix], dim=1)

@@ -1,4 +1,5 @@
 import re
+from typing import Literal
 
 from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 from torchmetrics.functional.text.rouge import rouge_score
@@ -7,19 +8,27 @@ from tqdm.auto import tqdm
 from . import MetricDict
 
 
-def rouge(preds: str | list[str] | list[list[str]], labels: str | list[str], language: str, rouge_keys: str | tuple[str, ...] = "rougeL") -> MetricDict:
+def rouge(
+    preds: str | list[str] | list[list[str]],
+    labels: str | list[str] | list[list[str]],
+    language: str,
+    rouge_keys: str | tuple[str, ...] = "rougeL",
+    accumulate: Literal["avg", "best"] = "best",
+) -> MetricDict:
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
     """
     if isinstance(labels, str):
         labels = [labels]
+    if isinstance(labels[0], str):
+        labels = [[label] for label in labels]
 
     if isinstance(preds, str):
         preds = [preds]
     if isinstance(preds[0], str):
-        preds = [[tgt] for tgt in preds]
-    # now labels: list[str], preds: list[list[str]]
-    assert len(labels) == len(preds), f"The number of `preds` and `tgts` are not equal: len(preds)={len(labels)}, len(tgts)={len(preds)}."
+        preds = [[pred] for pred in preds]
+    # now preds: list[list[str]], labels: list[list[str]]
+    assert len(labels) == len(preds), f"The number of `preds` and `labels` are not equal: len(preds)={len(preds)}, len(labels)={len(labels)}."
 
     ret = 0
     if language == "zh":
@@ -34,9 +43,9 @@ def rouge(preds: str | list[str] | list[list[str]], labels: str | list[str], lan
     for pred_list, label in tqdm(zip(preds, labels), total=len(labels), desc="Calculating rouge: "):
         a_pair = 0
         for pred in pred_list:
-            rouge_dict = rouge_score(pred, label, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer)
+            rouge_dict = rouge_score(pred, label, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer, accumulate=accumulate)
             a_pair += MetricDict({key: rouge_dict[key + "_fmeasure"].item() for key in rouge_keys})
-        ret += (a_pair/len(pred_list))
+        ret += a_pair / len(pred_list)
 
     return ret / len(labels)
 
@@ -77,7 +86,7 @@ def bleu(
     if isinstance(labels, str):
         labels = [labels]
     if isinstance(labels[0], str):
-        labels = [[tgt] for tgt in labels]
+        labels = [[label] for label in labels]
     # now preds: list[str], labels: list[list[str]]
     assert len(preds) == len(labels), f"The number of `preds` and `tgts` are not equal: len(preds)={len(preds)}, len(tgts)={len(labels)}."
 
