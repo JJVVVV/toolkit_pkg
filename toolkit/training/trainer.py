@@ -52,10 +52,12 @@ allowed_task_type = ("generate", "classify", "regress")
 # deepspeed.zero.Init when model's `from_pretrained` method is called.
 dschf = None
 
+
 def sync():
     # * sync
     if dist.is_initialized():
         dist.barrier()
+
 
 class Trainer:
     def __init__(
@@ -155,6 +157,7 @@ class Trainer:
                     assert self.dashboard_writer is wandb.run
         else:
             self.dashboard_writer = None
+        sync()
 
     def __del__(self):
         if hasattr(self, "dashboard_writer") and self.dashboard_writer is not None:
@@ -216,9 +219,11 @@ class Trainer:
 
         # * wrap model
         self.wrap_model()
+        sync()
 
         # * Do some preliminary preparations
         self.set_evaluator()
+        sync()
 
         # * Initialize optimizer, scheduler, scaler
         if self.config.parallel_mode == "deepspeed":
@@ -273,12 +278,12 @@ class Trainer:
         # * Enter into a new ckpt
         self.ckpt_manager.next()
         curStepInGlobal = self.ckpt_manager.latest_id * self.config.steps_per_epoch  # 总共已训练步数
-        self.config.training_runtime['cur_step'] = curStepInGlobal
+        self.config.training_runtime["cur_step"] = curStepInGlobal
 
         # log_losses = []
         # * ===========================================================训练===========================================================
         for epoch in range(self.ckpt_manager.latest_id, self.config.epochs):
-            self.config.training_runtime['cur_epoch'] = epoch
+            self.config.training_runtime["cur_epoch"] = epoch
             if sampler is not None:
                 sampler.set_epoch(epoch)
             self.model.train()
@@ -406,7 +411,7 @@ class Trainer:
                     )
                     self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
                 curStepInGlobal += 1
-                self.config.training_runtime['cur_step'] = curStepInGlobal
+                self.config.training_runtime["cur_step"] = curStepInGlobal
             # *----------------------------------one epoch finish-------------------------------------
             # * sync
             if dist.is_initialized():
@@ -524,6 +529,7 @@ class Trainer:
         metricdict = MetricDict()
         for evaluator in evaluators:
             metricdict.update(evaluator.eval())
+            sync()
         return metricdict
 
     # def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
@@ -606,7 +612,8 @@ class Trainer:
         if self.config.parallel_mode == "DDP":
             self.model = DDP(self.model, device_ids=[self.local_rank], find_unused_parameters=False)
         elif self.config.parallel_mode == "deepspeed":
-            deepspeed_config = hjson.load(open(self.config.deepspeed_config, "r"))
+            with open(self.config.deepspeed_config, "r") as ds_config_file:
+                deepspeed_config = hjson.load(ds_config_file)
             if self.model is not None and isinstance(self.model, PreTrainedModel):
                 logger.warning(
                     (
@@ -622,7 +629,7 @@ class Trainer:
                 fill_ds_config(deepspeed_config, self.config, self.model_config)
                 global dschf
                 dschf = HfDeepSpeedConfig(deepspeed_config)
-                model_dir = self.config.model_dir if self.ckpt_manager.latest_id<0 else self.ckpt_manager.latest_dir
+                model_dir = self.config.model_dir if self.ckpt_manager.latest_id < 0 else self.ckpt_manager.latest_dir
                 if self.from_pretrained_kwargs is None:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config)
                 else:
@@ -637,6 +644,7 @@ class Trainer:
         Important: must initialize self.model before call this function
         """
         all_evaluator_class = [(Evaluator, self.calculate_metric_callback)] + self.extral_evaluators
+        logger.debug(str(all_evaluator_class))
         self.evaluators: defaultdict[Split, list[Evaluator]] = defaultdict(list)
         for split in (Split.VALIDATION, Split.TEST):
             for evaluator_class, calculate_metric_callback in all_evaluator_class:
