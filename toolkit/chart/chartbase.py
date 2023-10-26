@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Any, List, Tuple
+from typing import Any, List, Literal, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -80,23 +80,29 @@ class LineChart(ChartBase):
 
     def draw(
         self,
-        x: List[List[List[Data]]],
-        y: List[List[List[Data]]],
-        line_label: List[List[List[str]]],
+        x: List[Data] | List[List[List[Data]]],
+        y: List[Data] | List[List[List[Data]]],
+        line_label: List[str] | List[List[List[str]]],
         xlabel: str = "x",
         ylabel: str = "y",
         colors: List[str] | None = None,
         no_dot: bool = True,
+        color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
     ) -> None:
         x = np.array(x)
         y = np.array(y)
+        line_label = np.array(line_label)
+        # only one plot
+        if self.nrows == self.ncols == 1 and len(x.shape) == 2:
+            x = x[None, None, :, :]
+            y = y[None, None, :, :]
+            line_label = line_label[None, None, :]
+
         assert x.shape[0] == self.nrows and x.shape[1] == self.ncols
-        # Use a pastel color scheme
-        # line_label = (line_label,) if isinstance(line_label, str) else line_label
+        assert all(x[i][j].shape == y[i][j].shape for i in range(self.nrows) for j in range(self.ncols))
         lines_pre_ax = x.shape[2]
-        colors = sns.color_palette("Spectral", lines_pre_ax)
-        colors = sns.color_palette("husl", lines_pre_ax)
-        colors = sns.color_palette("Greens", lines_pre_ax)
+        # Use a pastel color scheme
+        colors = sns.color_palette(color_palette, lines_pre_ax)
         # colors = [colors[1], colors2[1]]
         # colors = ["#37B971", "#ADD71B"]
         for i in range(self.nrows):
