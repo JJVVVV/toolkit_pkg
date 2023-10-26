@@ -112,9 +112,9 @@ class Evaluator:
         self.model.train()
 
         if world_size > 1:
-            logger.debug(
-                f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(self.dataloader)}"
-            )
+            # logger.debug(
+            #     f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(self.dataloader)}"
+            # )
             mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
 
             labels_gather_list = [None for _ in range(world_size)]
