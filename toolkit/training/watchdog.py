@@ -75,6 +75,8 @@ class WatchDog:
         file_logger: Logger | None = None,
         silence: bool = False,
     ):
+        if epoch == configs.epochs - 1:
+            self.finish()
         # log some information
         if file_logger is not None:
             pass
@@ -159,6 +161,7 @@ class WatchDog:
 
     def save_hf_model(self, configs, output_dir, model, tokenizer):
         """
+        Save the model and tokenizer.\n
         This function should be called in all subprocess.
         """
         # save model
@@ -229,19 +232,21 @@ class WatchDog:
             self.save(output_dir)
 
     def save(self, save_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs):
-        if not silence:
-            logger.debug(f"💾 Saving Watch Dog data ...")
-        if isinstance(save_dir, str):
-            save_dir = Path(save_dir)
-        if save_dir.is_file():
-            raise AssertionError(f"Provided path ({save_dir}) should be a directory, not a file")
-        save_dir.mkdir(parents=True, exist_ok=True)
-        json_file_path = save_dir / json_file_name
+        "Only master process will perform saving action."
+        if self.local_rank == 0:
+            if not silence:
+                logger.debug(f"💾 Saving Watch Dog data ...")
+            if isinstance(save_dir, str):
+                save_dir = Path(save_dir)
+            if save_dir.is_file():
+                raise AssertionError(f"Provided path ({save_dir}) should be a directory, not a file")
+            save_dir.mkdir(parents=True, exist_ok=True)
+            json_file_path = save_dir / json_file_name
 
-        self.to_json_file(json_file_path)
-        if not silence:
-            # logger.debug(f"Save WatchDog data in {json_file_path} successfully.")
-            logger.debug(f"✔️  Save successfully.")
+            self.to_json_file(json_file_path)
+            if not silence:
+                # logger.debug(f"Save WatchDog data in {json_file_path} successfully.")
+                logger.debug(f"✔️  Save successfully.")
 
     @classmethod
     def load(cls, json_file_dir_or_path: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=True, **kwargs) -> "WatchDog":
