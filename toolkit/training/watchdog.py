@@ -77,15 +77,15 @@ class WatchDog:
     ):
         # log some information
         if file_logger is not None:
-            logger = file_logger
+            pass
         else:
-            logger = toolkit_logger
+            file_logger = toolkit_logger
         if self.local_rank == 0:
-            logger.info(f"epoch={epoch:03d} step={step_global:06d}")
-            self.report(val_metricdict, Split.VALIDATION, file_logger=logger)
+            file_logger.info(f"epoch={epoch:03d} step={step_global:06d}")
+            self.report(val_metricdict, Split.VALIDATION, file_logger=file_logger)
             if test_metricdict is not None:
-                self.report(test_metricdict, Split.TEST, file_logger=logger)
-            logger.info("")
+                self.report(test_metricdict, Split.TEST, file_logger=file_logger)
+            file_logger.info("")
 
         if self.optimal_val_metricdict is None:
             self.best_checkpoint = (epoch, step_global)
@@ -113,7 +113,7 @@ class WatchDog:
             elif test_metricdict > self.cheat_test_metricdict:
                 self.cheat_test_metricdict.update(test_metricdict)
         if self.local_rank == 0:
-            logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
+            file_logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
 
     @staticmethod
     def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
@@ -198,8 +198,8 @@ class WatchDog:
                 shutil.rmtree(output_dir)
             output_dir.mkdir()
         if not silence and self.local_rank == 0:
-            logger.debug("🚩 Saving optimal checkpoint ...")
-            logger.debug(f"❔ The optimal checkpoint will be saved in {output_dir}.")
+            logger.debug("🚩 Saving optimal model weights ...")
+            logger.debug(f"❔ The optimal model weights will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
 
         # save model and tokenizer
@@ -222,7 +222,7 @@ class WatchDog:
                 )
 
         if not silence and self.local_rank == 0:
-            logger.debug(f"✅ Save optimal checkpoint successfully.")
+            logger.debug(f"✅ Save successfully.")
 
         # save watch dog(self)
         if self.local_rank == 0:

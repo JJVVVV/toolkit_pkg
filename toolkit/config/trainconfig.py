@@ -128,7 +128,7 @@ class TrainConfig(ConfigBase):
         self.eval_every_half_epoch = eval_every_half_epoch
         self.eval_step = eval_step
         self.save_all_ckpts = save_all_ckpts
-        self.save_last_ckpt = save_last_ckpt
+        self.save_last_ckpt = save_last_ckpt if not save_all_ckpts else True
         self.gradient_clipping = gradient_clipping
         self.max_optimal_ckpt_num = max_optimal_ckpt_num
 
@@ -161,14 +161,18 @@ class TrainConfig(ConfigBase):
         self.torch_dtype = torch_dtype
         self.cut_input_from_output = cut_input_from_output
         self.use_deepspeed_ckpt = use_deepspeed_ckpt
-        if not self.use_deepspeed_ckpt and self.parallel_mode=='deepspeed':
-            logger.warning(f"⚠️  You are using deepspeed, but not save deepspeed checkpoint. Only model will be saved so you can not resume training.")
+        if not self.use_deepspeed_ckpt and self.parallel_mode == "deepspeed":
+            logger.warning(
+                f"⚠️  You are using deepspeed, but not save deepspeed checkpoint. Only model will be saved so you can not resume training."
+            )
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if not silence:
             logger.debug(f"💾 Saving training configuration ...")
-        super().save(save_directory, json_file_name, silence, **kwargs)
+        super().save(save_directory, json_file_name, True, **kwargs)
+        if not silence:
+            logger.debug(f"✔️  Saving successfully.")
 
     @classmethod
     def load(cls, load_dir_or_path: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs) -> Self:

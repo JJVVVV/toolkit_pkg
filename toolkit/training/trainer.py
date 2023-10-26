@@ -437,10 +437,20 @@ class Trainer:
             if self.config.parallel_mode == "deepspeed":
                 # * Save current checkpoint
                 if epoch < self.config.epochs - (not self.config.save_last_ckpt):
+                    if self.local_rank == 0:
+                        logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
+                        self.ckpt_manager.latest_dir.mkdir()
+                        logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
                     if self.config.use_deepspeed_ckpt:
+                        if self.local_rank == 0:
+                            logger.debug(f"💾 Saving model weights, optimizer and scheduler ...")
                         self.model.save_checkpoint(self.ckpt_manager.latest_dir)
                     else:
+                        if self.local_rank == 0:
+                            logger.debug(f"💾 Saving model weights ...")
                         watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
+                    if self.local_rank == 0:
+                        logger.debug("✔️  Save model successfully.")
                     if self.local_rank == 0:
                         if self.tokenizer is not None:
                             self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
