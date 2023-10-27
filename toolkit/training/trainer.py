@@ -649,7 +649,6 @@ class Trainer:
         Important: must initialize self.model before call this function
         """
         all_evaluator_class = [(Evaluator, self.calculate_metric_callback)] + self.extral_evaluators
-        logger.debug(str(all_evaluator_class))
         self.evaluators: defaultdict[Split, list[Evaluator]] = defaultdict(list)
         for split in (Split.VALIDATION, Split.TEST):
             for evaluator_class, calculate_metric_callback in all_evaluator_class:
@@ -665,6 +664,8 @@ class Trainer:
                 )
                 if evaluator is not None:
                     self.evaluators[split].append(evaluator)
+        if self.local_rank == 0:
+            logger.debug(str(self.evaluators))
         # self.evaluator_val = Evaluator(
         #     self.task_type,
         #     Split.VALIDATION,
