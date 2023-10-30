@@ -145,9 +145,9 @@ class TrainConfig(ConfigBase):
         self.bf16 = bf16
 
         # 自动计算的一些值
-        self.total_steps_num = -1
-        self.steps_per_epoch = -1
-        self.training_runtime = None
+        self.total_steps_num = kwargs.get("total_steps_num", -1)
+        self.steps_per_epoch = kwargs.get("steps_per_epoch", -1)
+        self.training_runtime = kwargs.get("training_runtime", None)
 
         # 杂项
         assert dashboard in ["wandb", "tensorboard", None], (

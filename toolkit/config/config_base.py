@@ -185,13 +185,23 @@ class ConfigBase:
         Convert objects' type to the types that can be encoded by json.
         For example: `Path` -> `str`
         """
+        for key, value in d.items():
+            if isinstance(value, Path):
+                d[key] = str(value)
+
+    @staticmethod
+    def _convert_and_flat_objects(d: Dict):
+        """
+        Convert objects' type to the types that can be encoded by json.
+        For example: `Path` -> `str`\n
+        And flat the nest dict.
+        """
         dict_need2parse = []
         for key, value in d.items():
             if isinstance(value, Path):
                 d[key] = str(value)
             if isinstance(value, dict):
-                if key == "generate_kwargs":
-                    dict_need2parse.append((key, value))
+                dict_need2parse.append((key, value))
         for key, value in dict_need2parse:
             d.pop(key)
             d.update(value)
@@ -202,10 +212,10 @@ class ConfigBase:
     def __repr__(self):
         return f"{self.__class__.__name__} {self.to_json_string()}"
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self, flat=False) -> Dict[str, Any]:
         """
-        Serializes this instance to a Python dictionary.
-
+        Serializes this instance to a Python dictionary.\n
+        flat: Whether to flat the nest dict.
         Returns:
             `Dict[str, Any]`: Dictionary of all the attributes that make up this configuration instance.
         """
@@ -218,7 +228,10 @@ class ConfigBase:
         # if hasattr(self.__class__, "model_type"):
         #     output["model_type"] = self.__class__.model_type
         self.dict_torch_dtype_to_str(output)
-        self._convert_objects(output)
+        if flat:
+            self._convert_and_flat_objects(output)
+        else:
+            self._convert_objects(output)
         return output
 
     def to_diff_dict(self) -> Dict[str, Any]:

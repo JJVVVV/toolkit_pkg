@@ -128,24 +128,53 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
 
-        self.generate_kwargs = {
-            "do_sample": do_sample,
-            "num_beams": num_beams,
-            "early_stopping": early_stopping,
-            "use_cache": use_cache,
-            "temperature": temperature,
-            "top_k": top_k,
-            "top_p": top_p,
-            "diversity_penalty": diversity_penalty,
-            "repetition_penalty": repetition_penalty,
-            "length_penalty": length_penalty,
-        }
-        # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer
-        if max_new_tokens is not None:
-            self.generate_kwargs["max_new_tokens"] = max_new_tokens
-        else:
-            self.generate_kwargs["max_length"] = max_length
+        self.do_sample = do_sample
+        self.num_beams = num_beams
+        self.early_stopping = early_stopping
+        self.use_cache = use_cache
+        self.temperature = temperature
+        self.top_k = top_k
+        self.top_p = top_p
+        self.diversity_penalty = diversity_penalty
+        self.repetition_penalty = repetition_penalty
+        self.length_penalty = length_penalty
+        self.max_new_tokens = max_new_tokens
+        self.max_length = max_length
+
         # self.pretrained_model_path = pretrained_model_path
+
+    @property
+    def generate_kwargs(self):
+        ret = {
+            "do_sample": self.do_sample,
+            "num_beams": self.num_beams,
+            "early_stopping": self.early_stopping,
+            "use_cache": self.use_cache,
+            "temperature": self.temperature,
+            "top_k": self.top_k,
+            "top_p": self.top_p,
+            "diversity_penalty": self.diversity_penalty,
+            "repetition_penalty": self.repetition_penalty,
+            "length_penalty": self.length_penalty,
+        }
+        # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer 的 warning
+        if self.max_new_tokens is not None:
+            ret["max_new_tokens"] = self.max_new_tokens
+        else:
+            ret["max_length"] = self.max_length
+        return ret
+
+    # todo 当前只会覆盖 d 中出现的参数, 正常应该还要把 d 中没出现的参数置为默认值
+    @generate_kwargs.setter
+    def generate_kwargs(self, d: dict):
+        # if set(d.keys()).issubset(set(self.generate_kwargs.keys())):
+        if not isinstance(d, dict):
+            raise ValueError(f"`generate_kwargs` must be a dict but got '{type(d)}'")
+        for key, value in d.items():
+            if key in self.generate_kwargs:
+                setattr(self, key, value)
+            else:
+                raise KeyError(f"Invalid key for generate keyword arguments: {key}")
 
     # def print_some_info(self):
     #     logger.debug("***** Some training information *****")
