@@ -30,6 +30,9 @@ def rouge(
     # now preds: list[list[str]], labels: list[list[str]]
     assert len(labels) == len(preds), f"The number of `preds` and `labels` are not equal: len(preds)={len(preds)}, len(labels)={len(labels)}."
 
+    if isinstance(rouge_keys, str):
+        rouge_keys = (rouge_keys,)
+
     ret = 0
     if language == "zh":
         tokenizer = list

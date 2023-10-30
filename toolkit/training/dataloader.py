@@ -56,12 +56,7 @@ def get_dataloader(
     else:
         sampler = DistributedSampler(dataset, shuffle=False, drop_last=True) if world_size != 1 else None
         dataloader = DataLoader(
-            dataset=dataset,
-            batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
-            shuffle=False,
-            pin_memory=True,
-            sampler=sampler,
-            **dataloader_kwargs,
+            dataset=dataset, batch_size=configs.infer_batch_size // world_size, shuffle=False, pin_memory=True, sampler=sampler, **dataloader_kwargs
         )
     # logger.debug(f'\n{tokenizer.decode(dataset.tokenized_dict["input_ids"][0][0], skip_special_tokens=False)}\n')
 
