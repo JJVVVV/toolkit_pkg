@@ -520,7 +520,7 @@ class Trainer:
                 wandb.run.summary.update(watch_dog.optimal_performance())
                 wandb.run.finish()
             elif self.config.dashboard == "tensorboard":
-                self.dashboard_writer.add_hparams(hparam_dict=self.config.to_dict(), metric_dict=watch_dog.optimal_performance())
+                self.dashboard_writer.add_hparams(hparam_dict=self.config.to_dict(flat=True), metric_dict=watch_dog.optimal_performance())
                 self.dashboard_writer.close()
 
     def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
