@@ -195,12 +195,14 @@ class TextDataset(Dataset):
         # tokenize input texts
         tokenizer.padding_side = padding_side
         if (
-            isinstance(self.splited_texts_input[0], tuple)
-            and isinstance(self.splited_texts_input[0][0], list | str)
-            and isinstance(self.splited_texts_input[0][1], list | str | NoneType)
-        ) or isinstance(
-            self.splited_texts_input[0], PairedText
-        ):  # if the input type is `PairedText`
+            (
+                isinstance(self.splited_texts_input[0], tuple)
+                and isinstance(self.splited_texts_input[0][0], list | str)
+                and isinstance(self.splited_texts_input[0][1], list | str | NoneType)
+            )
+            or isinstance(self.splited_texts_input[0], PairedText)
+            # or (isinstance(self.splited_texts_input[0], list | tuple) and isinstance(self.splited_texts_input[0][0], PairedText))
+        ):  # if the input type is `PairedText` or `Iterable[PairedText]`
             self.batch_model_input = self.transformers_tokenizer_tqdm(
                 tokenizer, self.splited_texts_input, max_length_input, desc="Tokenize input texts"
             )
@@ -406,7 +408,7 @@ class TextDataset(Dataset):
     def transformers_tokenizer_tqdm(
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
     ) -> BatchModelInput:
-        # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad
+        # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
         # print(text_pairs)
         batch_model_input = defaultdict(list)
         # longest = 0
