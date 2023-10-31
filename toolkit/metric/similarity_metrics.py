@@ -1,5 +1,5 @@
 import re
-from typing import Literal
+from typing import Iterable, Literal
 
 from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 from torchmetrics.functional.text.rouge import rouge_score
@@ -112,7 +112,7 @@ def bleu(
     labels = [[tokenizer(one_of_tgt) for one_of_tgt in tgt] for tgt in labels]
 
     scores = corpus_bleu(labels, preds, weights, smoothing_function)
-    if isinstance(scores, float):
+    if not isinstance(scores, Iterable):
         scores = [scores]
 
     if return_metricdict:
