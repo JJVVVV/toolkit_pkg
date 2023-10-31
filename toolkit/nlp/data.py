@@ -47,6 +47,9 @@ class PairedText:
         else:
             raise IndexError(f"{type(self)} only have two item. Valid indexs are `0` and `1`, but got index `{index}`")
 
+    def to_list(self):
+        return [self.first_text, self.second_text]
+
 
 class FinelyControlledText:
     """
@@ -144,14 +147,14 @@ class TextDataset(Dataset):
 
             # custom
             a_custom_dict = {}
-            a_custom_dict[additional_input1] = XXX
-            a_custom_dict[additional_input2] = XXX
+            a_custom_dict[arg_name1] = XXX
+            a_custom_dict[arg_name2] = XXX
 
             inputs.append(a_sample)
             labels.append(a_label)
             customs.append(a_cumstom_dict)
 
-        return inputs, labels, {label2: [...]}
+        return inputs, labels, customs
 
     ```
     """
@@ -163,7 +166,7 @@ class TextDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
-            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID], Any],
+            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID], List[str]],
         ],
         padding_side: str = "right",
         max_length_input: int | None = None,
@@ -182,7 +185,7 @@ class TextDataset(Dataset):
         # get input and label texts
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
         self.padding_side = padding_side
-        self.splited_texts_input, self.splited_texts_label, *custom_args = load_data_fn(
+        self.texts_input, self.texts_label, *custom_args = load_data_fn(
             data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
         if len(custom_args) > 0:
@@ -196,25 +199,23 @@ class TextDataset(Dataset):
         tokenizer.padding_side = padding_side
         if (
             (
-                isinstance(self.splited_texts_input[0], tuple)
-                and isinstance(self.splited_texts_input[0][0], list | str)
-                and isinstance(self.splited_texts_input[0][1], list | str | NoneType)
+                isinstance(self.texts_input[0], tuple)
+                and isinstance(self.texts_input[0][0], list | str)
+                and isinstance(self.texts_input[0][1], list | str | NoneType)
             )
-            or isinstance(self.splited_texts_input[0], PairedText)
+            or isinstance(self.texts_input[0], PairedText)
             # or (isinstance(self.splited_texts_input[0], list | tuple) and isinstance(self.splited_texts_input[0][0], PairedText))
         ):  # if the input type is `PairedText` or `Iterable[PairedText]`
-            self.batch_model_input = self.transformers_tokenizer_tqdm(
-                tokenizer, self.splited_texts_input, max_length_input, desc="Tokenize input texts"
-            )
+            self.batch_model_input = self.transformers_tokenizer_tqdm(tokenizer, self.texts_input, max_length_input, desc="Tokenize input texts")
         elif (
-            isinstance(self.splited_texts_input[0], tuple)
-            and isinstance(self.splited_texts_input[0][0], tuple)
-            and isinstance(self.splited_texts_input[0][0][0], bool)
-            and isinstance(self.splited_texts_input[0][0][1], str)
+            isinstance(self.texts_input[0], tuple)
+            and isinstance(self.texts_input[0][0], tuple)
+            and isinstance(self.texts_input[0][0][0], bool)
+            and isinstance(self.texts_input[0][0][1], str)
         ) or isinstance(
-            self.splited_texts_input[0], FinelyControlledText
+            self.texts_input[0], FinelyControlledText
         ):  # if the input type is `FinelyControlledText`
-            self.batch_model_input = self.__tokenize(self.splited_texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
+            self.batch_model_input = self.__tokenize(self.texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
         self.batch_model_input = {
@@ -235,13 +236,11 @@ class TextDataset(Dataset):
         # tokenize label texts
         tokenizer.padding_side = "right"
         if (
-            isinstance(self.splited_texts_label[0], tuple)
-            and isinstance(self.splited_texts_label[0][0], str)
-            and isinstance(self.splited_texts_label[0][1], str | NoneType)
+            isinstance(self.texts_label[0], tuple) and isinstance(self.texts_label[0][0], str) and isinstance(self.texts_label[0][1], str | NoneType)
         ) or isinstance(
-            self.splited_texts_label[0], PairedText
+            self.texts_label[0], PairedText
         ):  # if the label type is `PairedText`
-            self.tokens_labels = self.transformers_tokenizer_tqdm(tokenizer, self.splited_texts_label, max_length_label, desc="Tokenize label texts")[
+            self.tokens_labels = self.transformers_tokenizer_tqdm(tokenizer, self.texts_label, max_length_label, desc="Tokenize label texts")[
                 "input_ids"
             ]
             if not isinstance(self.tokens_labels, torch.Tensor):
@@ -253,34 +252,34 @@ class TextDataset(Dataset):
             self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
             self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
         elif (
-            isinstance(self.splited_texts_label[0], tuple)
-            and isinstance(self.splited_texts_label[0][0], tuple)
-            and isinstance(self.splited_texts_label[0][0][0], bool)
-            and isinstance(self.splited_texts_label[0][0][1], str)
+            isinstance(self.texts_label[0], tuple)
+            and isinstance(self.texts_label[0][0], tuple)
+            and isinstance(self.texts_label[0][0][0], bool)
+            and isinstance(self.texts_label[0][0][1], str)
         ) or isinstance(
-            self.splited_texts_label[0], FinelyControlledText
+            self.texts_label[0], FinelyControlledText
         ):  # if the label type is `FinelyControlledText`
-            self.tokens_labels = self.__tokenize(self.splited_texts_label, tokenizer, max_length_label, desc="Tokenize label texts")["input_ids"]
+            self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, max_length_label, desc="Tokenize label texts")["input_ids"]
             self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
             self.max_length_label = torch.max(self.first_pad_indexes_label).item()
             self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
             self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
-        elif (isinstance(self.splited_texts_label[0], list) and isinstance(self.splited_texts_label[0][0], str)) or isinstance(
-            self.splited_texts_label[0], str
+        elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], str)) or isinstance(
+            self.texts_label[0], str
         ):  # if the label type is `List[str]` or `str`
-            self.tokens_labels = self.splited_texts_label
+            self.tokens_labels = self.texts_label
             self.max_length_label = -1
-        elif (isinstance(self.splited_texts_label[0], list) and isinstance(self.splited_texts_label[0][0], int)) or isinstance(
-            self.splited_texts_label[0], ClassificationLabel
+        elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], int)) or isinstance(
+            self.texts_label[0], ClassificationLabel
         ):  # if the label type is `ClassificationID`, i.e. `List[int]`
-            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.long)
+            self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.long)
             self.max_length_label = self.tokens_labels.shape[-1]
-        elif (isinstance(self.splited_texts_label[0], list) and isinstance(self.splited_texts_label[0][0], float)) or isinstance(
-            self.splited_texts_label[0], RegressionLabel
+        elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], float)) or isinstance(
+            self.texts_label[0], RegressionLabel
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
-            self.tokens_labels = torch.tensor(self.splited_texts_label, dtype=torch.float32)
+            self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
             self.max_length_label = self.tokens_labels.shape[-1]
         else:
             raise ValueError(
