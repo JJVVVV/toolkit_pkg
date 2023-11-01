@@ -5,7 +5,7 @@ from enum import Enum
 from math import ceil
 from pathlib import Path
 from types import NoneType
-from typing import Any, Callable, Dict, Iterable, List, Self, Tuple
+from typing import Callable, Dict, Iterable, List, Self, Tuple
 
 import torch
 import torch.distributed as dist
@@ -166,7 +166,7 @@ class TextDataset(Dataset):
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
-            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID], List[str]],
+            Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID] | List[str]],
         ],
         padding_side: str = "right",
         max_length_input: int | None = None,
