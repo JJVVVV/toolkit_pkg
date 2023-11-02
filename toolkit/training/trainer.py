@@ -290,7 +290,7 @@ class Trainer:
             training_bar = tqdm(
                 enumerate(gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)),
                 total=self.config.steps_per_epoch,
-                desc=f"{'Training epoch':15}{epoch:#03d}",
+                desc=f"Training epoch {epoch:03d}",
                 colour="GREEN",
                 unit="batch",
                 smoothing=0.8,
@@ -367,8 +367,9 @@ class Trainer:
 
                 # * log loss and learning rate on consoles
                 if self.config.logging_steps != -1 and curStepInGlobal % self.config.logging_steps == 0:
-                    # logger.info(f"Step={curStepInGlobal:5d} loss={accumulate_loss:.4f}")
-                    training_bar.set_postfix(step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}")
+                    training_bar.set_postfix(
+                        step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}", lr=f"{self.scheduler.get_last_lr()[0]:.2e}"
+                    )
                 # * log loss and learning rate on dashboard
                 # if curStepInGlobal & 15 == 0:
                 if True:
@@ -383,18 +384,15 @@ class Trainer:
                                 wandb.run.log(
                                     {
                                         "training/loss": accumulate_loss,
-                                        "training/learning_rate/downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
-                                        "training/learning_rate/pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
+                                        "training/learning_rate/downstream": self.scheduler.get_last_lr()[0],
+                                        "training/learning_rate/pretrain": self.scheduler.get_last_lr()[0],
                                     },
                                     step=curStepInGlobal,
                                 )
                             elif self.config.dashboard == "tensorboard":
                                 self.dashboard_writer.add_scalars(
                                     "training/learning_rate",
-                                    {
-                                        "downstream": self.optimizer.state_dict()["param_groups"][0]["lr"],
-                                        "pretrain": self.optimizer.state_dict()["param_groups"][-1]["lr"],
-                                    },
+                                    {"downstream": self.scheduler.get_last_lr()[0], "pretrain": self.scheduler.get_last_lr()[0]},
                                     curStepInGlobal,
                                 )
                                 self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
