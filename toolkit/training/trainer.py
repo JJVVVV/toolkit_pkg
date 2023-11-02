@@ -287,14 +287,15 @@ class Trainer:
             if sampler is not None:
                 sampler.set_epoch(epoch)
             self.model.train()
-            for curStepInEpoch, batch_in_accumulate in tqdm(
+            training_bar = tqdm(
                 enumerate(gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)),
                 total=self.config.steps_per_epoch,
                 desc=f"{'Training epoch':15}{epoch:#03d}",
                 colour="GREEN",
                 unit="batch",
                 smoothing=0.8,
-            ):
+            )
+            for curStepInEpoch, batch_in_accumulate in training_bar:
                 # if curStepInEpoch < 3:
                 #     if batch_in_accumulate[0]["input_ids"][0][0].numel() == 1:
                 #         logger.debug(f'\n{self.tokenizer.batch_decode(batch_in_accumulate[0]["input_ids"], skip_special_tokens=True)}\n')
@@ -365,8 +366,9 @@ class Trainer:
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
 
                 # * log loss and learning rate on consoles
-                if self.config.logging_steps != -1 and self.local_rank == 0 and curStepInGlobal % self.config.logging_steps == 0:
-                    logger.info(f"Step={curStepInGlobal:5d} Loss={accumulate_loss:.4f}")
+                if self.config.logging_steps != -1 and curStepInGlobal % self.config.logging_steps == 0:
+                    # logger.info(f"Step={curStepInGlobal:5d} loss={accumulate_loss:.4f}")
+                    training_bar.set_postfix(step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}")
                 # * log loss and learning rate on dashboard
                 # if curStepInGlobal & 15 == 0:
                 if True:
@@ -412,6 +414,7 @@ class Trainer:
                     self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
                 curStepInGlobal += 1
                 self.config.training_runtime["cur_step"] = curStepInGlobal
+            training_bar.close()
             # *----------------------------------one epoch finish-------------------------------------
             # * sync
             if dist.is_initialized():
