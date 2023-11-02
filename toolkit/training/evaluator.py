@@ -81,7 +81,7 @@ class Evaluator:
 
         match self.task_type:
             case "generate":
-                for batch in tqdm(self.dataloader, desc=self.split.name, colour="BLUE", unit="batch", smoothing=0.9):
+                for batch in tqdm(self.dataloader, desc=self.split.name.capitalize(), colour="BLUE", unit="batch", smoothing=0.9):
                     with torch.no_grad():
                         labels = batch.pop("labels")
                         custom_inputs = batch.pop("custom_inputs", dict())
