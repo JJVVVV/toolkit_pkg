@@ -366,36 +366,24 @@ class Trainer:
                 # torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=15.0, norm_type=2.0)
 
                 # * log loss and learning rate on consoles
-                if self.config.logging_steps != -1 and curStepInGlobal % self.config.logging_steps == 0:
+                if self.config.logging_steps and ((curStepInGlobal + 1) % self.config.logging_steps) == 0:
                     training_bar.set_postfix(
                         step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}", lr=f"{self.scheduler.get_last_lr()[0]:.2e}"
                     )
-                # * log loss and learning rate on dashboard
-                # if curStepInGlobal & 15 == 0:
-                if True:
+                    # * log loss and learning rate on dashboard
+                    # if curStepInGlobal & 15 == 0:
+                    # if True:
                     if self.local_rank == 0:
-                        if self.config.parallel_mode == "deepspeed":
-                            if self.config.dashboard == "wandb":
-                                wandb.run.log({"training/loss": accumulate_loss}, step=curStepInGlobal)
-                            elif self.config.dashboard == "tensorboard":
-                                self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
-                        else:
-                            if self.config.dashboard == "wandb":
-                                wandb.run.log(
-                                    {
-                                        "training/loss": accumulate_loss,
-                                        "training/learning_rate/downstream": self.scheduler.get_last_lr()[0],
-                                        "training/learning_rate/pretrain": self.scheduler.get_last_lr()[0],
-                                    },
-                                    step=curStepInGlobal,
-                                )
-                            elif self.config.dashboard == "tensorboard":
-                                self.dashboard_writer.add_scalars(
-                                    "training/learning_rate",
-                                    {"downstream": self.scheduler.get_last_lr()[0], "pretrain": self.scheduler.get_last_lr()[0]},
-                                    curStepInGlobal,
-                                )
-                                self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
+                        if self.config.dashboard == "wandb":
+                            wandb.run.log(
+                                {"training/loss": accumulate_loss, "training/learning_rate": self.scheduler.get_last_lr()[0]}, step=curStepInGlobal
+                            )
+                        elif self.config.dashboard == "tensorboard":
+                            self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
+                            self.dashboard_writer.add_scalar(
+                                "training/learning_rate", self.scheduler.get_last_lr()[0], curStepInGlobal, new_style=True
+                            )
+
                 # * Evaluate after each half epoch
                 if self.config.eval_every_half_epoch and curStepInEpoch == self.config.steps_per_epoch >> 1:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
@@ -762,3 +750,27 @@ class Trainer:
     #         mean_loss = sum(all_losses) / len(all_losses)
 
     #     return self.calculate_metric_callback(all_labels, all_logits, mean_loss)
+
+    # if self.local_rank == 0:
+    #     if self.config.parallel_mode == "deepspeed":
+    #         if self.config.dashboard == "wandb":
+    #             wandb.run.log({"training/loss": accumulate_loss}, step=curStepInGlobal)
+    #         elif self.config.dashboard == "tensorboard":
+    #             self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
+    #     else:
+    #         if self.config.dashboard == "wandb":
+    #             wandb.run.log(
+    #                 {
+    #                     "training/loss": accumulate_loss,
+    #                     "training/learning_rate/downstream": self.scheduler.get_last_lr()[0],
+    #                     "training/learning_rate/pretrain": self.scheduler.get_last_lr()[0],
+    #                 },
+    #                 step=curStepInGlobal,
+    #             )
+    #         elif self.config.dashboard == "tensorboard":
+    #             self.dashboard_writer.add_scalars(
+    #                 "training/learning_rate",
+    #                 {"downstream": self.scheduler.get_last_lr()[0], "pretrain": self.scheduler.get_last_lr()[0]},
+    #                 curStepInGlobal,
+    #             )
+    #             self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)

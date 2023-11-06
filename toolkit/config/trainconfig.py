@@ -57,7 +57,7 @@ class TrainConfig(ConfigBase):
         bf16: bool = False,
         dashboard: str | None = None,
         shuffle: bool | None = None,
-        logging_steps: int = -1,
+        logging_steps: int = 0,
         torch_dtype: str = "auto",
         cut_input_from_output: bool = False,
         use_deepspeed_ckpt: bool = False,
