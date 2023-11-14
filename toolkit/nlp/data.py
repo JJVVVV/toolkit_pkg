@@ -50,6 +50,12 @@ class PairedText:
     def to_list(self):
         return [self.first_text, self.second_text] if self.second_text is not None else [self.first_text]
 
+    def __str__(self) -> str:
+        if self.second_text is None:
+            return self.first_text
+        else:
+            return f"{self.first_text} <SEP> {self.second_text}"
+
 
 class FinelyControlledText:
     """
