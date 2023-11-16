@@ -370,6 +370,7 @@ class Trainer:
                     try:
                         lr = self.scheduler.get_last_lr()[0]
                     except Exception as e:
+                        lr = None
                         print(e)
                     training_bar.set_postfix(step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}", lr=f"{lr:.2e}")
 
