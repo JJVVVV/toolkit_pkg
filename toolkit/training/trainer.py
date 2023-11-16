@@ -367,22 +367,21 @@ class Trainer:
 
                 # * log loss and learning rate on consoles
                 if self.config.logging_steps and ((curStepInGlobal + 1) % self.config.logging_steps) == 0:
-                    training_bar.set_postfix(
-                        step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}", lr=f"{self.scheduler.get_last_lr()[0]:.2e}"
-                    )
+                    try:
+                        lr = self.scheduler.get_last_lr()[0]
+                    except Exception as e:
+                        print(e)
+                    training_bar.set_postfix(step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}", lr=f"{lr:.2e}")
+
                     # * log loss and learning rate on dashboard
                     # if curStepInGlobal & 15 == 0:
                     # if True:
                     if self.local_rank == 0:
                         if self.config.dashboard == "wandb":
-                            wandb.run.log(
-                                {"training/loss": accumulate_loss, "training/learning_rate": self.scheduler.get_last_lr()[0]}, step=curStepInGlobal
-                            )
+                            wandb.run.log({"training/loss": accumulate_loss, "training/learning_rate": lr}, step=curStepInGlobal)
                         elif self.config.dashboard == "tensorboard":
                             self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
-                            self.dashboard_writer.add_scalar(
-                                "training/learning_rate", self.scheduler.get_last_lr()[0], curStepInGlobal, new_style=True
-                            )
+                            self.dashboard_writer.add_scalar("training/learning_rate", lr, curStepInGlobal, new_style=True)
 
                 # * Evaluate after each half epoch
                 if self.config.eval_every_half_epoch and curStepInEpoch == self.config.steps_per_epoch >> 1:

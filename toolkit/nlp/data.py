@@ -540,7 +540,7 @@ class TextDataset(Dataset):
         return cache_path
 
     def cache(self, origin_data_path: Path, tokenizer_name_or_path: str = "unknown_tokenizer", **kwargs_load_data):
-        "Cache tokenized dataset."
+        "Cache tokenized dataset. Compatible with DDP and deepspeed."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"💿 Caching dataset from {origin_data_path} ...")
