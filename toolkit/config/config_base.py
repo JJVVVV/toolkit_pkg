@@ -89,6 +89,7 @@ class ConfigBase:
             load_path = load_dir_or_path
         else:
             load_path = load_dir_or_path / json_file_name
+        assert load_path.exists()
 
         config_dict = cls.get_config_dict(load_path, silence=silence, **kwargs)
         # if "model_type" in config_dict and hasattr(cls, "model_type") and config_dict["model_type"] != cls.model_type:

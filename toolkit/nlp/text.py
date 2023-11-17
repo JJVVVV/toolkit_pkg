@@ -21,3 +21,8 @@ def punctuation_convert(text, direction='ch-en'):
             u'！？。，；：“”‘’【】〈〉～（）'
             )}
     return text.translate(table)
+
+def contain_chinese(text):
+    pattern = re.compile(r'[\u4e00-\u9fa5]')
+    match = re.search(pattern, text)
+    return match is not None
