@@ -47,14 +47,11 @@ class PairedText:
         else:
             raise IndexError(f"{type(self)} only have two item. Valid indexs are `0` and `1`, but got index `{index}`")
 
-    def to_list(self):
+    def tolist(self):
         return [self.first_text, self.second_text] if self.second_text is not None else [self.first_text]
 
     def __str__(self) -> str:
-        if self.second_text is None:
-            return self.first_text
-        else:
-            return f"{self.first_text} <SEP> {self.second_text}"
+        return str(self.tolist())
 
 
 class FinelyControlledText:
