@@ -494,7 +494,7 @@ class TextDataset(Dataset):
         if use_cache is None:  # use_cache will cover the config.cache_dataset
             use_cache = configs.cache_dataset
         if use_cache:
-            dataset = cls.from_cache(data_file_path, repr(tokenizer.__class__)[9:-2], **kwargs_load_data)
+            dataset = cls.from_cache(data_file_path, repr(tokenizer.__class__)[8:-2], **kwargs_load_data)
         else:
             dataset = None
         if dataset is None:
@@ -567,6 +567,7 @@ class TextDataset(Dataset):
             logger.warning("If you are sure that the file is a raw data file, rename it to a non-PKL suffix.")
         else:
             cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path, tokenizer_type, **kwargs_load_data)
+            # print(cached_dataset_path)
         try:
             with cached_dataset_path.open("rb") as f:
                 dataset = pickle.load(f)
