@@ -61,6 +61,8 @@ class TrainConfig(ConfigBase):
         torch_dtype: str = "auto",
         cut_input_from_output: bool = False,
         use_deepspeed_ckpt: bool = False,
+        show_lr: bool = True,
+        show_step: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -165,6 +167,8 @@ class TrainConfig(ConfigBase):
             logger.warning(
                 f"⚠️  You are using deepspeed, but not save deepspeed checkpoint. Only model will be saved so you can not resume training."
             )
+        self.show_lr = show_lr
+        self.show_step = show_step
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
