@@ -1,5 +1,5 @@
 import pathlib
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from math import ceil
 from typing import Callable, Type, TypeVar
 
@@ -17,7 +17,7 @@ from tqdm.auto import tqdm
 from transformers import PretrainedConfig, PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
 from transformers.integrations import HfDeepSpeedConfig
 
-from .. import toolkit_logger
+# from .. import toolkit_logger
 from ..config import TrainConfig
 from ..enums import Split
 from ..integration.deepspeed import fill_ds_config
@@ -369,10 +369,16 @@ class Trainer:
                 if self.config.logging_steps and ((curStepInGlobal + 1) % self.config.logging_steps) == 0:
                     try:
                         lr = self.scheduler.get_last_lr()[0]
-                    except Exception as e:
+                    except:
                         lr = -1.0
-                        print(e)
-                    training_bar.set_postfix(step=f"{curStepInGlobal:<5d}", loss=f"{accumulate_loss:.4f}", lr=f"{lr:.2e}")
+
+                    info = OrderedDict()
+                    info["loss"] = f"{accumulate_loss:.3f}"
+                    if self.config.show_lr:
+                        info["lr"] = f"{lr:.2e}"
+                    if self.config.show_step:
+                        info["step"] = f"{curStepInGlobal:<5d}"
+                    training_bar.set_postfix(info)
 
                     # * log loss and learning rate on dashboard
                     # if curStepInGlobal & 15 == 0:
