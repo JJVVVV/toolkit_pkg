@@ -14,7 +14,13 @@ from torch.optim import AdamW, RMSprop
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
-from transformers import PretrainedConfig, PreTrainedModel, PreTrainedTokenizer, PreTrainedTokenizerFast, get_linear_schedule_with_warmup
+from transformers import (
+    PretrainedConfig,
+    PreTrainedModel,
+    PreTrainedTokenizer,
+    PreTrainedTokenizerFast,
+    get_linear_schedule_with_warmup,
+)
 from transformers.integrations import HfDeepSpeedConfig
 
 # from .. import toolkit_logger
@@ -290,7 +296,7 @@ class Trainer:
             training_bar = tqdm(
                 enumerate(gradient_accumulate(dataloader_train, self.config.gradient_accumulation_steps)),
                 total=self.config.steps_per_epoch,
-                desc=f"Training epoch {epoch:03d}",
+                desc=f"Training-{epoch:03d}",
                 colour="GREEN",
                 unit="batch",
                 smoothing=0.8,
