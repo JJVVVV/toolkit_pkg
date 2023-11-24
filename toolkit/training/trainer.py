@@ -279,7 +279,7 @@ class Trainer:
             logger.debug(f"  Model type = {self.config.model_type}")
             logger.debug(f"  fp16: {self.config.fp16}")
             logger.debug(f"  bf16: {self.config.bf16}")
-            logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}\n")
+            logger.debug(f"  Start training from {self.ckpt_manager.latest_dir.name if self.ckpt_manager.latest_id>=0 else 'pretained model'}")
 
         # * Enter into a new ckpt
         self.ckpt_manager.next()
@@ -529,7 +529,7 @@ class Trainer:
         if len(evaluators) == 0:
             return None
         if self.local_rank == 0:
-            logger.debug("")
+            # logger.debug("")
             logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
             logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
         metricdict = MetricDict()
