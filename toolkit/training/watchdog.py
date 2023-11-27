@@ -317,28 +317,30 @@ class WatchDog:
     @classmethod
     def metric_dicts_from_diff_seeds(
         cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False
-    ) -> Tuple[List[MetricDict], List[MetricDict], List[MetricDict]]:
+    ) -> Dict[str, Dict[int, MetricDict]]:
         """
         Get a list of validation metricdicts, test metricdicts and cheat test metricdicts from different seed.
         """
         seed_dirs = glob.glob(seeds_dir + "/*")
         success = 0
-        dev_metrics_dicts = []
-        test_metrics_dicts = []
-        cheat_metrics_dicts = []
+        dev_metrics_dicts = dict()
+        test_metrics_dicts = dict()
+        cheat_metrics_dicts = dict()
         for seed_dir in seed_dirs:
             watchdog_data_path = find_file(seed_dir, json_file_name)
             if watchdog_data_path and (watch_dog := cls.load(watchdog_data_path, silence=True)).is_finish():
+                seed = int(Path(seed_dir).name)
                 if watch_dog.optimal_val_metricdict is not None:
-                    dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
+                    dev_metrics_dicts[seed] = watch_dog.optimal_val_metricdict
+                    # dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
                 if watch_dog.optimal_test_metricdict is not None:
-                    test_metrics_dicts.append(watch_dog.optimal_test_metricdict)
+                    test_metrics_dicts[seed] = watch_dog.optimal_test_metricdict
                 if watch_dog.cheat_test_metricdict is not None:
-                    cheat_metrics_dicts.append(watch_dog.cheat_test_metricdict)
+                    cheat_metrics_dicts[seed] = watch_dog.cheat_test_metricdict
                 success += 1
             else:
                 logger.debug(f"❌ Failed: {seed_dir}")
         # print("xxxxxxx")
         if not silence:
             logger.info(f"success/total: {success}/{len(seed_dirs)}")
-        return dev_metrics_dicts, test_metrics_dicts, cheat_metrics_dicts
+        return dict(val=dev_metrics_dicts, test=test_metrics_dicts, cheat=cheat_metrics_dicts)

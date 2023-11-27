@@ -3,11 +3,11 @@ from collections import UserDict
 from functools import reduce
 from heapq import nlargest
 from pathlib import Path
-from typing import List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 METRIC_DICT_DATA_NAME = "performance.json"
 
-MetricDictGroup = List["MetricDictGroup"] | Tuple["MetricDictGroup"]
+MetricDictGroup = Iterable["MetricDictGroup"] | Dict[int, "MetricDict"]
 
 
 class MetricDict(UserDict):
@@ -196,20 +196,29 @@ class MetricDict(UserDict):
         raise NotImplementedError()
 
     @staticmethod
-    def mean_top_k(metric_dicts: MetricDictGroup, top_k: int | None = None) -> "MetricDict" | MetricDictGroup:
+    def _mean_top_k(metric_dicts: Dict[int, "MetricDict"], top_k: int | None = None) -> Tuple[List | "MetricDict"] | None:
         if not metric_dicts:
             ret = None
-        elif isinstance(metric_dicts[0], MetricDict):
+        elif isinstance(metric_dicts, Dict):
             if top_k is None:
-                ret = reduce(lambda x, y: x + y, metric_dicts) / len(metric_dicts)
+                seeds = list(metric_dicts.keys())
+                ret = reduce(lambda x, y: x + y, metric_dicts.values()) / len(metric_dicts)
             else:
-                metric_dicts_topk = nlargest(top_k, metric_dicts)
-                ret = reduce(lambda x, y: x + y, metric_dicts_topk) / len(metric_dicts_topk)
+                metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1]))
+                seeds = list(metric_dicts_topk.keys())
+                ret = reduce(lambda x, y: x + y, metric_dicts_topk.values()) / len(metric_dicts_topk)
             for key, value in ret.items():
                 ret[key] = round(value, 2)
-            return ret
-        elif isinstance(metric_dicts[0], List | Tuple):
-            ret = [MetricDict.mean_top_k(md) for md in metric_dicts]
+            return ret, seeds
+        # elif isinstance(metric_dicts, Iterable):
+        #     ret = [MetricDict.mean_top_k(md, top_k) for md in metric_dicts]
+        return ret
+
+    @staticmethod
+    def mean_top_k(metric_dicts_group: Dict[str, Dict], top_k: int | None = None) -> Dict[str, Tuple[List | "MetricDict"] | None]:
+        ret = dict()
+        for key, value in metric_dicts_group.items():
+            ret[key] = MetricDict._mean_top_k(value, top_k)
         return ret
 
     def save(self, save_dir: Path | str, file_name: str = METRIC_DICT_DATA_NAME):
