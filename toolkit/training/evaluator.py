@@ -21,31 +21,15 @@ class Evaluator:
     """
 
     def __new__(
-        cls,
-        task_type: str,
-        split: Split,
-        config: TrainConfig,
-        model,
-        dataset: Dataset,
-        calculate_metric_callback: Callable[..., MetricDict],
-        extral_args_evaluation: dict | None = None,
-        tokenizer=None,
+        cls, task_type: str, split: Split, config: TrainConfig, model, dataset: Dataset, extral_args_evaluation: dict | None = None, tokenizer=None
     ) -> Self:
         "if any of the following objects is `None`, then just return `None`"
-        if model is None or dataset is None or calculate_metric_callback is None:
+        if model is None or dataset is None:
             return None
         return super().__new__(cls)
 
     def __init__(
-        self,
-        task_type: str,
-        split: Split,
-        config: TrainConfig,
-        model,
-        dataset: Dataset,
-        calculate_metric_callback: Callable[..., MetricDict],
-        extral_args_evaluation: dict | None = None,
-        tokenizer=None,
+        self, task_type: str, split: Split, config: TrainConfig, model, dataset: Dataset, extral_args_evaluation: dict | None = None, tokenizer=None
     ) -> None:
         self.task_type = task_type
         self.split = split
@@ -53,7 +37,6 @@ class Evaluator:
         self.model = model
         self.tokenizer = tokenizer
         self.dataset = dataset
-        self.calculate_metric_callback = calculate_metric_callback
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
 
     def eval(self, cuda_id=None) -> MetricDict:
@@ -140,3 +123,6 @@ class Evaluator:
             mean_loss = sum(all_losses) / len(all_losses)
 
         return self.calculate_metric_callback(all_labels, all_logits, mean_loss)
+
+    def calculate_metric_callback(self, all_labels: list, all_logits: list, mean_loss: float) -> MetricDict:
+        raise NotImplementedError("Please implement the function of calculate metrics.")
