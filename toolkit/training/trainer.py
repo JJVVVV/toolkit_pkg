@@ -86,7 +86,7 @@ class Trainer:
         extral_args_training: dict | None = None,
         extral_args_evaluation: dict | None = None,
         from_pretrained_kwargs: dict | None = None,
-        extral_evaluators: list[tuple] | None = None,
+        extral_evaluators: list | None = None,
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
@@ -649,17 +649,19 @@ class Trainer:
         """
         Important: must initialize self.model before call this function
         """
-        all_evaluator_class = [(Evaluator, self.calculate_metric_callback)] + self.extral_evaluators
+        # all_evaluator_class = [(Evaluator, self.calculate_metric_callback)] + self.extral_evaluators
+        all_evaluator_class = self.extral_evaluators
         self.evaluators: defaultdict[Split, list[Evaluator]] = defaultdict(list)
         for split in (Split.VALIDATION, Split.TEST):
-            for evaluator_class, calculate_metric_callback in all_evaluator_class:
+            # for evaluator_class, calculate_metric_callback in all_evaluator_class:
+            for evaluator_class in all_evaluator_class:
                 evaluator = evaluator_class(
                     task_type=self.task_type,
                     split=split,
                     config=self.config,
                     model=self.model.module if hasattr(self.model, "module") else self.model,
                     dataset=self.dataset_val if split == Split.VALIDATION else self.dataset_test,
-                    calculate_metric_callback=calculate_metric_callback,
+                    # calculate_metric_callback=calculate_metric_callback,
                     extral_args_evaluation=self.extral_args_evaluation,
                     tokenizer=self.tokenizer,
                 )
