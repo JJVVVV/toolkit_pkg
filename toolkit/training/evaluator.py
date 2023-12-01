@@ -59,6 +59,7 @@ class Evaluator:
         if cuda_id is not None:
             self.config.gpu = True
             torch.cuda.set_device(cuda_id)
+        if self.model.device.type != "cuda":
             self.model.cuda()
         self.model.eval()
 
