@@ -1,3 +1,4 @@
+import fcntl
 import os
 import pickle
 import time
@@ -483,7 +484,7 @@ class TextDataset(Dataset):
             # raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
         if isinstance(data_file_path, str):
             data_file_path = Path(data_file_path)
-        if not data_file_path.exists():
+        if isinstance(data_file_path, Path) and not data_file_path.exists():
             raise FileNotFoundError(f"❌ Fail to load test data. {data_file_path} does not exists.")
 
         local_rank = dist.get_rank() if dist.is_initialized() else 0
@@ -549,7 +550,9 @@ class TextDataset(Dataset):
             #     return
             try:
                 with cache_path.open("wb") as f:
+                    fcntl.flock(f, fcntl.LOCK_EX)
                     pickle.dump(self, f)
+                    fcntl.flock(f, fcntl.LOCK_UN)
             except:
                 logger.debug("❌ Fail to cache dataset.")
             logger.debug("✔️  Cache successfully.")
@@ -570,6 +573,8 @@ class TextDataset(Dataset):
             # print(cached_dataset_path)
         try:
             with cached_dataset_path.open("rb") as f:
+                fcntl.flock(f, fcntl.LOCK_EX)
+                fcntl.flock(f, fcntl.LOCK_UN)
                 dataset = pickle.load(f)
             if local_rank == 0:
                 logger.debug("✔️  Load successfully.")
