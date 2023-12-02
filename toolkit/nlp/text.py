@@ -10,8 +10,8 @@ def word_count(text: str, return_word_list=False) -> int | tuple[int, list[str]]
     else:
         return len(word_list), word_list
 
-def punctuation_convert(text, direction='ch-en'):
-    if direction=='ch-en':
+def punctuation_convert(text, to='en'):
+    if to=='en':
         table = {ord(f):ord(t) for f,t in zip(
             u'！？。，；：“”‘’【】「」〈〉〜（）％＃＠＆１２３４５６７８９０',
             u'!?.,;:\"\"\'\'[]{}<>~()%#@&1234567890')}
