@@ -548,13 +548,13 @@ class TextDataset(Dataset):
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             # if cache_path.exists():
             #     return
-            try:
-                with cache_path.open("wb") as f:
-                    fcntl.flock(f, fcntl.LOCK_EX)
+            with cache_path.open("wb") as f:
+                try:
+                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     pickle.dump(self, f)
                     fcntl.flock(f, fcntl.LOCK_UN)
-            except:
-                logger.debug("❌ Fail to cache dataset.")
+                except IOError:
+                    logger.debug("⚠️ Skip this operation because other programs are writing files ...")
             logger.debug("✔️  Cache successfully.")
 
     @classmethod
@@ -573,18 +573,23 @@ class TextDataset(Dataset):
             # print(cached_dataset_path)
         try:
             with cached_dataset_path.open("rb") as f:
-                fcntl.flock(f, fcntl.LOCK_EX)
-                fcntl.flock(f, fcntl.LOCK_UN)
+                fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
                 dataset = pickle.load(f)
+                fcntl.flock(f, fcntl.LOCK_UN)
             if local_rank == 0:
                 logger.debug("✔️  Load successfully.")
         except FileNotFoundError as e:
             if local_rank == 0:
                 logger.debug("❕ There is no cache.")
             dataset = None
+        except IOError:
+            if local_rank == 0:
+                logger.debug("⚠️ Fail to load cache. Maybe the file is being written.")
+            dataset = None
         except Exception as e:
             if local_rank == 0:
-                logger.debug("❌ Fail to load cache.")
+                logger.debug("⚠️ Fail to load cache.")
+                logger.debug(str(e))
             dataset = None
         return dataset
 
