@@ -1,6 +1,6 @@
-import numpy as np
-from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
-from numpy.typing import NDArray
+# import numpy as np
+# from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
+# from numpy.typing import NDArray
 from tqdm.auto import tqdm
 
 from . import MetricDict, bleu
