@@ -2,6 +2,8 @@ import copy
 import glob
 import json
 import shutil
+from functools import reduce
+from heapq import nlargest
 from logging import Logger
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
@@ -319,11 +321,12 @@ class WatchDog:
         cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False
     ) -> Dict[str, Dict[int, MetricDict]]:
         """
-        Get a list of validation metricdicts, test metricdicts and cheat test metricdicts from different seed.
+        Get a dict of validation metricdicts, test metricdicts and cheat metricdicts from different seed.\n
+        return: `dict[split][seed] = MetricDict`
         """
         seed_dirs = glob.glob(seeds_dir + "/*")
         success = 0
-        dev_metrics_dicts = dict()
+        val_metrics_dicts = dict()
         test_metrics_dicts = dict()
         cheat_metrics_dicts = dict()
         for seed_dir in seed_dirs:
@@ -331,8 +334,7 @@ class WatchDog:
             if watchdog_data_path and (watch_dog := cls.load(watchdog_data_path, silence=True)).is_finish():
                 seed = int(Path(seed_dir).name)
                 if watch_dog.optimal_val_metricdict is not None:
-                    dev_metrics_dicts[seed] = watch_dog.optimal_val_metricdict
-                    # dev_metrics_dicts.append(watch_dog.optimal_val_metricdict)
+                    val_metrics_dicts[seed] = watch_dog.optimal_val_metricdict
                 if watch_dog.optimal_test_metricdict is not None:
                     test_metrics_dicts[seed] = watch_dog.optimal_test_metricdict
                 if watch_dog.cheat_test_metricdict is not None:
@@ -343,4 +345,19 @@ class WatchDog:
         # print("xxxxxxx")
         if not silence:
             logger.info(f"success/total: {success}/{len(seed_dirs)}")
-        return dict(val=dev_metrics_dicts, test=test_metrics_dicts, cheat=cheat_metrics_dicts)
+        return dict(val=val_metrics_dicts, test=test_metrics_dicts, cheat=cheat_metrics_dicts)
+
+    @staticmethod
+    def mean_topk(metric_dicts_group: Dict[str, Dict[int, MetricDict]], top_k: int | None = None, cheat=False):
+        if cheat:
+            metric_dicts = metric_dicts_group["cheat"]
+        else:
+            metric_dicts = metric_dicts_group["test"] if metric_dicts_group["test"] else metric_dicts_group["val"]
+        metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1])) if top_k else metric_dicts
+        best_seeds = list(metric_dicts_topk.keys())
+
+        ret = dict()
+        for split, metric_dicts in metric_dicts_group.items():
+            if metric_dicts:
+                ret[split] = (reduce(lambda x, y: x + y, [metric_dicts[seed] for seed in best_seeds]) / len(best_seeds)).round(2)
+        return best_seeds, ret
