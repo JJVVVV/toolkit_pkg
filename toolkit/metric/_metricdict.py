@@ -197,8 +197,11 @@ class MetricDict(UserDict):
 
     @staticmethod
     def _mean_top_k(metric_dicts: Dict[int, "MetricDict"], top_k: int | None = None) -> Tuple[List | "MetricDict"] | None:
+        """
+        metric_dicts: `metric_dicts[seed] = MetricDict`
+        """
         if not metric_dicts:
-            ret = None
+            return None
         elif isinstance(metric_dicts, Dict):
             if top_k is None:
                 seeds = list(metric_dicts.keys())
@@ -210,12 +213,12 @@ class MetricDict(UserDict):
             for key, value in ret.items():
                 ret[key] = round(value, 2)
             return ret, seeds
-        # elif isinstance(metric_dicts, Iterable):
-        #     ret = [MetricDict.mean_top_k(md, top_k) for md in metric_dicts]
-        return ret
 
+    # ! deprecated
     @staticmethod
-    def mean_top_k(metric_dicts_group: Dict[str, Dict], top_k: int | None = None) -> Dict[str, Tuple[List | "MetricDict"] | None]:
+    def mean_topk(metric_dicts_group: Dict[str, Dict], top_k: int | None = None) -> Dict[str, Tuple[List | "MetricDict"] | None]:
+        "Deprecated! ! !"
+        "metric_dicts_group: `metric_dicts_group[split][seed] = MetricDict`"
         ret = dict()
         for key, value in metric_dicts_group.items():
             ret[key] = MetricDict._mean_top_k(value, top_k)
