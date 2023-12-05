@@ -1,5 +1,4 @@
 import copy
-import glob
 import json
 import shutil
 from functools import reduce
@@ -324,7 +323,10 @@ class WatchDog:
         Get a dict of validation metricdicts, test metricdicts and cheat metricdicts from different seed.\n
         return: `dict[split][seed] = MetricDict`
         """
-        seed_dirs = glob.glob(seeds_dir + "/*")
+        seeds_dir = Path(seeds_dir)
+        assert seeds_dir.exists(), f"Seeds directory dose NOT exist."
+        seed_dirs = list(seeds_dir.iterdir())
+        # seed_dirs = list(seeds_dir.glob("*"))
         success = 0
         val_metrics_dicts = dict()
         test_metrics_dicts = dict()
