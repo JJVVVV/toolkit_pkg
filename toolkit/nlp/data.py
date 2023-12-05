@@ -553,9 +553,9 @@ class TextDataset(Dataset):
                     fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     pickle.dump(self, f)
                     fcntl.flock(f, fcntl.LOCK_UN)
+                    logger.debug("✔️  Cache successfully.")
                 except IOError:
                     logger.debug("⚠️ Skip this operation because other programs are writing files ...")
-            logger.debug("✔️  Cache successfully.")
 
     @classmethod
     def from_cache(cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_type: str = "unknown_tokenizer", **kwargs_load_data) -> Self | None:
