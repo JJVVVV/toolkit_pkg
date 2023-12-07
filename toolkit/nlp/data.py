@@ -552,6 +552,7 @@ class TextDataset(Dataset):
                 try:
                     fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
                     pickle.dump(self, f)
+                    f.flush()
                     fcntl.flock(f, fcntl.LOCK_UN)
                     logger.debug("✔️  Cache successfully.")
                 except IOError:
