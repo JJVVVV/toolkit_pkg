@@ -262,18 +262,18 @@ class Trainer:
                         scheduler = get_scheduler_fn(self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps)
                     if self.scheduler == "linearWarmupDecay":
                         scheduler = get_scheduler_fn(
-                            self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_steps_num
+                            self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_num_steps
                         )
                     elif self.scheduler in ("cosineWarmupDecay", "cosineWarmupDecayRestart"):
                         if self.config.sch_num_cycles == -1:
                             scheduler = get_scheduler_fn(
-                                self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_steps_num
+                                self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_num_steps
                             )
                         else:
                             scheduler = get_scheduler_fn(
                                 self.optimizer.object_with_state_dict,
                                 self.config.sch_warmup_num_steps,
-                                self.config.total_steps_num,
+                                self.config.total_num_steps,
                                 self.config.sch_num_cycles,
                             )
                     else:
@@ -295,7 +295,7 @@ class Trainer:
             logger.debug(f"  Batch size = {self.config.train_batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {self.config.steps_per_epoch:d}")
-            logger.debug(f"  Total steps = {self.config.total_steps_num:d}")
+            logger.debug(f"  Total steps = {self.config.total_num_steps:d}")
             logger.debug(f"  Model type = {self.config.model_type}")
             logger.debug(f"  fp16: {self.config.fp16}")
             logger.debug(f"  bf16: {self.config.bf16}")
@@ -602,7 +602,7 @@ class Trainer:
         # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
         stepsPerEpoch = ceil(len(dataloader) / self.config.gradient_accumulation_steps)
         totalSteps = stepsPerEpoch * self.config.epochs
-        self.config.total_steps_num = totalSteps
+        self.config.total_num_steps = totalSteps
         self.config.steps_per_epoch = stepsPerEpoch
 
     def set_training_steps_dataset(self):
@@ -614,7 +614,7 @@ class Trainer:
         # 因为是数据并行，每个卡上一个epoch的step数都相等且等于实际step数
         stepsPerEpoch = ceil(len(self.dataset_train) / self.config.train_batch_size)
         totalSteps = stepsPerEpoch * self.config.epochs
-        self.config.total_steps_num = totalSteps
+        self.config.total_num_steps = totalSteps
         self.config.steps_per_epoch = stepsPerEpoch
 
     def set_sch_warmup(self):
@@ -622,7 +622,7 @@ class Trainer:
         calculate the warmup steps and total steps in scheduler,
         if `sch_warmup_ratio_steps` is set after `set_training_steps` is called.
         """
-        self.config.sch_total_num_steps = self.config.total_steps_num
+        self.config.sch_total_num_steps = self.config.total_num_steps
         if self.config.sch_warmup_ratio_steps != -1 and self.config.sch_warmup_num_steps != -1:
             raise ValueError("❌ `sch_warmup_num_steps` and `sch_warmup_ratio_steps` cannot be set simultaneously.")
         elif self.config.sch_warmup_num_steps == -1 and self.config.sch_warmup_ratio_steps != -1:
@@ -636,7 +636,7 @@ class Trainer:
             assert (
                 self.scheduler is None
             ), "Neither `sch_warmup_num_steps` nor `sch_warmup_ratio_steps` is set, so the scheduler must be set to `None`"
-        logger.debug(f"warmup steps: {self.config.sch_warmup_num_steps}/{self.config.total_steps_num}")
+        logger.debug(f"warmup steps: {self.config.sch_warmup_num_steps}/{self.config.total_num_steps}")
 
     def wrap_model(self):
         """

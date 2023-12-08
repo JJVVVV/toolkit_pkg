@@ -149,7 +149,7 @@ class TrainConfig(ConfigBase):
         self.bf16 = bf16
 
         # 自动计算的一些值
-        self.total_steps_num: int = kwargs.get("total_steps_num", -1)
+        self.total_num_steps: int = kwargs.get("total_num_steps", -1)
         self.steps_per_epoch: int = kwargs.get("steps_per_epoch", -1)
         self.training_runtime: dict = kwargs.get("training_runtime", None)
 
