@@ -38,6 +38,7 @@ class TrainConfig(ConfigBase):
         sch_warmup_num_steps: int = -1,
         sch_warmup_ratio_steps: float = -1,
         sch_total_num_steps: int = -1,
+        sch_num_cycles: float = -1,
         save_dir: Path | str | None = None,
         run_dir: Path | str | None = None,
         early_stop: bool = False,
@@ -117,6 +118,7 @@ class TrainConfig(ConfigBase):
         self.sch_warmup_num_steps = sch_warmup_num_steps
         self.sch_warmup_ratio_steps = sch_warmup_ratio_steps
         self.sch_total_num_steps = sch_total_num_steps
+        self.sch_num_cycles = sch_num_cycles
 
         # outputs dir
         self.save_dir = Path(save_dir) if save_dir is not None else None
