@@ -19,6 +19,10 @@ from transformers import (
     PreTrainedModel,
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
+    get_constant_schedule,
+    get_constant_schedule_with_warmup,
+    get_cosine_schedule_with_warmup,
+    get_cosine_with_hard_restarts_schedule_with_warmup,
     get_linear_schedule_with_warmup,
 )
 from transformers.integrations import HfDeepSpeedConfig
@@ -45,8 +49,13 @@ except:
     logger.warning("Can not import wandb, so you shoud not set the `dashboard` to 'wandb'")
     WandbWriter = object
 
-map_str2optm = {"AdamW": AdamW, "RMSprop": RMSprop}
-map_str2sche = {"LinearWarmup": get_linear_schedule_with_warmup}
+map_str2optmClass = {"AdamW": AdamW, "RMSprop": RMSprop}
+map_str2getScheFn = {
+    "linearWarmup": get_constant_schedule_with_warmup,
+    "linearWarmupDecay": get_linear_schedule_with_warmup,
+    "cosineWarmupDecay": get_cosine_schedule_with_warmup,
+    "cosineWarmupDecayRestart": get_cosine_with_hard_restarts_schedule_with_warmup,
+}
 
 OptimizerClass = TypeVar("OptimizerClass", bound=torch.optim.Optimizer)
 SchedulerClass = TypeVar("SchedulerClass", bound=torch.optim.lr_scheduler.LRScheduler)
@@ -91,7 +100,7 @@ class Trainer:
         """
         `task_type`: "generate", "classify", "regress"\n
         `optimizer`: "AdamW", "RMSprop"\n
-        `scheduler`: "LinearWarmup"\n
+        `scheduler`: "linearWarmupDecay"\n
         `calculate_metric_callback` will be called as `calculate_metric_callback(all_labels, all_logits, mean_loss)`
         """
         self.local_rank = dist.get_rank() if dist.is_initialized() else 0
@@ -118,18 +127,16 @@ class Trainer:
 
         if isinstance(optimizer, str):
             assert (
-                optimizer in map_str2optm
-            ), f"Only following optimizer can be mapped to the corresponding optimizer: {list(map_str2optm.keys())}, bug got `{optimizer}`"
-            self.optimizer = map_str2optm[optimizer]
+                optimizer in map_str2optmClass
+            ), f"Only following optimizer can be mapped to the corresponding optimizer class: {list(map_str2optmClass.keys())}, bug got `{optimizer}`"
+            self.optimizer = map_str2optmClass[optimizer]
         else:
             self.optimizer = optimizer
         if isinstance(scheduler, str):
             assert (
-                scheduler in map_str2sche
-            ), f"Only following scheduler can be mapped to the corresponding scheduler: {list(map_str2sche.keys())}, bug got `{scheduler}`"
-            self.scheduler = map_str2sche[scheduler]
-        else:
-            self.scheduler = scheduler
+                scheduler in map_str2getScheFn
+            ), f"Only following scheduler can be mapped to the corresponding function that return a scheduler: {list(map_str2getScheFn.keys())}, bug got `{scheduler}`"
+        self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 and config.parallel_mode != "deepspeed" else None
         self.ckpt_manager = CheckpointManager(config.save_dir)
         # self.dashboard_writer = dashboard_writer
@@ -249,13 +256,26 @@ class Trainer:
             if self.scheduler is not None:  # scheduler
                 if isinstance(self.scheduler, torch.optim.lr_scheduler.LRScheduler):
                     scheduler = self.scheduler
-                else:  # a function that return a scheduler with a given optimizer
-                    if self.scheduler is get_linear_schedule_with_warmup:
-                        assert (
-                            1 >= self.config.sch_warmup_ratio_steps >= 0
-                        ), f"`warmup_ratio` must be between 0 and 1, but got {self.config.sch_warmup_ratio_steps}"
-                        warmupSteps = int(self.config.sch_warmup_ratio_steps * self.config.total_steps_num)
-                        scheduler = self.scheduler(self.optimizer.object_with_state_dict, warmupSteps, self.config.total_steps_num)
+                else:  # a string which can be mapped to a function that return a scheduler with a given optimizer
+                    get_scheduler_fn = map_str2getScheFn[self.scheduler]
+                    if self.scheduler == "linearWarmup":
+                        scheduler = get_scheduler_fn(self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps)
+                    if self.scheduler == "linearWarmupDecay":
+                        scheduler = get_scheduler_fn(
+                            self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_steps_num
+                        )
+                    elif self.scheduler in ("cosineWarmupDecay", "cosineWarmupDecayRestart"):
+                        if self.config.sch_num_cycles == -1:
+                            scheduler = get_scheduler_fn(
+                                self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_steps_num
+                            )
+                        else:
+                            scheduler = get_scheduler_fn(
+                                self.optimizer.object_with_state_dict,
+                                self.config.sch_warmup_num_steps,
+                                self.config.total_steps_num,
+                                self.config.sch_num_cycles,
+                            )
                     else:
                         raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
             self.scheduler = Scheduler(scheduler)
@@ -605,8 +625,18 @@ class Trainer:
         self.config.sch_total_num_steps = self.config.total_steps_num
         if self.config.sch_warmup_ratio_steps != -1 and self.config.sch_warmup_num_steps != -1:
             raise ValueError("❌ `sch_warmup_num_steps` and `sch_warmup_ratio_steps` cannot be set simultaneously.")
-        elif self.config.sch_warmup_num_steps == -1:
+        elif self.config.sch_warmup_num_steps == -1 and self.config.sch_warmup_ratio_steps != -1:
+            assert (
+                1 >= self.config.sch_warmup_ratio_steps >= 0
+            ), f"`warmup_ratio` must be between 0 and 1, but got {self.config.sch_warmup_ratio_steps}"
             self.config.sch_warmup_num_steps = round(self.config.sch_total_num_steps * self.config.sch_warmup_ratio_steps)
+        elif self.config.sch_warmup_num_steps != -1 and self.config.sch_warmup_ratio_steps == -1:
+            pass
+        else:
+            assert (
+                self.scheduler is None
+            ), "Neither `sch_warmup_num_steps` nor `sch_warmup_ratio_steps` is set, so the scheduler must be set to `None`"
+        logger.debug(f"warmup steps: {self.config.sch_warmup_num_steps}/{self.config.total_steps_num}")
 
     def wrap_model(self):
         """
@@ -647,7 +677,7 @@ class Trainer:
 
     def set_evaluator(self):
         """
-        Important: must initialize self.model before call this function
+        Important: must initialize self.model(call wrap_model) before call this function.
         """
         # all_evaluator_class = [(Evaluator, self.calculate_metric_callback)] + self.extral_evaluators
         all_evaluator_class = self.extral_evaluators
