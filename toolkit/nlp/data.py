@@ -182,7 +182,7 @@ class TextDataset(Dataset):
         super().__init__()
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
-            logger.info(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
+            logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
         self.split = split
@@ -211,7 +211,9 @@ class TextDataset(Dataset):
             or isinstance(self.texts_input[0], PairedText)
             # or (isinstance(self.splited_texts_input[0], list | tuple) and isinstance(self.splited_texts_input[0][0], PairedText))
         ):  # if the input type is `PairedText` or `Iterable[PairedText]`
-            self.batch_model_input = self.transformers_tokenizer_tqdm(tokenizer, self.texts_input, max_length_input, desc="Tokenize input texts")
+            self.batch_model_input = self.transformers_tokenizer_tqdm(
+                tokenizer, self.texts_input, max_length_input, desc=f"Tokenize {split.name} input texts"
+            )
         elif (
             isinstance(self.texts_input[0], tuple)
             and isinstance(self.texts_input[0][0], tuple)
@@ -220,7 +222,7 @@ class TextDataset(Dataset):
         ) or isinstance(
             self.texts_input[0], FinelyControlledText
         ):  # if the input type is `FinelyControlledText`
-            self.batch_model_input = self.__tokenize(self.texts_input, tokenizer, max_length_input, desc="Tokenize input texts")
+            self.batch_model_input = self.__tokenize(self.texts_input, tokenizer, max_length_input, desc=f"Tokenize {split.name} input texts")
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
         self.batch_model_input = {
@@ -245,9 +247,9 @@ class TextDataset(Dataset):
         ) or isinstance(
             self.texts_label[0], PairedText
         ):  # if the label type is `PairedText`
-            self.tokens_labels = self.transformers_tokenizer_tqdm(tokenizer, self.texts_label, max_length_label, desc="Tokenize label texts")[
-                "input_ids"
-            ]
+            self.tokens_labels = self.transformers_tokenizer_tqdm(
+                tokenizer, self.texts_label, max_length_label, desc=f"Tokenize {split.name} label texts"
+            )["input_ids"]
             if not isinstance(self.tokens_labels, torch.Tensor):
                 self.tokens_labels = torch.tensor(self.tokens_labels)
             max_length_label = self.tokens_labels.shape[1] if max_length_label == INFINITE else max_length_label
@@ -264,7 +266,9 @@ class TextDataset(Dataset):
         ) or isinstance(
             self.texts_label[0], FinelyControlledText
         ):  # if the label type is `FinelyControlledText`
-            self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, max_length_label, desc="Tokenize label texts")["input_ids"]
+            self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, max_length_label, desc=f"Tokenize {split.name} label texts")[
+                "input_ids"
+            ]
             self.tokens_labels = torch.tensor(self.tokens_labels)
             self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
             self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
