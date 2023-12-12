@@ -350,16 +350,20 @@ class WatchDog:
         return dict(val=val_metrics_dicts, test=test_metrics_dicts, cheat=cheat_metrics_dicts)
 
     @staticmethod
-    def mean_topk(metric_dicts_group: Dict[str, Dict[int, MetricDict]], top_k: int | None = None, cheat=False):
-        if cheat:
-            metric_dicts = metric_dicts_group["cheat"]
-        else:
-            metric_dicts = metric_dicts_group["test"] if metric_dicts_group["test"] else metric_dicts_group["val"]
+    def mean_topk(metric_dicts_group: Dict[str, Dict[int, MetricDict]], top_k: int | None = None):
+        metric_dicts = metric_dicts_group["test"] if metric_dicts_group["test"] else metric_dicts_group["val"]
         metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1])) if top_k else metric_dicts
         best_seeds = list(metric_dicts_topk.keys())
+
+        cheat_metric_dicts = metric_dicts_group["cheat"]
+        cheat_metric_dicts_topk = dict(nlargest(top_k, cheat_metric_dicts.items(), key=lambda item: item[1])) if top_k else cheat_metric_dicts
+        best_seeds_cheat = list(cheat_metric_dicts_topk.keys())
 
         ret = dict()
         for split, metric_dicts in metric_dicts_group.items():
             if metric_dicts:
-                ret[split] = (reduce(lambda x, y: x + y, [metric_dicts[seed] for seed in best_seeds]) / len(best_seeds)).round(2)
+                ret[split] = (
+                    reduce(lambda x, y: x + y, [metric_dicts[seed] for seed in (best_seeds if split != "cheat" else best_seeds_cheat)])
+                    / len(best_seeds)
+                ).round(2)
         return best_seeds, ret
