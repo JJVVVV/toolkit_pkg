@@ -62,8 +62,8 @@ class TrainConfig(ConfigBase):
         torch_dtype: str = "auto",
         cut_input_from_output: bool = False,
         use_deepspeed_ckpt: bool = False,
-        show_lr: bool = True,
-        show_step: bool = True,
+        show_lr: bool = False,
+        show_step: bool = False,
         **kwargs,
     ):
         super().__init__(**kwargs)
