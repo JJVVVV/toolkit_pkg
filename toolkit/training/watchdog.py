@@ -324,7 +324,7 @@ class WatchDog:
         return: `dict[split][seed] = MetricDict`
         """
         seeds_dir = Path(seeds_dir)
-        assert seeds_dir.exists(), f"Seeds directory dose NOT exist."
+        assert seeds_dir.exists(), f"Seeds directory dose NOT exist: `{seeds_dir}`"
         seed_dirs = list(seeds_dir.iterdir())
         # seed_dirs = list(seeds_dir.glob("*"))
         success = 0
