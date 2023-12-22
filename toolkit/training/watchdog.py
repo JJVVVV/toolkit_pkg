@@ -270,7 +270,7 @@ class WatchDog:
             raise EnvironmentError(f"It looks like the config file at '{json_file_path}' is not a valid JSON file.")
         attributes_dict.update(kwargs)
         watch_dog = cls.from_dict(attributes_dict)
-        MetricDict.set_metric_for_compare(watch_dog.metric_for_compare)
+        # MetricDict.set_metric_for_compare(watch_dog.metric_for_compare)
 
         if not silence:
             logger.debug(f"✔️  Load successfully.")
@@ -290,7 +290,7 @@ class WatchDog:
     @classmethod
     def from_dict(cls, attributes_dict: Dict[str, Any]) -> "WatchDog":
         "Load a WatchDog from a attributes dictionary."
-        watch_dog = cls(None, None)
+        watch_dog = cls(attributes_dict["patience"], attributes_dict["metric_for_compare"])
         watch_dog._update(attributes_dict)
         return watch_dog
 
@@ -316,6 +316,75 @@ class WatchDog:
         "Return the atrribute dictionary"
         output = copy.deepcopy(self.__dict__)
         return output
+
+    @classmethod
+    def metric_dicts_from_diff_seeds(
+        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False
+    ) -> defaultdict[int, Dict[str, MetricDict]]:
+        """
+        Get a dict of validation metricdicts, test metricdicts and cheat metricdicts from different seed.\n
+        return: `dict[seed][split] = MetricDict`
+        """
+        seeds_dir = Path(seeds_dir)
+        assert seeds_dir.exists(), f"Seeds directory dose NOT exist: `{seeds_dir}`"
+        seed_dirs = list(seeds_dir.iterdir())
+        # seed_dirs = list(seeds_dir.glob("*"))
+        success = 0
+        ret = defaultdict(dict)
+        for seed_dir in seed_dirs:
+            watchdog_data_path = find_file(seed_dir, json_file_name)
+            if watchdog_data_path and (watch_dog := cls.load(watchdog_data_path, silence=True)).is_finish():
+                seed = int(Path(seed_dir).name)
+                if watch_dog.optimal_val_metricdict is not None:
+                    ret[seed]["val"] = watch_dog.optimal_val_metricdict
+                if watch_dog.optimal_test_metricdict is not None:
+                    ret[seed]["test"] = watch_dog.optimal_test_metricdict
+                if watch_dog.cheat_test_metricdict is not None:
+                    ret[seed]["cheat"] = watch_dog.cheat_test_metricdict
+                success += 1
+            else:
+                logger.debug(f"❌ Failed: {seed_dir}")
+        # print("xxxxxxx")
+        if not silence:
+            logger.info(f"success/total: {success}/{len(seed_dirs)}")
+        return ret
+
+    @staticmethod
+    def _topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str = "val"):
+        if not metric_dicts:
+            return dict(), dict()
+        metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1][base])) if top_k else metric_dicts
+        for seed, dict_split in metric_dicts_topk.items():
+            for split, metric_dict in dict_split.items():
+                metric_dict.round(2)
+        # best_seeds = list(metric_dicts_topk.keys())
+
+        mean = dict(
+            map(
+                lambda item: (item[0], (item[1] / len(metric_dicts_topk)).round(2)),
+                reduce(lambda x, y: {split: x[split] + y[split] for split in x.keys()}, metric_dicts_topk.values()).items(),
+            )
+        )
+
+        return metric_dicts_topk, mean
+
+    @staticmethod
+    def topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None):
+        if base is None and metric_dicts:
+            base = "test" if "test" in next(iter(metric_dicts.values())) else "val"
+            if base == "test":
+                metric_dicts = copy.deepcopy(metric_dicts)
+                metric_dicts_cheat = dict()
+                for seed, value in metric_dicts.items():
+                    metric_dicts_cheat[seed] = {"cheat": value.pop("cheat", None)}
+            metric_dicts_topk, mean = WatchDog._topk(metric_dicts, top_k, base)
+            if base == "test":
+                _, mean_cheat = WatchDog._topk(metric_dicts_cheat, top_k, "cheat")
+                mean["cheat"] = mean_cheat["cheat"]
+        else:
+            metric_dicts_topk, mean = WatchDog._topk(metric_dicts, top_k, base)
+
+        return metric_dicts_topk, mean
 
     # @classmethod
     # def metric_dicts_from_diff_seeds(
@@ -377,72 +446,3 @@ class WatchDog:
     #         if metric_dicts:
     #             ret[split] = (reduce(lambda x, y: x + y, metric_dicts.values()) / len(best_seeds)).round(2)
     #     return best_seeds, ret
-
-    @classmethod
-    def metric_dicts_from_diff_seeds(
-        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False
-    ) -> defaultdict[int, Dict[str, MetricDict]]:
-        """
-        Get a dict of validation metricdicts, test metricdicts and cheat metricdicts from different seed.\n
-        return: `dict[split][seed] = MetricDict`
-        """
-        seeds_dir = Path(seeds_dir)
-        assert seeds_dir.exists(), f"Seeds directory dose NOT exist: `{seeds_dir}`"
-        seed_dirs = list(seeds_dir.iterdir())
-        # seed_dirs = list(seeds_dir.glob("*"))
-        success = 0
-        ret = defaultdict(dict)
-        for seed_dir in seed_dirs:
-            watchdog_data_path = find_file(seed_dir, json_file_name)
-            if watchdog_data_path and (watch_dog := cls.load(watchdog_data_path, silence=True)).is_finish():
-                seed = int(Path(seed_dir).name)
-                if watch_dog.optimal_val_metricdict is not None:
-                    ret[seed]["val"] = watch_dog.optimal_val_metricdict
-                if watch_dog.optimal_test_metricdict is not None:
-                    ret[seed]["test"] = watch_dog.optimal_test_metricdict
-                if watch_dog.cheat_test_metricdict is not None:
-                    ret[seed]["cheat"] = watch_dog.cheat_test_metricdict
-                success += 1
-            else:
-                logger.debug(f"❌ Failed: {seed_dir}")
-        # print("xxxxxxx")
-        if not silence:
-            logger.info(f"success/total: {success}/{len(seed_dirs)}")
-        return ret
-
-    @staticmethod
-    def _topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str = "val"):
-        if not metric_dicts:
-            return dict(), dict()
-        metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1][base])) if top_k else metric_dicts
-        for seed, dict_split in metric_dicts_topk.items():
-            for split, metric_dict in dict_split.items():
-                metric_dict.round(2)
-        # best_seeds = list(metric_dicts_topk.keys())
-
-        mean = dict(
-            map(
-                lambda item: (item[0], (item[1] / len(metric_dicts_topk)).round(2)),
-                reduce(lambda x, y: {key: x[key] + y[key] for key in x.keys()}, metric_dicts_topk.values()).items(),
-            )
-        )
-
-        return metric_dicts_topk, mean
-
-    @staticmethod
-    def topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None):
-        if base is None and metric_dicts:
-            base = "test" if "test" in next(iter(metric_dicts.values())) else "val"
-            if base == "test":
-                metric_dicts = copy.deepcopy(metric_dicts)
-                metric_dicts_cheat = dict()
-                for seed, value in metric_dicts.items():
-                    metric_dicts_cheat[seed] = {"cheat": value.pop("cheat", None)}
-            metric_dicts_topk, mean = WatchDog._topk(metric_dicts, top_k, base)
-            if base == "test":
-                _, mean_cheat = WatchDog._topk(metric_dicts_cheat, top_k, "cheat")
-                mean["cheat"] = mean_cheat["cheat"]
-        else:
-            metric_dicts_topk, mean = WatchDog._topk(metric_dicts, top_k, base)
-
-        return metric_dicts_topk, mean
