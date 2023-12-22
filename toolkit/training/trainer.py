@@ -545,6 +545,7 @@ class Trainer:
                 self.dashboard_writer.close()
 
     def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
+        "Return metricdict if there are evaluators corresponding to the split, otherwise None will be returned."
         evaluators = self.evaluators[split]
         if len(evaluators) == 0:
             return None
