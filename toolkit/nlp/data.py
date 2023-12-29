@@ -552,22 +552,23 @@ class TextDataset(Dataset):
             cache_path.parent.mkdir(parents=True, exist_ok=True)
             # if cache_path.exists():
             #     return
-            with cache_path.open("wb") as f:
-                try:
-                    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    pickle.dump(self, f)
-                    f.flush()
-                    fcntl.flock(f, fcntl.LOCK_UN)
-                    logger.debug("✔️  Cache successfully.")
-                except IOError:
-                    logger.debug("⚠️ Skip this operation because other programs are writing files ...")
+            try:
+                f = cache_path.open("wb")
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                data = pickle.dumps(self)
+                f.write(data)
+                f.flush()
+                fcntl.flock(f, fcntl.LOCK_UN)
+                logger.debug("✔️  Cache successfully.")
+            except IOError:
+                logger.debug("⚠️ Skip this operation because other programs are writing files ...")
+            finally:
+                f.close()
 
     @classmethod
     def from_cache(cls, cached_dataset_or_origin_data_path: Path | str, tokenizer_type: str = "unknown_tokenizer", **kwargs_load_data) -> Self | None:
         "Try to load dataset from cache. If there if no cache, `None` will be returned."
         local_rank = dist.get_rank() if dist.is_initialized() else 0
-        if local_rank == 0:
-            logger.debug(f"💿 Loading dataset from cache ...")
         cached_dataset_or_origin_data_path = Path(cached_dataset_or_origin_data_path)
         if cached_dataset_or_origin_data_path.suffix == ".pkl":
             cached_dataset_path = cached_dataset_or_origin_data_path
@@ -576,17 +577,21 @@ class TextDataset(Dataset):
         else:
             cached_dataset_path = cls.cache_path(cached_dataset_or_origin_data_path, tokenizer_type, **kwargs_load_data)
             # print(cached_dataset_path)
-        try:
-            with cached_dataset_path.open("rb") as f:
-                fcntl.flock(f, fcntl.LOCK_SH | fcntl.LOCK_NB)
-                dataset = pickle.load(f)
-                fcntl.flock(f, fcntl.LOCK_UN)
-            if local_rank == 0:
-                logger.debug("✔️  Load successfully.")
-        except FileNotFoundError as e:
+        if not cached_dataset_path.exists():
             if local_rank == 0:
                 logger.debug("❕ There is no cache.")
-            dataset = None
+            return None
+        try:
+            f = cached_dataset_path.open("rb")
+            if local_rank == 0:
+                logger.debug(f"Applying for read lock ...")
+            fcntl.flock(f, fcntl.LOCK_SH)
+            if local_rank == 0:
+                logger.debug(f"💿 Loading dataset from cache ...")
+            dataset = pickle.load(f)
+            fcntl.flock(f, fcntl.LOCK_UN)
+            if local_rank == 0:
+                logger.debug("✔️  Load successfully.")
         except IOError:
             if local_rank == 0:
                 logger.debug("⚠️ Fail to load cache. Maybe the file is being written.")
@@ -596,6 +601,8 @@ class TextDataset(Dataset):
                 logger.debug("⚠️ Fail to load cache.")
                 logger.debug(str(e))
             dataset = None
+        finally:
+            f.close()
         return dataset
 
     # # ? 递归改循环, 貌似对速度没影响?
