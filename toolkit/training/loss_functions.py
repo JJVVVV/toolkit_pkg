@@ -41,48 +41,92 @@ class ContrastLoss(torch.nn.Module):
 
 # Implementation according to https://spaces.ac.cn/archives/8847
 class CoSentLoss(ContrastLoss):
+    "用于单塔模型"
+
     def __init__(self, temperature: float = 0.05):
         super().__init__(temperature)
 
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor, text_neg_embeddings: torch.Tensor) -> torch.Tensor:
+        "输入为三元组(x, pos, neg), 分别对应3个参数"
         # text_embddings: (n, bedding_size)
         # text_pos_embeddings: (n, bedding_size)
         # text_neg_embeddings: (n, bedding_size)
         sim_pos_vector = torch.cosine_similarity(text_embeddings, text_pos_embeddings, dim=-1) / self.temperature  # (n)
         sim_neg_vector = torch.cosine_similarity(text_embeddings, text_neg_embeddings, dim=-1) / self.temperature  # (n)
         sim_matrix_diff = sim_neg_vector[:, None] - sim_pos_vector[None, :]
-        # loss = torch.logsumexp(sim_matrix_diff, dim=1).mean()
-        loss = torch.logsumexp(sim_matrix_diff)
+        dif = torch.cat([sim_matrix_diff.view(-1), torch.zeros(1, dtype=sim_matrix_diff.dtype, device=sim_matrix_diff.device)])
+        loss = torch.logsumexp(dif, dim=0) / text_embeddings.size(0)
 
         return loss
 
 
 class CoSentLoss_logits(ContrastLoss):
+    "用于双塔模型"
+
     def __init__(self, temperature: float = 0.05):
         super().__init__(temperature)
 
     def forward(self, pos_pair_logits: torch.Tensor, neg_pair_logits: torch.Tensor) -> torch.Tensor:
-        pos_pair_score = torch.sigmoid(pos_pair_logits) / self.temperature  # (b, 1)
-        neg_pair_score = torch.sigmoid(neg_pair_logits) / self.temperature  # (b, n_neg)
-
-        sim_matrix_diff = neg_pair_score[None, :] - pos_pair_score[:, None]  # (b, b, n_neg)
-        loss = torch.logsumexp(sim_matrix_diff, dim=-1).mean()
-        # loss = torch.logsumexp(sim_matrix_diff)
-
+        """
+        三元组推广版：(x, pos, neg) -> (x, num_pos*pos, num_neg*neg)
+        batch_size个样本, 每个样本有num_pos个正例和num_neg个负例, 当num_pos=num_neg=1时, 退化为三元组
+        pos_pair_logits: (batch_size, num_pos) batch_size个样本与其各自对应的num_pos个正例之间的logtis
+        neg_pair_logits: (batch_size, num_neg) batch_size个样本与其各自对应的num_neg个负例之间的logtis
+        """
+        pos_pair_score = torch.sigmoid(pos_pair_logits) / self.temperature  # (b, num_pos)
+        neg_pair_score = torch.sigmoid(neg_pair_logits) / self.temperature  # (b, num_neg)
+        # (b, num_neg, 1, 1) - (1, 1, b, num_pos) -> (b, num_neg, b, num_pos)
+        sim_matrix_diff = neg_pair_score[:, None, None] - pos_pair_score[None, None, :]
+        dif = torch.cat([sim_matrix_diff.view(-1), torch.zeros(1, dtype=sim_matrix_diff.dtype, device=sim_matrix_diff.device)])
+        loss = torch.logsumexp(dif, dim=0) / pos_pair_logits.size(0)
         return loss
+
+    # def forward(self, pos_pair_logits: torch.Tensor, neg_pair_logits: torch.Tensor) -> torch.Tensor:
+    #     pos_pair_score = torch.sigmoid(pos_pair_logits) / self.temperature  # (b, 1)
+    #     neg_pair_score = torch.sigmoid(neg_pair_logits) / self.temperature  # (b, n_neg)
+
+    #     sim_matrix_diff = neg_pair_score[None, :] - pos_pair_score[:, None]  # (b, b, n_neg)
+    #     loss = torch.logsumexp(sim_matrix_diff, dim=-1).mean()
+    #     # loss = torch.logsumexp(sim_matrix_diff)
+
+    #     return loss
 
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegCoSentLoss(ContrastLoss):
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor) -> torch.Tensor:
-        # text_embddings: (n, bedding_size)
-        # text_pos_embeddings: (n, bedding_size)
-        sim_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_pos_embeddings.unsqueeze(0), dim=-1)
+        """
+        text_embddings: (batch_size, bedding_size)
+        text_pos_embeddings: (batch_size, bedding_size)
+        text_pos_embeddings: (batch_size, num_pos, bedding_size)
+        """
+        # (batch_size, 1, 1, bedding_size) - (1, batch_size, num_pos, bedding_size) -> (batch_size, batch_size, num_pos)
+        sim_matrix = torch.cosine_similarity(
+            text_embeddings[:, None, None, :], text_pos_embeddings[None, :], dim=-1
+        )  # (batch_size, batch_size, num_pos)
         sim_matrix = sim_matrix / self.temperature
-        sim_matrix_diag = sim_matrix.diag()
-        sim_matrix_diff = sim_matrix - sim_matrix_diag.unsqueeze(1)
-        loss = torch.logsumexp(sim_matrix_diff, dim=1).mean()
+        sim_matrix_diag = torch.diagonal(sim_matrix).transpose(1, 0)
+        sim_matrix_diff = sim_matrix - sim_matrix_diag[:, None, :]
+        dif = torch.cat(
+            [
+                sim_matrix_diff[~torch.eye(sim_matrix_diff.size(0)).bool()].view(-1),
+                torch.zeros(1, dtype=sim_matrix_diff.dtype, device=sim_matrix_diff.device),
+            ]
+        )
+        loss = torch.logsumexp(dif, dim=0) / text_embeddings.size(0)
         return loss
+
+    # def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor) -> torch.Tensor:
+    #     """
+    #     text_embddings: (batch_size, bedding_size)
+    #     text_pos_embeddings: (batch_size, bedding_size)
+    #     """
+    #     sim_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_pos_embeddings.unsqueeze(0), dim=-1)  # (batch_size, batch_size)
+    #     sim_matrix = sim_matrix / self.temperature
+    #     sim_matrix_diag = sim_matrix.diag()
+    #     sim_matrix_diff = sim_matrix - sim_matrix_diag.unsqueeze(1)
+    #     loss = torch.logsumexp(sim_matrix_diff, dim=-1).mean()
+    #     return loss
 
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
