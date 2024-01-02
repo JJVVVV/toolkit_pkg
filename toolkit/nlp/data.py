@@ -584,7 +584,7 @@ class TextDataset(Dataset):
         try:
             f = cached_dataset_path.open("rb")
             if local_rank == 0:
-                logger.debug(f"Applying for read lock ...")
+                logger.debug(f"🔒 Applying for read lock ...")
             fcntl.flock(f, fcntl.LOCK_SH)
             if local_rank == 0:
                 logger.debug(f"💿 Loading dataset from cache ...")
