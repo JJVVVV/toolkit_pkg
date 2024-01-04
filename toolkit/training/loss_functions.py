@@ -34,17 +34,18 @@ def mse_loss(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
 
 
 class ContrastLoss(torch.nn.Module):
-    def __init__(self, temperature: float = 0.05):
+    def __init__(self, temperature: float = 0.05, margin: float = 0):
         super().__init__()
         self.temperature = temperature
+        self.margin = margin
 
 
 # Implementation according to https://spaces.ac.cn/archives/8847
 class CoSentLoss(ContrastLoss):
     "用于单塔模型"
 
-    def __init__(self, temperature: float = 0.05):
-        super().__init__(temperature)
+    def __init__(self, temperature: float = 0.05, margin: float = 0):
+        super().__init__(temperature, margin)
 
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor, text_neg_embeddings: torch.Tensor) -> torch.Tensor:
         "输入为三元组(x, pos, neg), 分别对应3个参数"
@@ -63,8 +64,8 @@ class CoSentLoss(ContrastLoss):
 class CoSentLoss_logits(ContrastLoss):
     "用于双塔模型"
 
-    def __init__(self, temperature: float = 0.05):
-        super().__init__(temperature)
+    def __init__(self, temperature: float = 0.05, margin: float = 0):
+        super().__init__(temperature, margin)
 
     def forward(self, pos_pair_logits: torch.Tensor, neg_pair_logits: torch.Tensor) -> torch.Tensor:
         """
@@ -106,7 +107,7 @@ class PairInBatchNegCoSentLoss(ContrastLoss):
         )  # (batch_size, batch_size, num_pos)
         sim_matrix = sim_matrix / self.temperature
         sim_matrix_diag = torch.diagonal(sim_matrix).transpose(1, 0)
-        sim_matrix_diff = sim_matrix - sim_matrix_diag[:, None, :]
+        sim_matrix_diff = sim_matrix - sim_matrix_diag[:, None, :] + self.margin
         dif = torch.cat(
             [
                 sim_matrix_diff[~torch.eye(sim_matrix_diff.size(0)).bool()].view(-1),
@@ -131,8 +132,8 @@ class PairInBatchNegCoSentLoss(ContrastLoss):
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class TripletInBatchNegCoSentLoss(ContrastLoss):
-    def __init__(self, temperature: float = 0.05, add_swap_loss: bool = False):
-        super().__init__(temperature)
+    def __init__(self, temperature: float = 0.05, margin: float = 0, add_swap_loss: bool = False):
+        super().__init__(temperature, margin)
         self.add_swap_loss = add_swap_loss
         if self.add_swap_loss:
             self._pair_contrast_softmax_loss = PairInBatchNegCoSentLoss(temperature)
@@ -156,8 +157,8 @@ class TripletInBatchNegCoSentLoss(ContrastLoss):
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegSigmoidContrastLoss(ContrastLoss):
-    def __init__(self, temperature: float = 0.05):
-        super().__init__()
+    def __init__(self, temperature: float = 0.05, margin: float = 0):
+        super().__init__(temperature, margin)
         self.temperature = temperature
 
     def forward(self, text_embeddings: torch.Tensor, text_pos_embeddings: torch.Tensor) -> torch.Tensor:
@@ -176,8 +177,8 @@ class PairInBatchNegSigmoidContrastLoss(ContrastLoss):
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class TripletInBatchNegSigmoidContrastLoss(ContrastLoss):
-    def __init__(self, temperature: float = 0.05, add_swap_loss: bool = False):
-        super().__init__(temperature)
+    def __init__(self, temperature: float = 0.05, margin: float = 0, add_swap_loss: bool = False):
+        super().__init__(temperature, margin)
         self.add_swap_loss = add_swap_loss
         if self.add_swap_loss:
             self._pair_contrast_sigmoid_loss = PairInBatchNegSigmoidContrastLoss(temperature)
@@ -202,8 +203,8 @@ class TripletInBatchNegSigmoidContrastLoss(ContrastLoss):
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
-    def __init__(self, temperature: float = 0.05):
-        super().__init__()
+    def __init__(self, temperature: float = 0.05, margin: float = 0):
+        super().__init__(temperature, margin)
         self.temperature = temperature
         self._cross_entropy_loss = torch.nn.CrossEntropyLoss()
 
@@ -217,8 +218,8 @@ class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
 
 # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
 class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
-    def __init__(self, temperature: float = 0.05, add_swap_loss: bool = False):
-        super().__init__(temperature)
+    def __init__(self, temperature: float = 0.05, margin: float = 0, add_swap_loss: bool = False):
+        super().__init__(temperature, margin)
         self.add_swap_loss = add_swap_loss
         if self.add_swap_loss:
             self._pair_contrast_softmax_loss = PairInBatchNegSoftmaxContrastLoss(temperature)
@@ -237,22 +238,22 @@ class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
         return loss
 
 
-# Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
-class CoSentLoss(ContrastLoss):
-    bias: torch.Tensor
+# # Copy from https://github.com/wangyuxinwhy/uniem/blob/main/uniem/criteria.py
+# class CoSentLoss(ContrastLoss):
+#     bias: torch.Tensor
 
-    def __init__(self, temperature: float = 0.05) -> None:
-        super().__init__(temperature)
-        self.register_buffer("bias", torch.tensor([0.0]))
+#     def __init__(self, temperature: float = 0.05) -> None:
+#         super().__init__(temperature)
+#         self.register_buffer("bias", torch.tensor([0.0]))
 
-    def forward(self, predict_similarity: torch.Tensor, true_similarity: torch.Tensor) -> torch.Tensor:
-        predict_similarity = predict_similarity / self.temperature
+#     def forward(self, predict_similarity: torch.Tensor, true_similarity: torch.Tensor) -> torch.Tensor:
+#         predict_similarity = predict_similarity / self.temperature
 
-        cosine_similarity_diff = -(predict_similarity.unsqueeze(0) - predict_similarity.unsqueeze(1))
-        smaller_mask = true_similarity.unsqueeze(0) <= true_similarity.unsqueeze(1)
-        cosine_similarity_diff = cosine_similarity_diff.masked_fill(smaller_mask, -1e12)
+#         cosine_similarity_diff = -(predict_similarity.unsqueeze(0) - predict_similarity.unsqueeze(1))
+#         smaller_mask = true_similarity.unsqueeze(0) <= true_similarity.unsqueeze(1)
+#         cosine_similarity_diff = cosine_similarity_diff.masked_fill(smaller_mask, -1e12)
 
-        cosine_diff_scores_add_bias = torch.cat((cosine_similarity_diff.view(-1), self.bias))
+#         cosine_diff_scores_add_bias = torch.cat((cosine_similarity_diff.view(-1), self.bias))
 
-        loss = torch.logsumexp(cosine_diff_scores_add_bias, dim=0)
-        return loss
+#         loss = torch.logsumexp(cosine_diff_scores_add_bias, dim=0)
+#         return loss
