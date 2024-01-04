@@ -416,8 +416,10 @@ class Trainer:
                             self.dashboard_writer.add_scalar("training/loss", accumulate_loss, curStepInGlobal, new_style=True)
                             self.dashboard_writer.add_scalar("training/learning_rate", lr, curStepInGlobal, new_style=True)
 
-                # * Evaluate after each half epoch
-                if self.config.eval_every_half_epoch and curStepInEpoch == self.config.steps_per_epoch >> 1:
+                # * Evaluate after each half epoch or reach eval_step
+                if (self.config.eval_every_half_epoch and curStepInEpoch == self.config.steps_per_epoch >> 1) or (
+                    self.config.eval_step > 0 and (curStepInGlobal + 1) % self.config.eval_step == 0
+                ):
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
                     watch_dog(
