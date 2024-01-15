@@ -1,1 +1,3 @@
-from .chartbase import Histogram, LineChart
+from .lineChart import LineChart
+from .histogram import Histogram
+from .barChart import BarChart
