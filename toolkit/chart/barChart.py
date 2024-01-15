@@ -28,6 +28,11 @@ class BarChart(ChartBase):
         colors: List[str] | None = None,
         color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
     ) -> None:
+        """
+        groups: shape=(m, n)
+        m行表示有m个group, 即`len(groups_name)=m`, 同时也代表每个col有m个bar.
+        n列表示有n个col, 即`len(col_names)=n`.
+        """
         groups = np.array(groups)
         col_names = np.array(col_names)
         groups_name = np.array(groups_name)
