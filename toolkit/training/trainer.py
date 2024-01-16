@@ -330,6 +330,7 @@ class Trainer:
 
                 # forward and backward
                 accumulate_loss = 0
+                loss_display = 0
                 for batch in batch_in_accumulate:
                     custom_inputs = batch.pop("custom_inputs", dict())
                     # copy batch to GPU memory
@@ -346,7 +347,7 @@ class Trainer:
                         # update parameters
                         self.model.step()
                         # accumulate_loss += loss.item() / self.config.gradient_accumulation_steps
-                        accumulate_loss += loss.item()
+                        # accumulate_loss += loss.item()
                     else:
                         if self.config.fp16:
                             # forward
@@ -367,7 +368,12 @@ class Trainer:
                             loss = outputs["loss"] / self.config.gradient_accumulation_steps
                             # backward
                             loss.backward()
-                        accumulate_loss += loss.item()
+                    accumulate_loss += loss.item()
+                    if "loss_display" in outputs:
+                        loss_display += outputs["loss_display"]
+                    else:
+                        loss_display += loss
+                    loss_display = loss_display.view(-1)
 
                 # call step()
                 if self.config.parallel_mode == "deepspeed":
@@ -375,7 +381,7 @@ class Trainer:
                     # self.model.step()
                     pass
                 else:
-                    if self.config.fp16:
+                    if self.config.fp16 or self.config.bf16:
                         # update parameters
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
@@ -399,7 +405,8 @@ class Trainer:
                         lr = -1.0
 
                     info = OrderedDict()
-                    info["loss"] = f"{accumulate_loss:.3f}"
+                    # info["loss"] = f"{accumulate_loss:.3f}"
+                    info["loss"] = f"{[round(l, 3) for l in loss_display.tolist()]}"
                     if self.config.show_lr:
                         info["lr"] = f"{lr:.2e}"
                     if self.config.show_step:
