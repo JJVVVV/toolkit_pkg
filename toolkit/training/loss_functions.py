@@ -19,11 +19,15 @@ def kl_loss(p: torch.Tensor, q: torch.Tensor, temperature=1.0) -> torch.Tensor:
     return (loss1 + loss2) / 2
 
 
-def cos_loss(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
+def cos_loss(p: torch.Tensor, q: torch.Tensor, reduction="mean") -> torch.Tensor:
     """计算cos损失"""
-    cos = torch.nn.CosineSimilarity(dim=1, eps=1e-6)
-    loss = 1 - cos(p, q)
-    return loss.sum()
+    loss = 1 - F.cosine_similarity(p, q, dim=-1)
+    if reduction == "sum":
+        return loss.sum()
+    elif reduction == "mean":
+        return loss.mean()
+    else:
+        return loss
 
 
 def mse_loss(p: torch.Tensor, q: torch.Tensor) -> torch.Tensor:
