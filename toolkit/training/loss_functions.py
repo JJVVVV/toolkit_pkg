@@ -109,9 +109,10 @@ class PairInBatchNegCoSentLoss(ContrastLoss):
         sim_matrix = torch.cosine_similarity(
             text_embeddings[:, None, None, :], text_pos_embeddings[None, :], dim=-1
         )  # (batch_size, batch_size, num_pos)
-        sim_matrix = sim_matrix / self.temperature
+        # sim_matrix = sim_matrix / self.temperature
         sim_matrix_diag = torch.diagonal(sim_matrix).transpose(1, 0)
         sim_matrix_diff = sim_matrix - sim_matrix_diag[:, None, :] + self.margin
+        sim_matrix_diff /= self.temperature
         dif = torch.cat(
             [
                 sim_matrix_diff[~torch.eye(sim_matrix_diff.size(0)).bool()].view(-1),
