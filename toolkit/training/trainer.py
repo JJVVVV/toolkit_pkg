@@ -305,6 +305,8 @@ class Trainer:
         self.ckpt_manager.next()
         curStepInGlobal = self.ckpt_manager.latest_id * self.config.steps_per_epoch  # 总共已训练步数
         self.config.training_runtime["cur_step"] = curStepInGlobal
+        if hasattr(self.model, "training_runtime"):
+            self.model.training_runtime = self.config.training_runtime
 
         # log_losses = []
         # * ===========================================================训练===========================================================
