@@ -10,12 +10,12 @@ import torch.nn.functional as F
 #     return (loss1 + loss2) / 2
 
 
-def kl_loss(p: torch.Tensor, q: torch.Tensor, temperature=1.0) -> torch.Tensor:
+def kl_loss(p: torch.Tensor, q: torch.Tensor, temperature=1.0, reduction="batchmean") -> torch.Tensor:
     """计算kl散度损失"""
     p = p / temperature
     q = q / temperature
-    loss1 = F.kl_div(F.log_softmax(p, dim=-1), F.log_softmax(q, dim=-1), reduction="batchmean", log_target=True)
-    loss2 = F.kl_div(F.log_softmax(q, dim=-1), F.log_softmax(p, dim=-1), reduction="batchmean", log_target=True)
+    loss1 = F.kl_div(F.log_softmax(p, dim=-1), F.log_softmax(q, dim=-1), reduction=reduction, log_target=True)
+    loss2 = F.kl_div(F.log_softmax(q, dim=-1), F.log_softmax(p, dim=-1), reduction=reduction, log_target=True)
     return (loss1 + loss2) / 2
 
 
