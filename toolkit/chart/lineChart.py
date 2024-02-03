@@ -17,6 +17,9 @@ class LineChart(ChartBase):
         plt.rcParams["xtick.major.width"] = 0.5
         plt.rcParams["ytick.major.width"] = 0.5
         plt.rcParams["lines.linewidth"] = 1.25
+        plt.rcParams["xtick.labelsize"] = font_size
+        plt.rcParams["ytick.labelsize"] = font_size
+        self.fontsize = font_size
 
     def draw(
         self,
@@ -62,8 +65,8 @@ class LineChart(ChartBase):
                     )
                     # ax.axhline(y=81.875, linestyle="--", color="red", label="ChatGPT Zeroshot")
 
-                ax.set_xlabel(xlabel)
-                ax.set_ylabel(ylabel)
+                ax.set_xlabel(xlabel, fontsize=self.fontsize)
+                ax.set_ylabel(ylabel, fontsize=self.fontsize)
                 ax.grid(axis="y", linestyle="-", alpha=0.8, linewidth=0.5)
                 # ax.legend(loc="lower right", bbox_to_anchor=(1, 0.05))
                 ax.legend(loc="lower right")

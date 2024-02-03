@@ -17,6 +17,9 @@ class BarChart(ChartBase):
         plt.rcParams["xtick.major.width"] = 0.5
         plt.rcParams["ytick.major.width"] = 0.5
         plt.rcParams["lines.linewidth"] = 1.25
+        self.fontsize = font_size
+        plt.rcParams["xtick.labelsize"] = font_size
+        plt.rcParams["ytick.labelsize"] = font_size
 
     def draw(
         self,
@@ -65,11 +68,11 @@ class BarChart(ChartBase):
                         x - col_width / 2 + (k + 0.5) * single_width, groups[i][j][k], width=bar_width, label=groups_name[i][j][k], color=colors[k]
                     )
 
-                ax.set_xlabel(xlabel)
-                ax.set_ylabel(ylabel)
+                ax.set_xlabel(xlabel, fontsize=self.fontsize)
+                ax.set_ylabel(ylabel, fontsize=self.fontsize)
                 ax.grid(axis="y", linestyle="-", alpha=0.8, linewidth=0.5)
                 ax.set_xticks(x)
-                ax.set_xticklabels(col_names[i][j])
+                ax.set_xticklabels(col_names[i][j], fontsize=self.fontsize)
                 # ax.legend(loc="lower right", bbox_to_anchor=(1, 0.05))
                 ax.legend(loc="best")
                 ax.spines["top"].set_visible(False)
