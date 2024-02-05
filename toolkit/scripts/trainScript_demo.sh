@@ -9,7 +9,7 @@ dashboard="tensorboard"
 dataset_name="QQP"
 
 model_type="bert-base-uncased"
-model_dir="/data/jjwang/pretrained/$model_type"
+model_dir="/data/***/pretrained/$model_type"
 model_name="baseline"
 
 fp16=False
