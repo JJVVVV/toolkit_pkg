@@ -319,7 +319,7 @@ class WatchDog:
 
     @classmethod
     def metric_dicts_from_diff_seeds(
-        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False
+        cls, seeds_dir: Path | str, json_file_name: str = WATCHDOG_DATA_NAME, silence=False, load_cheat=False
     ) -> defaultdict[int, Dict[str, MetricDict]]:
         """
         Get a dict of validation metricdicts, test metricdicts and cheat metricdicts from different seed.\n
@@ -339,7 +339,7 @@ class WatchDog:
                     ret[seed]["val"] = watch_dog.optimal_val_metricdict
                 if watch_dog.optimal_test_metricdict is not None:
                     ret[seed]["test"] = watch_dog.optimal_test_metricdict
-                if watch_dog.cheat_test_metricdict is not None:
+                if load_cheat and watch_dog.cheat_test_metricdict is not None:
                     ret[seed]["cheat"] = watch_dog.cheat_test_metricdict
                 success += 1
             else:
@@ -378,7 +378,7 @@ class WatchDog:
                 for seed, value in metric_dicts.items():
                     metric_dicts_cheat[seed] = {"cheat": value.pop("cheat", None)}
             metric_dicts_topk, mean = WatchDog._topk(metric_dicts, top_k, base)
-            if base == "test":
+            if base=='test' and next(iter(metric_dicts_cheat.values()))["cheat"]:
                 _, mean_cheat = WatchDog._topk(metric_dicts_cheat, top_k, "cheat")
                 mean["cheat"] = mean_cheat["cheat"]
         else:
