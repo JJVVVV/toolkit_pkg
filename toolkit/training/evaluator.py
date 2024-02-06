@@ -47,10 +47,13 @@ class Evaluator:
         world_size = dist.get_world_size() if dist.is_initialized() else 1
 
         self.dataloader = (
-            get_dataloader(self.dataset, self.config, self.split, collate_fn=self.dataset.collate_fn)
+            get_dataloader(self.dataset, self.config, self.split, False, collate_fn=self.dataset.collate_fn)
             if not hasattr(self, "dataloader")
             else self.dataloader
         )
+        # 当在训练集上进行推理时, 下面代码用来得到正确的dataloader, 而不是(dataloader, sampler)这个数组.
+        if isinstance(self.dataloader, tuple):
+            self.dataloader = self.dataloader[0]
 
         all_losses = []
         all_labels = []
