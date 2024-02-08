@@ -197,7 +197,7 @@ class Trainer:
             if self.config.early_stop and self.config.continue_train_more_patience:
                 watch_dog.counter = 0
         else:
-            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric)
+            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric, record_cheat=self.config.record_cheat)
         sync()
 
         # # * Calculate some training parameters

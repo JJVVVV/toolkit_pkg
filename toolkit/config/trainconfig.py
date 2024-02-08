@@ -64,6 +64,7 @@ class TrainConfig(ConfigBase):
         use_deepspeed_ckpt: bool = False,
         show_lr: bool = False,
         show_step: bool = False,
+        record_cheat: bool = True,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -166,11 +167,10 @@ class TrainConfig(ConfigBase):
         self.cut_input_from_output = cut_input_from_output
         self.use_deepspeed_ckpt = use_deepspeed_ckpt
         if not self.use_deepspeed_ckpt and self.parallel_mode == "deepspeed":
-            logger.warning(
-                f"⚠️  You are using deepspeed, but not save deepspeed checkpoint. Only model will be saved so you can not resume training."
-            )
+            logger.warning(f"⚠️  You are using deepspeed, but not save deepspeed checkpoint. Only model will be saved so you can not resume training.")
         self.show_lr = show_lr
         self.show_step = show_step
+        self.record_cheat = record_cheat
         # self.warning_default()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):

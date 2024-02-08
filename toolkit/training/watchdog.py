@@ -27,7 +27,7 @@ OPTIMAL_CHECKPOINT_NAME = "optimal_checkpoint"
 class WatchDog:
     """Watch dog monitor the training if validation loss doesn't improve after a given patience."""
 
-    def __init__(self, patience: int, metric: str):
+    def __init__(self, patience: int, metric: str, record_cheat: bool = True):
         """
         Args:
             patience (int): How long to wait after last time validation loss improved.
@@ -43,6 +43,7 @@ class WatchDog:
         self.local_rank = dist.get_rank() if dist.is_initialized() else 0
         self.world_size = dist.get_world_size() if dist.is_initialized() else 1
 
+        self.record_cheat = record_cheat
         self.patience = patience
         self.counter = 0
 
@@ -91,7 +92,7 @@ class WatchDog:
                 self.report(test_metricdict, Split.TEST, file_logger=file_logger)
             file_logger.info("")
 
-        if test_metricdict is not None:
+        if self.record_cheat and test_metricdict is not None:
             if self.cheat_test_metricdict is None:
                 self.cheat_test_metricdict = MetricDict(test_metricdict)
             elif test_metricdict > self.cheat_test_metricdict:
@@ -143,7 +144,8 @@ class WatchDog:
         # * If early stop is set but is not triggered, the epoch may have been set too small
         elif configs.early_stop:
             logger.info(f"All epochs are finished and the early stop is not triggered. The model may need further training!")
-        logger.info(f"Cheat performance: {str(self.cheat_test_metricdict)}")
+        if self.cheat_test_metricdict is not None:
+            logger.info(f"Cheat performance: {str(self.cheat_test_metricdict)}")
         logger.info(f"The best model at (epoch={self.best_checkpoint[0]}, step_global={self.best_checkpoint[1]})")
         logger.info(f"Dev performance: {str(self.optimal_val_metricdict)}")
         if self.optimal_test_metricdict is not None:
@@ -290,7 +292,7 @@ class WatchDog:
     @classmethod
     def from_dict(cls, attributes_dict: Dict[str, Any]) -> "WatchDog":
         "Load a WatchDog from a attributes dictionary."
-        watch_dog = cls(attributes_dict["patience"], attributes_dict["metric_for_compare"])
+        watch_dog = cls(attributes_dict["patience"], attributes_dict["metric_for_compare"], attributes_dict["record_cheat"])
         watch_dog._update(attributes_dict)
         return watch_dog
 
@@ -378,7 +380,7 @@ class WatchDog:
                 for seed, value in metric_dicts.items():
                     metric_dicts_cheat[seed] = {"cheat": value.pop("cheat", None)}
             metric_dicts_topk, mean = WatchDog._topk(metric_dicts, top_k, base)
-            if base=='test' and next(iter(metric_dicts_cheat.values()))["cheat"]:
+            if base == "test" and next(iter(metric_dicts_cheat.values()))["cheat"]:
                 _, mean_cheat = WatchDog._topk(metric_dicts_cheat, top_k, "cheat")
                 mean["cheat"] = mean_cheat["cheat"]
         else:
