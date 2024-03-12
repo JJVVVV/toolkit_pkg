@@ -354,7 +354,7 @@ class TextDataset(Dataset):
     def __pad(
         model_input: ModelInput,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
-        max_length: int
+        max_length: int,
         # pad_to_multiple_of: Optional[int] = None,
     ) -> None:
         # if pad_to_multiple_of is not None and (max_length % pad_to_multiple_of != 0):
@@ -433,6 +433,33 @@ class TextDataset(Dataset):
         if max_length == INFINITE:
             batch_model_input = tokenizer.pad(batch_model_input, padding="longest")
         return batch_model_input
+
+    # @staticmethod
+    # def transformers_tokenizer_tqdm(
+    #     tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
+    # ) -> BatchModelInput:
+    #     # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
+    #     # print(text_pairs)
+    #     batch_model_input = defaultdict(list)
+    #     # longest = 0
+    #     for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
+    #         for key, value in tokenizer(
+    #             text=text1,
+    #             text_pair=text2,
+    #             padding=False,
+    #             truncation=(max_length != INFINITE),
+    #             max_length=max_length if max_length != INFINITE else None,
+    #             return_tensors='pt'
+    #         ).items():
+    #             if len(value.size()) == 2:
+    #                 value = value.permute((1, 0))
+    #             batch_model_input[key].append(value)
+    #         # longest = max(longest, len(value))
+    #     batch_model_input['input_ids'] = pad_sequence(batch_model_input['input_ids'], batch_first=True, padding_value=tokenizer.pad_token_id)
+
+    #     if max_length == INFINITE:
+    #         batch_model_input = tokenizer.pad(batch_model_input, padding="longest")
+    #     return batch_model_input
 
     @staticmethod
     def stack_tensor_in_dicts(batch: list[dict]):
