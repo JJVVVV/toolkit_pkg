@@ -195,10 +195,11 @@ class TextDataset(Dataset):
         )
         if len(custom_args) > 0:
             dicts_custom_inputs = custom_args[0]
-            assert isinstance(dicts_custom_inputs, list) and isinstance(
-                dicts_custom_inputs[0], dict
-            ), "Custom inputs of a sample must be a `Dict` and all `Dict` must in a `List`"
-            self.dicts_custom_inputs: List[Dict] = dicts_custom_inputs
+            if dicts_custom_inputs:
+                assert isinstance(dicts_custom_inputs, list) and isinstance(
+                    dicts_custom_inputs[0], dict
+                ), "Custom inputs of a sample must be a `Dict` and all `Dict` must in a `List`"
+                self.dicts_custom_inputs: List[Dict] = dicts_custom_inputs
 
         # tokenize input texts
         tokenizer.padding_side = padding_side
