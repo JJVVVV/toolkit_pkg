@@ -46,6 +46,7 @@ class TrainConfig(ConfigBase):
         continue_train_more_patience: bool = False,
         eval_every_half_epoch: bool = False,
         eval_step: int = 0,
+        save_ckpts: bool = True,
         save_all_ckpts: bool = False,
         save_last_ckpt: bool = False,
         max_optimal_ckpt_num: int = 1,
@@ -132,6 +133,7 @@ class TrainConfig(ConfigBase):
             self.continue_train_more_patience = continue_train_more_patience
         self.eval_every_half_epoch = eval_every_half_epoch
         self.eval_step = eval_step
+        self.save_ckpts = save_ckpts
         self.save_all_ckpts = save_all_ckpts
         self.save_last_ckpt = save_last_ckpt if not save_all_ckpts else True
         self.gradient_clipping = gradient_clipping
