@@ -197,7 +197,9 @@ class Trainer:
             if self.config.early_stop and self.config.continue_train_more_patience:
                 watch_dog.counter = 0
         else:
-            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric, record_cheat=self.config.record_cheat)
+            watch_dog = WatchDog(
+                patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric, record_cheat=self.config.record_cheat
+            )
         sync()
 
         # # * Calculate some training parameters
@@ -465,78 +467,76 @@ class Trainer:
 
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)
-            # TODO 保存最后 n 个ckpt
-            if self.config.parallel_mode == "deepspeed":
-                # * Save current checkpoint
-                if epoch < self.config.epochs - (not self.config.save_last_ckpt):
-                    if self.local_rank == 0:
-                        logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
-                        self.ckpt_manager.latest_dir.mkdir()
-                        logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
-                    # * save model
-                    if self.config.use_deepspeed_ckpt:
-                        if self.local_rank == 0:
-                            logger.debug(f"💾 Saving model weights, optimizer and scheduler ...")
-                        self.model.save_checkpoint(self.ckpt_manager.latest_dir)
-                        if self.local_rank == 0 and self.tokenizer is not None:
-                            self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
-                    else:
-                        if self.local_rank == 0:
-                            logger.debug(f"💾 Saving model weights ...")
-                        watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
-                    if self.local_rank == 0:
-                        logger.debug("✔️  Save successfully.")
-
-                    if self.local_rank == 0:
-                        self.config.save(self.ckpt_manager.latest_dir, silence=False)
-                        watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
-                        logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
-                if self.local_rank == 0:
-                    # * delete last checkpoint
-                    if not self.config.save_all_ckpts:
-                        self.ckpt_manager.delete_last_checkpoint()
-                    # * save WatchDog to root save_dir
-                    watch_dog.save(self.config.save_dir)
-
-                # * Whether early stop is triggered
-                if self.config.early_stop and watch_dog.need_to_stop:
-                    break
-            else:
-                if self.local_rank == 0:
+            # Save checkpoint
+            if self.config.save_ckpts:
+                # TODO 保存最后 n 个ckpt
+                if self.config.parallel_mode == "deepspeed":
                     # * Save current checkpoint
                     if epoch < self.config.epochs - (not self.config.save_last_ckpt):
-                        logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
-                        self.ckpt_manager.latest_dir.mkdir()
-                        logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
+                        if self.local_rank == 0:
+                            logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
+                            self.ckpt_manager.latest_dir.mkdir()
+                            logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
-                        logger.debug("💾 Saving model weights ...")
-                        watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
-                        logger.debug("✔️  Save model successfully.")
-                        # model_to_save = self.model.module if hasattr(self.model, "module") else self.model
-                        # model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
-                        # if self.tokenizer is not None:
-                        #     self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        # * save model
+                        if self.config.use_deepspeed_ckpt:
+                            if self.local_rank == 0:
+                                logger.debug(f"💾 Saving model weights, optimizer and scheduler ...")
+                            self.model.save_checkpoint(self.ckpt_manager.latest_dir)
+                            if self.local_rank == 0 and self.tokenizer is not None:
+                                self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        else:
+                            if self.local_rank == 0:
+                                logger.debug(f"💾 Saving model weights ...")
+                            watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
+                        if self.local_rank == 0:
+                            logger.debug("✔️  Save successfully.")
 
-                        self.config.save(self.ckpt_manager.latest_dir, silence=False)
-                        watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
-
-                        self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
-                        if self.scheduler is not None:
-                            self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
-                        if self.config.fp16:
-                            self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
-
-                        logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
+                        if self.local_rank == 0:
+                            self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                            watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
+                            logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
                     # * delete last checkpoint
-                    if not self.config.save_all_ckpts:
-                        self.ckpt_manager.delete_last_checkpoint()
-                    # * save WatchDog to root save_dir
-                    watch_dog.save(self.config.save_dir)
+                    if self.local_rank == 0:
+                        if not self.config.save_all_ckpts:
+                            self.ckpt_manager.delete_last_checkpoint()
+                else:
+                    if self.local_rank == 0:
+                        # * Save current checkpoint
+                        if epoch < self.config.epochs - (not self.config.save_last_ckpt):
+                            logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
+                            self.ckpt_manager.latest_dir.mkdir()
+                            logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
-                # * Whether early stop is triggered
-                if self.config.early_stop and watch_dog.need_to_stop:
-                    break
+                            logger.debug("💾 Saving model weights ...")
+                            watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
+                            logger.debug("✔️  Save model successfully.")
+                            # model_to_save = self.model.module if hasattr(self.model, "module") else self.model
+                            # model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
+                            # if self.tokenizer is not None:
+                            #     self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+
+                            self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                            watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
+
+                            self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
+                            if self.scheduler is not None:
+                                self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
+                            if self.config.fp16:
+                                self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
+
+                            logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
+                        # * delete last checkpoint
+                        if not self.config.save_all_ckpts:
+                            self.ckpt_manager.delete_last_checkpoint()
+
+            # * save WatchDog to root save_dir
+            watch_dog.save(self.config.save_dir)
+
+            # * Whether early stop is triggered
+            if self.config.early_stop and watch_dog.need_to_stop:
+                break
 
             # * next ckpt
             self.ckpt_manager.next()
