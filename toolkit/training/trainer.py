@@ -293,7 +293,7 @@ class Trainer:
 
         # * Print some infomation for debug
         if self.local_rank == 0:
-            logger.debug("===== 🔥 Start training 🔥 =====")
+            logger.debug("🔥 Start training 🔥")
             logger.debug(f"  Batch size = {self.config.train_batch_size}")
             logger.debug(f"  Total epochs = {self.config.epochs:d}")
             logger.debug(f"  Steps per epoch = {self.config.steps_per_epoch:d}")
@@ -562,8 +562,8 @@ class Trainer:
             return None
         if self.local_rank == 0:
             # logger.debug("")
-            logger.debug(f"===== ❄️  Evaluate on {split.name} set ❄️ =====")
-            logger.debug(f"===== epoch: {epoch:03d} step_global: {step_global:06d} =====")
+            logger.debug(f"❄️  Evaluate on {split.name} set ❄️")
+            logger.debug(f"epoch: {epoch:03d} step_global: {step_global:06d}")
         metricdict = MetricDict()
         for evaluator in evaluators:
             metricdict.update(evaluator.eval())
