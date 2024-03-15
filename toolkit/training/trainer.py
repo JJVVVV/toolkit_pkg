@@ -374,7 +374,7 @@ class Trainer:
                             loss.backward()
                     accumulate_loss += loss.item()
                     if "loss_display" in outputs:
-                        loss_display += outputs["loss_display"]
+                        loss_display += outputs["loss_display"] / self.config.gradient_accumulation_steps
                     else:
                         loss_display += loss
                     loss_display = loss_display.view(-1)
