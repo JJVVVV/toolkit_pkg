@@ -1,6 +1,9 @@
+import json
 from pathlib import Path
 
 from ..config.trainconfig import TrainConfig
+
+# VALID_GEN_KWAG=set("max_length", )
 
 
 class NLPTrainingConfig(TrainConfig):
@@ -60,9 +63,9 @@ class NLPTrainingConfig(TrainConfig):
         show_lr: bool = True,
         show_step: bool = True,
         record_cheat: bool = True,
+        max_length: int | None = None,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
-        max_length: int | None = 20,
         max_new_tokens: int | None = None,
         do_sample: bool = False,
         num_beams: int = 1,
@@ -74,6 +77,7 @@ class NLPTrainingConfig(TrainConfig):
         diversity_penalty: float = 0.0,
         repetition_penalty: float = 1.0,
         length_penalty: float = 1.0,
+        generation_config_file: Path | str | None = None,
         padding_side: str = "right",
         **kwargs,
     ):
@@ -135,9 +139,11 @@ class NLPTrainingConfig(TrainConfig):
             **kwargs,
         )
         self.padding_side = padding_side
+        self.max_length = max_length
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
 
+        # generate config
         self.do_sample = do_sample
         self.num_beams = num_beams
         self.early_stopping = early_stopping
@@ -149,8 +155,12 @@ class NLPTrainingConfig(TrainConfig):
         self.repetition_penalty = repetition_penalty
         self.length_penalty = length_penalty
         self.max_new_tokens = max_new_tokens
-        self.max_length = max_length
-
+        if generation_config_file is not None:
+            self.generation_config_file = Path(generation_config_file)
+            with self.generation_config_file.open() as f:
+                self.generate_kwargs = json.load(f)
+        else:
+            self.generation_config_file = generation_config_file
         # self.pretrained_model_path = pretrained_model_path
 
     @property
@@ -166,12 +176,15 @@ class NLPTrainingConfig(TrainConfig):
             "diversity_penalty": self.diversity_penalty,
             "repetition_penalty": self.repetition_penalty,
             "length_penalty": self.length_penalty,
+            "max_new_tokens": self.max_new_tokens,
+            "max_length": self.max_length,
         }
-        # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer 的 warning
-        if self.max_new_tokens is not None:
-            ret["max_new_tokens"] = self.max_new_tokens
-        else:
-            ret["max_length"] = self.max_length
+
+        # # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer 的 warning
+        # if self.max_new_tokens is not None:
+        #     ret["max_new_tokens"] = self.max_new_tokens
+        # else:
+        #     ret["max_length"] = self.max_length if self.max_length is not None else 20
         return ret
 
     # todo 当前只会覆盖 d 中出现的参数, 正常应该还要把 d 中没出现的参数置为默认值
