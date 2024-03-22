@@ -235,7 +235,8 @@ class TextDataset(Dataset):
         if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
             self.tokens_labels, self.actual_max_length_label = self.transformers_tokenizer_tqdm(
                 tokenizer, self.texts_label, max_length_label, desc=f"Tokenize {split.name} label texts"
-            )["input_ids"]
+            )
+            self.tokens_labels = self.tokens_labels["input_ids"]
             self.padding_label = True
         elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
             raise NotImplemented
@@ -273,6 +274,10 @@ class TextDataset(Dataset):
         ret_dict["model_inputs"] = {key: value[item] for key, value in self.batch_model_input.items()}
         if self.tokens_labels is not None:
             ret_dict["labels"] = self.tokens_labels[item]
+            # if self.padding_label:
+            #     ret_dict["model_inputs"]["labels"] = self.tokens_labels[item]
+            # else:
+            #     ret_dict["labels"] = self.tokens_labels[item]
         if hasattr(self, "dicts_custom_inputs"):
             ret_dict["custom_inputs"]: dict = self.dicts_custom_inputs[item]
         return ret_dict
@@ -324,7 +329,10 @@ class TextDataset(Dataset):
 
     def __pad_batch(self, batch: list[ModelInput], max_length: int | None = None):
         if max_length is None:
-            max_length = max_len_nest_list([sample["input_ids"] for sample in batch])
+            if "input_ids" in batch[0]:
+                max_length = max_len_nest_list([sample["input_ids"] for sample in batch])
+            else:
+                max_length = max_len_nest_list([sample["labels"] for sample in batch])
         return [self.__pad_one(model_input, max_length) for model_input in batch]
 
     @classmethod
@@ -397,6 +405,13 @@ class TextDataset(Dataset):
             ret.update(default_collate(batch_labels))
         ret.update(default_collate(batch))
         return ret
+
+    # def collate_fn(self, batch: list[dict]):
+    #     batch_model_inputs = default_collate(
+    #         self.__pad_batch([item.pop("model_inputs") for item in batch], self.actual_max_length_input if self.padding_to_max_length else None)
+    #     )
+    #     batch_model_inputs.update(default_collate(batch))
+    #     return batch_model_inputs
 
     @classmethod
     def from_file(
