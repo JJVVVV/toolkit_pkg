@@ -177,6 +177,7 @@ class TextDataset(Dataset):
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID] | List[str]],
         ],
         padding_side: str = "right",
+        max_length: int | None = None,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         padding_to_max_length: bool = False,
@@ -193,6 +194,7 @@ class TextDataset(Dataset):
             logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
+        max_length = tokenizer.model_max_length if max_length is None else max_length
         self.padding_to_max_length = padding_to_max_length
         self.split = split
         assert model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {model_structure}"
@@ -277,7 +279,12 @@ class TextDataset(Dataset):
 
         # TODO!!! 对于"decoder"的"generate"任务, 需要对input和label进一步处理
         if self.task_type == "generate" and self.model_structure == "decoder":
-            pass
+            new_labels = []
+            for inputs, labels in zip(self.batch_model_input, self.tokens_labels):
+                inputs_len = len(inputs["input_ids"])
+                inputs["input_ids"] = (inputs["input_ids"] + labels)[:max_length]
+                new_labels.append(([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length])
+            self.tokens_labels = new_labels
 
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
