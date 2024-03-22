@@ -226,7 +226,7 @@ class TextDataset(Dataset):
         tokenizer.padding_side = padding_side
         if isinstance(self.texts_input[0], PairedText):  # if the input type is `PairedText`
             self.batch_model_input, self.actual_max_length_input = self.transformers_tokenizer_tqdm(
-                tokenizer, self.texts_input, max_length_input, desc=f"Tokenize {split.name} input texts"
+                tokenizer, self.texts_input, max_length_input, desc=f"Tokenize {split.name} input texts", is_label=False
             )
         elif isinstance(self.texts_input[0], FinelyControlledText):  # if the input type is `FinelyControlledText`
             # TODO: 新版本的data.py暂未适配 self.__tokenize
@@ -240,9 +240,9 @@ class TextDataset(Dataset):
         tokenizer.padding_side = "right"
         if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
             self.tokens_labels, self.actual_max_length_label = self.transformers_tokenizer_tqdm(
-                tokenizer, self.texts_label, max_length_label, desc=f"Tokenize {split.name} label texts"
+                tokenizer, self.texts_label, max_length_label, desc=f"Tokenize {split.name} label texts", is_label=True
             )
-            self.tokens_labels = self.tokens_labels["input_ids"]
+            # self.tokens_labels = self.tokens_labels["input_ids"]
             self.padding_label = True
         elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
             raise NotImplemented
@@ -275,26 +275,22 @@ class TextDataset(Dataset):
                 )
             )
 
+        # TODO!!! 对于"decoder"的"generate"任务, 需要对input和label进一步处理
+        if self.task_type == "generate" and self.model_structure == "decoder":
+            pass
+
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
-        if self.task_type == "generate" and self.model_structure == "decoder":
-            # TODO!!! 拼接input和label， 也许写到__init__中更好？
-            pass
-        else:
-            ret_dict["model_inputs"] = {key: value[item] for key, value in self.batch_model_input.items()}
-            if self.tokens_labels is not None:
-                ret_dict["labels"] = self.tokens_labels[item]
-                # if self.padding_label:
-                #     ret_dict["model_inputs"]["labels"] = self.tokens_labels[item]
-                # else:
-                #     ret_dict["labels"] = self.tokens_labels[item]
+        ret_dict["model_inputs"] = self.batch_model_input[item]
+        if self.tokens_labels is not None:
+            ret_dict["labels"] = self.tokens_labels[item]
         if hasattr(self, "dicts_custom_inputs"):
             ret_dict["custom_inputs"]: dict = self.dicts_custom_inputs[item]
         return ret_dict
 
     def __len__(self):
         # return len(self.splited_texts_input)
-        return len(self.batch_model_input["input_ids"])
+        return len(self.batch_model_input)
 
     def report(self):
         "Log some information of dataset."
@@ -377,30 +373,33 @@ class TextDataset(Dataset):
                 tokenized_dict[key].append(value)
         return tokenized_dict
 
-    @staticmethod
+    # @staticmethod
     def transformers_tokenizer_tqdm(
-        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
-    ) -> Tuple[BatchModelInput, int]:
+        self, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str, is_label: bool
+    ) -> Tuple[List[ModelInput], int]:
         # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
         # print(text_pairs)
-        batch_model_input = defaultdict(list)
+        batch_model_input = []
         longest = 0
         for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
-            for key, value in tokenizer(
+            a_sample = tokenizer(
                 text=text1,
                 text_pair=text2,
                 padding=False,
                 truncation=(max_length != INFINITE),
                 max_length=max_length if max_length != INFINITE else None,
-                add_special_tokens=True,
-                return_attention_mask=True,
-            ).items():
-                batch_model_input[key].append(value)
-                if key == "input_ids":
-                    if isinstance(value[0], list):
-                        longest = max(longest, max([len(value_) for value_ in value]))
-                    else:
-                        longest = max(longest, len(value))
+                add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                return_attention_mask=not is_label,
+            )
+            if is_label:
+                batch_model_input.append(a_sample["input_ids"])
+            else:
+                batch_model_input.append(a_sample)
+            input_ids = a_sample["input_ids"]
+            if isinstance(input_ids[0], list):
+                longest = max(longest, max([len(value_) for value_ in input_ids]))
+            else:
+                longest = max(longest, len(input_ids))
         return batch_model_input, longest
 
     def collate_fn(self, batch: list[dict]):
