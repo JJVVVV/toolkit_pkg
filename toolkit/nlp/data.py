@@ -169,6 +169,8 @@ class TextDataset(Dataset):
         self,
         data_file_path: Path | str,
         model_type: str,
+        model_structure: str,
+        task_type: str,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
@@ -193,6 +195,10 @@ class TextDataset(Dataset):
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
         self.padding_to_max_length = padding_to_max_length
         self.split = split
+        assert model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {model_structure}"
+        self.model_structure = model_structure
+        assert task_type in ("generate", "classify", "regress"), f"`task_type` invalid value: {task_type}"
+        self.task_type = task_type
         # self.tokenizer = tokenizer
         self.inputkey2padid = {
             "input_ids": tokenizer.pad_token_id,
@@ -271,13 +277,17 @@ class TextDataset(Dataset):
 
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
-        ret_dict["model_inputs"] = {key: value[item] for key, value in self.batch_model_input.items()}
-        if self.tokens_labels is not None:
-            ret_dict["labels"] = self.tokens_labels[item]
-            # if self.padding_label:
-            #     ret_dict["model_inputs"]["labels"] = self.tokens_labels[item]
-            # else:
-            #     ret_dict["labels"] = self.tokens_labels[item]
+        if self.task_type == "generate" and self.model_structure == "decoder":
+            # TODO!!! 拼接input和label， 也许写到__init__中更好？
+            pass
+        else:
+            ret_dict["model_inputs"] = {key: value[item] for key, value in self.batch_model_input.items()}
+            if self.tokens_labels is not None:
+                ret_dict["labels"] = self.tokens_labels[item]
+                # if self.padding_label:
+                #     ret_dict["model_inputs"]["labels"] = self.tokens_labels[item]
+                # else:
+                #     ret_dict["labels"] = self.tokens_labels[item]
         if hasattr(self, "dicts_custom_inputs"):
             ret_dict["custom_inputs"]: dict = self.dicts_custom_inputs[item]
         return ret_dict
@@ -370,7 +380,7 @@ class TextDataset(Dataset):
     @staticmethod
     def transformers_tokenizer_tqdm(
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
-    ) -> BatchModelInput:
+    ) -> Tuple[BatchModelInput, int]:
         # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
         # print(text_pairs)
         batch_model_input = defaultdict(list)
@@ -454,6 +464,8 @@ class TextDataset(Dataset):
                 model_type=configs.model_type,
                 tokenizer=tokenizer,
                 load_data_fn=load_data_fn,
+                model_structure=configs.model_structure,
+                task_type=configs.task_type,
                 padding_side=configs.padding_side,
                 max_length_input=configs.max_length_input,
                 max_length_label=configs.max_length_label,
