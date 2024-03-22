@@ -66,6 +66,7 @@ class NLPTrainingConfig(TrainConfig):
         max_length: int | None = None,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
+        padding_to_max_length:bool=False,
         max_new_tokens: int | None = None,
         do_sample: bool = False,
         num_beams: int = 1,
@@ -142,6 +143,7 @@ class NLPTrainingConfig(TrainConfig):
         self.max_length = max_length
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
+        self.padding_to_max_length = padding_to_max_length
 
         # generate config
         self.do_sample = do_sample

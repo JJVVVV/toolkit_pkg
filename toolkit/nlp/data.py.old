@@ -18,12 +18,11 @@ from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 # from ..utils.misc import get_data_types
 from ..enums import Split
 from ..logger import _getLogger
-from ..utils.misc import max_len_nest_list
 from .config import NLPTrainingConfig
 
 Tokens = List[int]
 BatchTokens = List[Tokens]
-ModelInput = Dict[str, Tokens | List[Tokens]]
+ModelInput = Dict[str, Tokens]
 ModelInputSplited = Dict[str, List[Tokens]]
 BatchModelInput = Dict[str, BatchTokens]
 
@@ -177,30 +176,16 @@ class TextDataset(Dataset):
         padding_side: str = "right",
         max_length_input: int | None = None,
         max_length_label: int | None = None,
-        padding_to_max_length: bool = False,
         split: Split = Split.ANY,
         **kwargs_load_data,
     ) -> None:
-        """
-        `max_length_input: int | None = None`, 限制输入的最大长度, 用于truncate.
-        `padding_to_max_length: bool = False`, 是否padding到整个数据集的最大长度(*此处数据集指的是truncated后的), 即`actual_max_length_input`
-        """
         super().__init__()
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
-        self.padding_to_max_length = padding_to_max_length
         self.split = split
-        self.tokenizer = tokenizer
-        self.inputkey2padid = {
-            "input_ids": tokenizer.pad_token_id,
-            "token_type_ids": tokenizer.pad_token_type_id,
-            "attention_mask": 0,
-            "special_tokens_mask": 1,
-            "labels": -100,
-        }
 
         # get input and label texts
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
@@ -218,47 +203,94 @@ class TextDataset(Dataset):
 
         # tokenize input texts
         tokenizer.padding_side = padding_side
-        if isinstance(self.texts_input[0], PairedText):  # if the input type is `PairedText`
-            self.batch_model_input, self.actual_max_length_input = self.transformers_tokenizer_tqdm(
+        if (
+            (
+                isinstance(self.texts_input[0], tuple)
+                and isinstance(self.texts_input[0][0], list | str)
+                and isinstance(self.texts_input[0][1], list | str | NoneType)
+            )
+            or isinstance(self.texts_input[0], PairedText)
+            # or (isinstance(self.splited_texts_input[0], list | tuple) and isinstance(self.splited_texts_input[0][0], PairedText))
+        ):  # if the input type is `PairedText` or `Iterable[PairedText]`
+            self.batch_model_input = self.transformers_tokenizer_tqdm(
                 tokenizer, self.texts_input, max_length_input, desc=f"Tokenize {split.name} input texts"
             )
-        elif isinstance(self.texts_input[0], FinelyControlledText):  # if the input type is `FinelyControlledText`
-            # TODO: 新版本的data.py暂未适配 self.__tokenize
-            raise NotImplemented
+        elif (
+            isinstance(self.texts_input[0], tuple)
+            and isinstance(self.texts_input[0][0], tuple)
+            and isinstance(self.texts_input[0][0][0], bool)
+            and isinstance(self.texts_input[0][0][1], str)
+        ) or isinstance(
+            self.texts_input[0], FinelyControlledText
+        ):  # if the input type is `FinelyControlledText`
             self.batch_model_input = self.__tokenize(self.texts_input, tokenizer, max_length_input, desc=f"Tokenize {split.name} input texts")
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
+        self.batch_model_input = {
+            key: (torch.tensor(value) if not isinstance(value, torch.Tensor) else value) for key, value in self.batch_model_input.items()
+        }
+        max_length_input = self.batch_model_input["input_ids"].shape[1] if max_length_input == INFINITE else max_length_input
+        if self.padding_side == "right":
+            self.first_pad_indexes_input = torch.argmax(torch.eq(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
+            self.first_pad_indexes_input[self.first_pad_indexes_input == 0] = max_length_input
+            self.max_length_input = torch.max(self.first_pad_indexes_input).item()
+            self.batch_model_input = {key: value[..., : self.max_length_input] for key, value in self.batch_model_input.items()}
+        elif self.padding_side == "left":
+            self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
+            self.max_length_input = max_length_input - torch.min(self.first_not_pad_indexes_input).item()
+            self.batch_model_input = {key: value[..., -self.max_length_input :] for key, value in self.batch_model_input.items()}
+            self.first_not_pad_indexes_input = torch.argmax(torch.ne(self.batch_model_input["input_ids"], tokenizer.pad_token_id).int(), dim=-1)
 
         # tokenize label texts
-        self.padding_label = False
         tokenizer.padding_side = "right"
-        if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
-            self.tokens_labels, self.actual_max_length_label = self.transformers_tokenizer_tqdm(
+        if (
+            isinstance(self.texts_label[0], tuple) and isinstance(self.texts_label[0][0], str) and isinstance(self.texts_label[0][1], str | NoneType)
+        ) or isinstance(
+            self.texts_label[0], PairedText
+        ):  # if the label type is `PairedText`
+            self.tokens_labels = self.transformers_tokenizer_tqdm(
                 tokenizer, self.texts_label, max_length_label, desc=f"Tokenize {split.name} label texts"
             )["input_ids"]
-            self.padding_label = True
-        elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
-            raise NotImplemented
+            if not isinstance(self.tokens_labels, torch.Tensor):
+                self.tokens_labels = torch.tensor(self.tokens_labels)
+            max_length_label = self.tokens_labels.shape[1] if max_length_label == INFINITE else max_length_label
+            self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
+            self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
+            self.max_length_label = torch.max(self.first_pad_indexes_label).item()
+            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
+            self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
+        elif (
+            isinstance(self.texts_label[0], tuple)
+            and isinstance(self.texts_label[0][0], tuple)
+            and isinstance(self.texts_label[0][0][0], bool)
+            and isinstance(self.texts_label[0][0][1], str)
+        ) or isinstance(
+            self.texts_label[0], FinelyControlledText
+        ):  # if the label type is `FinelyControlledText`
             self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, max_length_label, desc=f"Tokenize {split.name} label texts")[
                 "input_ids"
             ]
-            self.padding_label = True
-
+            self.tokens_labels = torch.tensor(self.tokens_labels)
+            self.first_pad_indexes_label = torch.argmax(torch.eq(self.tokens_labels, tokenizer.pad_token_id).int(), dim=-1)
+            self.first_pad_indexes_label[self.first_pad_indexes_label == 0] = max_length_label
+            self.max_length_label = torch.max(self.first_pad_indexes_label).item()
+            self.tokens_labels = torch.narrow(self.tokens_labels, -1, 0, self.max_length_label)
+            self.tokens_labels[self.tokens_labels == tokenizer.pad_token_id] = -100
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], str)) or isinstance(
             self.texts_label[0], str
         ):  # if the label type is `List[str]` or `str`
             self.tokens_labels = self.texts_label
-            self.actual_max_length_label = -1
+            self.max_length_label = -1
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], int)) or isinstance(
             self.texts_label[0], ClassificationLabel
         ):  # if the label type is `ClassificationID`, i.e. `List[int]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.long)
-            self.actual_max_length_label = self.tokens_labels.shape[-1]
+            self.max_length_label = self.tokens_labels.shape[-1]
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], float)) or isinstance(
             self.texts_label[0], RegressionLabel
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
-            self.actual_max_length_label = self.tokens_labels.shape[-1]
+            self.max_length_label = self.tokens_labels.shape[-1]
         else:
             raise ValueError(
                 (
@@ -268,9 +300,24 @@ class TextDataset(Dataset):
                 )
             )
 
+        # if "roberta" in self.model_type:
+        #     inputs_ids = self.tokenized_dict["input_ids"]
+        #     self.cls_sep_indexes = (
+        #         ((inputs_ids == tokenizer.cls_token_id) | (inputs_ids == tokenizer.sep_token_id)).nonzero()[:, 1].reshape(inputs_ids.shape[0], -1)
+        #     )
+
+    @property
+    def collate_fn(self):
+        return self.collate_fn_padding_left if self.padding_side == "left" else self.collate_fn_padding_right
+
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
-        ret_dict["model_inputs"] = {key: value[item] for key, value in self.batch_model_input.items()}
+        ret_dict["model_input"] = {key: value[item] for key, value in self.batch_model_input.items()}
+        if self.padding_side == "right":
+            ret_dict["first_pad_index_input"] = self.first_pad_indexes_input[item]
+        else:
+            ret_dict["first_not_pad_index_input"] = self.first_not_pad_indexes_input[item]
+
         if self.tokens_labels is not None:
             ret_dict["labels"] = self.tokens_labels[item]
         if hasattr(self, "dicts_custom_inputs"):
@@ -279,13 +326,13 @@ class TextDataset(Dataset):
 
     def __len__(self):
         # return len(self.splited_texts_input)
-        return len(self.batch_model_input["input_ids"])
+        return self.batch_model_input["input_ids"].shape[0]
 
     def report(self):
         "Log some information of dataset."
         logger.info(f"Total data: {len(self)}")
-        logger.info(f"Max length of input: {self.actual_max_length_input}")
-        logger.info(f"Max length of label: {self.actual_max_length_label}")
+        logger.info(f"Max length of input: {self.max_length_input}")
+        logger.info(f"Max length of label: {self.max_length_label}")
 
     @staticmethod
     def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
@@ -304,28 +351,35 @@ class TextDataset(Dataset):
             for i in waiting_to_trunc_idxs:
                 value[i] = value[i][: lengths[i]]
 
-    def __pad_one(self, model_input: ModelInput, max_length: int):
-        def helper(l: List, inputkey: str):
-            nonlocal max_length
-            if not isinstance(l[0], List):
-                diff = max_length - len(l)
-                # 生成任务时，labels的pad应该始终在右边
-                if inputkey == "labels" or self.padding_side == "right":
-                    return l + [self.inputkey2padid[inputkey]] * diff
-                else:
-                    return [self.inputkey2padid[inputkey]] * diff + l
-            ret = []
-            for l_ in l:
-                ret.append(helper(l_, inputkey))
-            return ret
+    @staticmethod
+    def __pad(
+        model_input: ModelInput,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+        max_length: int,
+        # pad_to_multiple_of: Optional[int] = None,
+    ) -> None:
+        # if pad_to_multiple_of is not None and (max_length % pad_to_multiple_of != 0):
+        #     max_length = ((max_length // pad_to_multiple_of) + 1) * pad_to_multiple_of
+        difference = max_length - len(model_input["input_ids"])
 
-        # return {key: helper(value, key) for key, value in model_input.items()}
-        return {key: torch.tensor(helper(value, key), dtype=torch.long) for key, value in model_input.items()}
-
-    def __pad_batch(self, batch: list[ModelInput], max_length: int | None = None):
-        if max_length is None:
-            max_length = max_len_nest_list([sample["input_ids"] for sample in batch])
-        return [self.__pad_one(model_input, max_length) for model_input in batch]
+        if tokenizer.padding_side == "right":
+            if "attention_mask" in model_input:
+                model_input["attention_mask"].extend([0] * difference)
+            if "token_type_ids" in model_input:
+                model_input["token_type_ids"].extend([tokenizer.pad_token_type_id] * difference)
+            if "special_tokens_mask" in model_input:
+                model_input["special_tokens_mask"].extend([1] * difference)
+            model_input["input_ids"].extend([tokenizer.pad_token_id] * difference)
+        elif tokenizer.padding_side == "left":
+            if "attention_mask" in model_input:
+                model_input["attention_mask"] = [0] * difference + model_input["attention_mask"]
+            if "token_type_ids" in model_input:
+                model_input["token_type_ids"] = [tokenizer.pad_token_type_id] * difference + model_input["token_type_ids"]
+            if "special_tokens_mask" in model_input:
+                model_input["special_tokens_mask"] = [1] * difference + model_input["special_tokens_mask"]
+            model_input["input_ids"] = [tokenizer.pad_token_id] * difference + model_input["input_ids"]
+        else:
+            raise ValueError("Invalid padding strategy:" + str(tokenizer.padding_side))
 
     @classmethod
     def __tokenize(
@@ -354,7 +408,7 @@ class TextDataset(Dataset):
                 cls.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
             cur_dict: ModelInput = {key: sum(value, []) for key, value in cur_dict.items()}
             # tokenizer.pad(cur_dict, padding="max_length", max_length=model_max_length)
-            cls.__pad_one(cur_dict, tokenizer, max_length)
+            cls.__pad(cur_dict, tokenizer, max_length)
             for key, value in cur_dict.items():
                 tokenized_dict[key].append(value)
         return tokenized_dict
@@ -366,37 +420,80 @@ class TextDataset(Dataset):
         # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
         # print(text_pairs)
         batch_model_input = defaultdict(list)
-        longest = 0
+        # longest = 0
         for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
             for key, value in tokenizer(
                 text=text1,
                 text_pair=text2,
-                padding=False,
-                truncation=(max_length != INFINITE),
+                padding="max_length" if max_length != INFINITE else False,
+                truncation="longest_first" if max_length != INFINITE else False,
                 max_length=max_length if max_length != INFINITE else None,
-                add_special_tokens=True,
-                return_attention_mask=True,
             ).items():
                 batch_model_input[key].append(value)
-                if key == "input_ids":
-                    if isinstance(value[0], list):
-                        longest = max(longest, max([len(value_) for value_ in value]))
-                    else:
-                        longest = max(longest, len(value))
-        return batch_model_input, longest
+            # longest = max(longest, len(value))
+        if max_length == INFINITE:
+            batch_model_input = tokenizer.pad(batch_model_input, padding="longest")
+        return batch_model_input
 
-    def collate_fn(self, batch: list[dict]):
-        batch_model_inputs = self.__pad_batch(
-            [item.pop("model_inputs") for item in batch], self.actual_max_length_input if self.padding_to_max_length else None
-        )
-        ret: dict = default_collate(batch_model_inputs)
-        if self.padding_label:
-            batch_labels = self.__pad_batch(
-                [{"labels": item.pop("labels")} for item in batch], self.actual_max_length_label if self.padding_to_max_length else None
-            )
-            ret.update(default_collate(batch_labels))
-        ret.update(default_collate(batch))
-        return ret
+    # @staticmethod
+    # def transformers_tokenizer_tqdm(
+    #     tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str
+    # ) -> BatchModelInput:
+    #     # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
+    #     # print(text_pairs)
+    #     batch_model_input = defaultdict(list)
+    #     # longest = 0
+    #     for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
+    #         for key, value in tokenizer(
+    #             text=text1,
+    #             text_pair=text2,
+    #             padding=False,
+    #             truncation=(max_length != INFINITE),
+    #             max_length=max_length if max_length != INFINITE else None,
+    #             return_tensors='pt'
+    #         ).items():
+    #             if len(value.size()) == 2:
+    #                 value = value.permute((1, 0))
+    #             batch_model_input[key].append(value)
+    #         # longest = max(longest, len(value))
+    #     batch_model_input['input_ids'] = pad_sequence(batch_model_input['input_ids'], batch_first=True, padding_value=tokenizer.pad_token_id)
+
+    #     if max_length == INFINITE:
+    #         batch_model_input = tokenizer.pad(batch_model_input, padding="longest")
+    #     return batch_model_input
+
+    @staticmethod
+    def stack_tensor_in_dicts(batch: list[dict]):
+        ret_dict = dict()
+        for key, value in batch[0].items():
+            if isinstance(value, torch.Tensor):
+                ret_dict[key] = torch.stack([it_dict[key] for it_dict in batch])
+            elif isinstance(value, dict):
+                ret_dict[key] = TextDataset.stack_tensor_in_dicts([it_dict[key] for it_dict in batch])
+            else:
+                raise Exception(f"Data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
+        return ret_dict
+
+    # TODO: clip the label
+    @staticmethod
+    def collate_fn_padding_right(batch: list[dict]):
+        # batch = MyDataset.stack_tensor_in_dicts(batch)
+        batch = default_collate(batch)
+        first_pad_index_input = batch.pop("first_pad_index_input")
+        batch_max_length = torch.max(first_pad_index_input).item()
+        model_input = batch.pop("model_input")
+        batch.update({key: value[..., :batch_max_length] for key, value in model_input.items()})
+        return batch
+
+    @staticmethod
+    def collate_fn_padding_left(batch: list[dict]):
+        # batch = MyDataset.stack_tensor_in_dicts(batch)
+        batch = default_collate(batch)
+        first_not_pad_index_input = batch.pop("first_not_pad_index_input")
+        min_start = torch.min(first_not_pad_index_input).item()
+        model_input = batch.pop("model_input")
+        batch.update({key: value[..., min_start:] for key, value in model_input.items()})
+        return batch
 
     @classmethod
     def from_file(
@@ -442,7 +539,6 @@ class TextDataset(Dataset):
                 padding_side=configs.padding_side,
                 max_length_input=configs.max_length_input,
                 max_length_label=configs.max_length_label,
-                padding_to_max_length=configs.padding_to_max_length,
                 split=split,
                 **kwargs_load_data,
             )
@@ -454,8 +550,6 @@ class TextDataset(Dataset):
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
 
-        # 确保无论是从cache加载或是重新初始化, padding_to_max_length始终都是configs中的值
-        dataset.padding_to_max_length = configs.padding_to_max_length
         return dataset
 
     @staticmethod
@@ -538,3 +632,45 @@ class TextDataset(Dataset):
         finally:
             f.close()
         return dataset
+
+    # # ? 递归改循环, 貌似对速度没影响?
+    # @staticmethod
+    # def stack_tensor_in_dicts(batch: list[dict]):
+    #     ret_dict = dict()
+    #     input_stack = [batch]
+    #     output_stack = [ret_dict]
+    #     while input_stack:
+    #         batch = input_stack.pop()
+    #         output = output_stack.pop()
+    #         for key, value in batch[0].items():
+    #             if isinstance(value, torch.Tensor):
+    #                 output[key] = torch.stack([it_dict[key] for it_dict in batch])
+    #             elif isinstance(value, dict):
+    #                 input_stack.append([dict_it[key] for dict_it in batch])
+    #                 output[key] = dict()
+    #                 output_stack.append(output[key])
+    #             else:
+    #                 raise Exception(f"data type in batch must be Tensor or Dict, but got {type(batch[0][key])}")
+    #     return ret_dict
+
+
+# def cut_text(pair, max_word_num):
+#     """Cutting a pair of texts"""
+#     pair[0] = pair[0].split()
+#     pair[1] = pair[1].split()
+#     n = len(pair[0] + pair[1]) - max_word_num
+#     if n > 0:
+#         if (len(pair[0]) - len(pair[1])) > 0:
+#             long, short = 0, 1
+#         else:
+#             long, short = 1, 0
+#         dif = abs(len(pair[0]) - len(pair[1]))
+#         if dif >= n:
+#             pair[long] = pair[long][:-n]
+#         else:
+#             n = n - dif
+#             pair[long] = pair[long][: -(n // 2 + dif)]
+#             pair[short] = pair[short][: -(n - (n // 2))]
+#     pair[0] = " ".join(pair[0])
+#     pair[1] = " ".join(pair[1])
+#     return pair
