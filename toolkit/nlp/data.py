@@ -193,7 +193,7 @@ class TextDataset(Dataset):
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
         self.padding_to_max_length = padding_to_max_length
         self.split = split
-        self.tokenizer = tokenizer
+        # self.tokenizer = tokenizer
         self.inputkey2padid = {
             "input_ids": tokenizer.pad_token_id,
             "token_type_ids": tokenizer.pad_token_type_id,
