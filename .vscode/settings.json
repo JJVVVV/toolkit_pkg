@@ -4,7 +4,7 @@
         "editor.formatOnType": true,
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
-            "source.organizeImports": true
+            "source.organizeImports": "explicit"
         },
     },
     "python.formatting.provider": "none",

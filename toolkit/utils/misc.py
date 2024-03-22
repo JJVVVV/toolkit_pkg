@@ -71,3 +71,9 @@ def find_files(dir: str, filename: str, depth: int = 0) -> List[str]:
             found_files.extend(find_files(item_path, filename, depth - 1))  # 将找到的文件添加到列表中
 
     return found_files  #
+
+
+def max_len_nest_list(l:List):
+    if not isinstance(l[0], List):
+        return len(l)
+    return max((max_len_nest_list(l_) for l_ in l))
