@@ -67,6 +67,7 @@ class NLPTrainingConfig(TrainConfig):
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         padding_to_max_length: bool = False,
+        gen_max_length: int | None = None,
         max_new_tokens: int | None = None,
         do_sample: bool = False,
         num_beams: int = 1,
@@ -84,6 +85,7 @@ class NLPTrainingConfig(TrainConfig):
         task_type: str | None = None,
         **kwargs,
     ):
+        """generation_config_file 中的参数会覆盖传进来的参数"""
         super().__init__(
             seed,
             gpu,
@@ -161,12 +163,14 @@ class NLPTrainingConfig(TrainConfig):
         self.repetition_penalty = repetition_penalty
         self.length_penalty = length_penalty
         self.max_new_tokens = max_new_tokens
+        self.gen_max_length = gen_max_length
+        self.generation_config_file = generation_config_file
         if generation_config_file is not None:
             self.generation_config_file = Path(generation_config_file)
             with self.generation_config_file.open() as f:
                 self.generate_kwargs = json.load(f)
-        else:
-            self.generation_config_file = generation_config_file
+        # 如果没有设定gen_max_length,则使用训练时的max_lengthd
+        self.gen_max_length = self.max_length if self.gen_max_length is None else self.gen_max_length
         # self.pretrained_model_path = pretrained_model_path
 
     @property
@@ -183,7 +187,7 @@ class NLPTrainingConfig(TrainConfig):
             "repetition_penalty": self.repetition_penalty,
             "length_penalty": self.length_penalty,
             "max_new_tokens": self.max_new_tokens,
-            "max_length": self.max_length,
+            "max_length": self.gen_max_length,
         }
 
         # # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer 的 warning
@@ -199,11 +203,14 @@ class NLPTrainingConfig(TrainConfig):
         # if set(d.keys()).issubset(set(self.generate_kwargs.keys())):
         if not isinstance(d, dict):
             raise ValueError(f"`generate_kwargs` must be a dict but got '{type(d)}'")
+        # 区分训练的max_length和生成时的max_length
+        if "max_length" in d:
+            d["gen_max_length"] = d.pop("max_length")
         for key, value in d.items():
-            if key in self.generate_kwargs:
+            if hasattr(self, key):
                 setattr(self, key, value)
             else:
-                raise KeyError(f"Invalid key for generate keyword arguments: {key}")
+                raise KeyError(f"Invalid key for generate keyword arguments: `{key}`")
 
     # def print_some_info(self):
     #     logger.debug("***** Some training information *****")
