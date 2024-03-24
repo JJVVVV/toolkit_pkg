@@ -93,6 +93,9 @@ class RegressionLabel(list):
         super().__init__(values)
 
 
+# bug: 缓存数据集存在问题, 当前版本直接在tokenize数据集时进行了truncation操作, 导致缓存的数据集是truncated后的
+# 解决方案1: 将truncation操作分离出来, 每次加载数据集时在进行truncation
+# 解放方案2: 将max_length, max_length_input, max_length_label加入到缓存路径中, 来区分不同的长度的缓存
 class TextDataset(Dataset):
     """
     A demo of get_data_from_file:
@@ -185,22 +188,30 @@ class TextDataset(Dataset):
         **kwargs_load_data,
     ) -> None:
         """
-        `max_length_input: int | None = None`, 限制输入的最大长度, 用于truncate.
-        `padding_to_max_length: bool = False`, 是否padding到整个数据集的最大长度(*此处数据集指的是truncated后的), 即`actual_max_length_input`
+        max_length: int | None = None, 限制整体最大长度, 该参数对于encoder结构的generate任务尤为有用.
+        max_length_input: int | None = None, 限制输入的最大长度, 用于truncate.
+        max_length_label: int | None = None, 限制标签的最大长度, 用于truncate.
+        padding_to_max_length: bool = False, 是否padding到整个数据集的最大长度(*此处数据集指的是truncated后的), 即actual_max_length_input.
         """
         super().__init__()
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
+        assert model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {model_structure}"
+        self.model_structure = model_structure
+        assert task_type in ("generate", "classify", "regress"), f"`task_type` invalid value: {task_type}"
+        self.task_type = task_type
+        # 对于decoder结构generate任务, 应该只通过`max_length`来控制裁切长度
+        if self.task_type == "generate" and self.model_structure == "decoder":
+            assert max_length_input is None and max_length_label is None, (
+                "You should use `max_length` to control total truncation length instead of "
+                f"using `max_length_input: {max_length_input}` and `max_length_label: {max_length_label}` to control the length of the input and label respectively."
+            )
         max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
         max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
         max_length = tokenizer.model_max_length if max_length is None else max_length
         self.padding_to_max_length = padding_to_max_length
         self.split = split
-        assert model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {model_structure}"
-        self.model_structure = model_structure
-        assert task_type in ("generate", "classify", "regress"), f"`task_type` invalid value: {task_type}"
-        self.task_type = task_type
         # self.tokenizer = tokenizer
         self.inputkey2padid = {
             "input_ids": tokenizer.pad_token_id,
@@ -231,8 +242,6 @@ class TextDataset(Dataset):
                 tokenizer, self.texts_input, max_length_input, desc=f"Tokenize {split.name} input texts", is_label=False
             )
         elif isinstance(self.texts_input[0], FinelyControlledText):  # if the input type is `FinelyControlledText`
-            # TODO: 新版本的data.py暂未适配 self.__tokenize
-            raise NotImplemented
             self.batch_model_input = self.__tokenize(self.texts_input, tokenizer, max_length_input, desc=f"Tokenize {split.name} input texts")
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
@@ -247,7 +256,6 @@ class TextDataset(Dataset):
             # self.tokens_labels = self.tokens_labels["input_ids"]
             self.padding_label = True
         elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
-            raise NotImplemented
             self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, max_length_label, desc=f"Tokenize {split.name} label texts")[
                 "input_ids"
             ]
@@ -277,7 +285,7 @@ class TextDataset(Dataset):
                 )
             )
 
-        # TODO!!! 对于"decoder"的"generate"任务, 需要对input和label进一步处理
+        # 对于"decoder"的"generate"任务, 需要对input和label进一步处理
         if self.task_type == "generate" and self.model_structure == "decoder":
             new_labels = []
             for inputs, labels in zip(self.batch_model_input, self.tokens_labels):
@@ -292,11 +300,10 @@ class TextDataset(Dataset):
         if self.tokens_labels is not None:
             ret_dict["labels"] = self.tokens_labels[item]
         if hasattr(self, "dicts_custom_inputs"):
-            ret_dict["custom_inputs"]: dict = self.dicts_custom_inputs[item]
+            ret_dict["custom_inputs"] = self.dicts_custom_inputs[item]
         return ret_dict
 
     def __len__(self):
-        # return len(self.splited_texts_input)
         return len(self.batch_model_input)
 
     def report(self):
@@ -352,6 +359,8 @@ class TextDataset(Dataset):
     def __tokenize(
         cls, finely_controlled_text_list: List[FinelyControlledText], tokenizer: PreTrainedTokenizer, max_length: int, desc: str, **kargs
     ) -> BatchModelInput:
+        # TODO: 新版本的data.py暂未适配 self.__tokenize
+        raise NotImplemented
         # TODO: bug: token_type_ids全为0
         # TODO: bug: 对于可接受无限长输入的模型, 因为其没有 max length, 因此无法pad
         if max_length == INFINITE:
@@ -384,7 +393,7 @@ class TextDataset(Dataset):
     def transformers_tokenizer_tqdm(
         self, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str, is_label: bool
     ) -> Tuple[List[ModelInput], int]:
-        # TODO: bug: 当 max_length=INFINITE, 且 text1 与 text2 是列表 (即每一个样本都是一个字符串列表) 时, 会无法 pad.
+        """此函数同时完成truncation操作"""
         # print(text_pairs)
         batch_model_input = []
         longest = 0
@@ -393,7 +402,7 @@ class TextDataset(Dataset):
                 text=text1,
                 text_pair=text2,
                 padding=False,
-                truncation=(max_length != INFINITE),
+                truncation="longest_first" if max_length != INFINITE else False,
                 max_length=max_length if max_length != INFINITE else None,
                 add_special_tokens=not (is_label and self.model_structure == "decoder"),
                 return_attention_mask=not is_label,
@@ -473,6 +482,7 @@ class TextDataset(Dataset):
                 model_structure=configs.model_structure,
                 task_type=configs.task_type,
                 padding_side=configs.padding_side,
+                max_length=configs.max_length,
                 max_length_input=configs.max_length_input,
                 max_length_label=configs.max_length_label,
                 padding_to_max_length=configs.padding_to_max_length,
@@ -487,7 +497,7 @@ class TextDataset(Dataset):
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
 
-        # 确保无论是从cache加载或是重新初始化, padding_to_max_length始终都是configs中的值
+        # 确保无论是从cache加载或是重新初始化, 下面这些参数的值始终是configs中设置的值
         dataset.padding_to_max_length = configs.padding_to_max_length
         return dataset
 
