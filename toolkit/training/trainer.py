@@ -30,7 +30,7 @@ from transformers.integrations import HfDeepSpeedConfig
 # from .. import toolkit_logger
 from ..config import TrainConfig
 from ..enums import Split
-from ..integration.deepspeed import fill_ds_config
+from ..integration.deepspeed import DeepspeedConfig
 from ..logger import _getLogger
 from ..metric import MetricDict
 from ..nlp.config import NLPTrainingConfig
@@ -404,10 +404,13 @@ class Trainer:
 
                 # * log loss and learning rate on consoles
                 if self.config.logging_steps and ((curStepInGlobal + 1) % self.config.logging_steps) == 0:
-                    try:
-                        lr = self.scheduler.get_last_lr()[0]
-                    except:
-                        lr = -1.0
+                    if self.scheduler is None:
+                        lr = self.config.opt_lr
+                    else:
+                        try:
+                            lr = self.scheduler.get_last_lr()[0]
+                        except:
+                            lr = -1.0
 
                     info = OrderedDict()
                     # info["loss"] = f"{accumulate_loss:.3f}"
@@ -663,6 +666,7 @@ class Trainer:
         elif self.config.parallel_mode == "deepspeed":
             with open(self.config.deepspeed_config, "r") as ds_config_file:
                 deepspeed_config = hjson.load(ds_config_file)
+            deepspeed_config = DeepspeedConfig(deepspeed_config)
             if self.model is not None and isinstance(self.model, PreTrainedModel):
                 logger.warning(
                     (
@@ -673,11 +677,11 @@ class Trainer:
                         "Then we will load the model directly to GPU."
                     )
                 )
-                fill_ds_config(deepspeed_config, self.config, self.model.config)
+                deepspeed_config.fill_ds_config(self.config, self.model.config)
             else:
-                fill_ds_config(deepspeed_config, self.config, self.model_config)
+                deepspeed_config.fill_ds_config(self.config, self.model_config)
                 global dschf
-                dschf = HfDeepSpeedConfig(deepspeed_config)
+                dschf = HfDeepSpeedConfig(deepspeed_config.ds_config)
                 model_dir = self.config.model_dir if self.ckpt_manager.latest_id < 0 else self.ckpt_manager.latest_dir
                 if self.from_pretrained_kwargs is None:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config)
@@ -685,7 +689,7 @@ class Trainer:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config, **self.from_pretrained_kwargs)
             # todo prior: 使用deepspeed的dataloader
             self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
-                model=self.model, config=deepspeed_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
+                model=self.model, config=deepspeed_config.ds_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
             )
 
     def set_evaluator(self):
