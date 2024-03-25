@@ -107,5 +107,6 @@ def initialize(config: TrainConfig):
         elif config.parallel_mode == "deepspeed":
             local_rank, world_size = setup_parallel_deepspeed()
         elif config.parallel_mode is None:
-            local_rank, world_size = setup_single_gpu()
+            setup_single_gpu()
+            local_rank, world_size = 0, 1
     return local_rank, world_size

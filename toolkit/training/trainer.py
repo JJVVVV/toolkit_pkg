@@ -100,7 +100,7 @@ class Trainer:
         """
         `task_type`: "generate", "classify", "regress"\n
         `optimizer`: "AdamW", "RMSprop"\n
-        `scheduler`: "linearWarmupDecay"\n
+        `scheduler`: "linearWarmup", "linearWarmupDecay", "cosineWarmupDecay", "cosineWarmupDecayRestart"\n
         `calculate_metric_callback` will be called as `calculate_metric_callback(all_labels, all_logits, mean_loss)`
         """
         self.local_rank = dist.get_rank() if dist.is_initialized() else 0
@@ -262,7 +262,7 @@ class Trainer:
                     get_scheduler_fn = map_str2getScheFn[self.scheduler]
                     if self.scheduler == "linearWarmup":
                         scheduler = get_scheduler_fn(self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps)
-                    if self.scheduler == "linearWarmupDecay":
+                    elif self.scheduler == "linearWarmupDecay":
                         scheduler = get_scheduler_fn(
                             self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_num_steps
                         )
@@ -365,7 +365,8 @@ class Trainer:
                                 outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
                                 loss = outputs["loss"] / self.config.gradient_accumulation_steps
                             # backward
-                            self.scaler.scale(loss).backward()
+                            # self.scaler.scale(loss).backward()
+                            loss.backward()
                         else:
                             # forward
                             outputs = self.model(**batch, **custom_inputs, **self.extral_args_training)
@@ -385,7 +386,7 @@ class Trainer:
                     # self.model.step()
                     pass
                 else:
-                    if self.config.fp16 or self.config.bf16:
+                    if self.config.fp16:
                         # update parameters
                         self.scaler.step(self.optimizer)
                         self.scaler.update()
