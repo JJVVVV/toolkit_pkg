@@ -285,8 +285,8 @@ class TextDataset(Dataset):
                 )
             )
 
-        # 对于"decoder"的"generate"任务, 需要对input和label进一步处理
-        if self.task_type == "generate" and self.model_structure == "decoder":
+        # 对于"decoder"的"generate"任务, 训练时需要对input和label进一步处理
+        if self.split == Split.TRAINING and self.task_type == "generate" and self.model_structure == "decoder":
             new_labels = []
             for inputs, labels in zip(self.batch_model_input, self.tokens_labels):
                 inputs_len = len(inputs["input_ids"])
