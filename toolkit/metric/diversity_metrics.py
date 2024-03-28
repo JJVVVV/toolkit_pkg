@@ -48,6 +48,7 @@ def self_bleu_one_set(
     Smoothing level 0: No smoothing.\n
     Smoothing level 1: Add epsilon counts to precision with 0 counts.\n
     More detail about smoothing: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
+    language: str, Optional["zh", "en"]
     """
     refs = []
     hyps = []
@@ -57,13 +58,16 @@ def self_bleu_one_set(
             refs.append(s[j])
     metric = bleu(refs, hyps, language, bleu_keys, weights, smoothing_level)
     if isinstance(metric, MetricDict):
-        return 1 - MetricDict({f"self-{key}": value for key, value in metric.items()})
+        # return 1 - MetricDict({f"self-{key}": value for key, value in metric.items()})
+        return MetricDict({f"self-{key}": value for key, value in metric.items()})
+
     else:
-        return [1 - score for score in metric]
+        # return [1 - score for score in metric]
+        return metric
 
 
 def self_bleu(
-    sets_list: list[str],
+    sets_list: list[list[str]],
     language: str,
     bleu_keys: str | tuple[str] = "bleu4",
     weights: tuple[float] | list[tuple[float]] | None = None,
@@ -75,6 +79,7 @@ def self_bleu(
     Smoothing level 0: No smoothing.\n
     Smoothing level 1: Add epsilon counts to precision with 0 counts.\n
     More detail about smoothing: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
+    language: str, Optional["zh", "en"]
     """
     # sets_list: 一个列表, 其中的每个元素是一个集合, 要计算每个集合中各个元素之间的多样性程度, 然后求平均
     if weights is None:

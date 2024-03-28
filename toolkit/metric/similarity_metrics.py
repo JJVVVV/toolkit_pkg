@@ -81,6 +81,7 @@ def bleu(
     Smoothing level 0: No smoothing.\n
     Smoothing level 1: Add epsilon counts to precision with 0 counts.\n
     More detail about smoothing: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
+    language: str, Optional["zh", "en"]
     """
     return_metricdict = weights is None
     if isinstance(preds, str):
