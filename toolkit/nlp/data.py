@@ -290,7 +290,8 @@ class TextDataset(Dataset):
             new_labels = []
             for inputs, labels in zip(self.batch_model_input, self.tokens_labels):
                 inputs_len = len(inputs["input_ids"])
-                inputs["input_ids"] = (inputs["input_ids"] + labels)[:max_length]
+                for key in inputs.keys():
+                    inputs[key] = (inputs[key] + labels)[:max_length]
                 new_labels.append(([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length])
             self.tokens_labels = new_labels
 
@@ -422,6 +423,7 @@ class TextDataset(Dataset):
         batch_model_inputs = self.__pad_batch(
             [item.pop("model_inputs") for item in batch], self.actual_max_length_input if self.padding_to_max_length else None
         )
+        # import pdb; pdb.set_trace()
         ret: dict = default_collate(batch_model_inputs)
         if self.padding_label:
             batch_labels = self.__pad_batch(
@@ -429,6 +431,7 @@ class TextDataset(Dataset):
             )
             ret.update(default_collate(batch_labels))
         ret.update(default_collate(batch))
+        # import pdb; pdb.set_trace()
         return ret
 
     # def collate_fn(self, batch: list[dict]):
