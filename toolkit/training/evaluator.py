@@ -1,4 +1,4 @@
-from typing import Callable, Self
+from typing import Callable, Literal, Self
 
 import torch
 import torch.distributed as dist
@@ -21,16 +21,34 @@ class Evaluator:
     """
 
     def __new__(
-        cls, task_type: str, split: Split, config: TrainConfig, model, dataset: Dataset, extral_args_evaluation: dict | None = None, tokenizer=None
+        cls,
+        task_type: str,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"],
+        config: TrainConfig,
+        model,
+        dataset: Dataset,
+        extral_args_evaluation: dict | None = None,
+        tokenizer=None,
     ) -> Self:
         "if any of the following objects is `None`, then just return `None`"
+        if not isinstance(split, Split):
+            split = Split[split]
         if model is None or dataset is None:
             return None
         return super().__new__(cls)
 
     def __init__(
-        self, task_type: str, split: Split, config: TrainConfig, model, dataset: Dataset, extral_args_evaluation: dict | None = None, tokenizer=None
+        self,
+        task_type: str,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"],
+        config: TrainConfig,
+        model,
+        dataset: Dataset,
+        extral_args_evaluation: dict | None = None,
+        tokenizer=None,
     ) -> None:
+        if not isinstance(split, Split):
+            split = Split[split]
         self.task_type = task_type
         self.split = split
         self.config = config

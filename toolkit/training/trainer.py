@@ -1,7 +1,7 @@
 import pathlib
 from collections import OrderedDict, defaultdict
 from math import ceil
-from typing import Callable, Type, TypeVar
+from typing import Callable, Literal, Type, TypeVar
 
 import deepspeed
 import hjson
@@ -559,8 +559,10 @@ class Trainer:
                 self.dashboard_writer.add_hparams(hparam_dict=self.config.to_dict(flat=True), metric_dict=watch_dog.optimal_performance())
                 self.dashboard_writer.close()
 
-    def __evaluate(self, split: Split, epoch: int, step_global: int) -> MetricDict | None:
+    def __evaluate(self, split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"], epoch: int, step_global: int) -> MetricDict | None:
         "Return metricdict if there are evaluators corresponding to the split, otherwise None will be returned."
+        if not isinstance(split, Split):
+            split = Split[split]
         evaluators = self.evaluators[split]
         if len(evaluators) == 0:
             return None
