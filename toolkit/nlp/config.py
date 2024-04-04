@@ -56,12 +56,12 @@ class NLPTrainingConfig(TrainConfig):
         bf16: bool = False,
         dashboard: str | None = None,
         shuffle: bool | None = None,
-        logging_steps: int = -1,
+        logging_steps: int = 1,
         torch_dtype: str = "auto",
         cut_input_from_output: bool = False,
         use_deepspeed_ckpt: bool = False,
-        show_lr: bool = True,
-        show_step: bool = True,
+        show_lr: bool = False,
+        show_step: bool = False,
         record_cheat: bool = True,
         max_length: int | None = None,
         max_length_input: int | None = None,
@@ -86,7 +86,10 @@ class NLPTrainingConfig(TrainConfig):
         task_type: str | None = None,
         **kwargs,
     ):
-        """generation_config_file 中的参数会覆盖传进来的参数"""
+        """
+        logging_steps: per logging_steps logging to consoles and tensorboard or wandb once.
+        generation_config_file 中的参数会覆盖传进来的参数
+        """
         super().__init__(
             seed,
             gpu,
