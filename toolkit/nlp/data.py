@@ -7,7 +7,7 @@ from enum import Enum
 from math import ceil
 from pathlib import Path
 from types import NoneType
-from typing import Callable, Dict, Iterable, List, Self, Tuple
+from typing import Callable, Dict, Iterable, List, Literal, Self, Tuple
 
 import torch
 import torch.distributed as dist
@@ -184,7 +184,7 @@ class TextDataset(Dataset):
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         padding_to_max_length: bool = False,
-        split: Split = Split.ANY,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"]= Split.ANY,
         **kwargs_load_data,
     ) -> None:
         """
@@ -194,6 +194,8 @@ class TextDataset(Dataset):
         padding_to_max_length: bool = False, 是否padding到整个数据集的最大长度(*此处数据集指的是truncated后的), 即actual_max_length_input. 设置为True时可以用于测试是否能跑完整个数据集而不会OOV.
         """
         super().__init__()
+        if not isinstance(split, Split):
+            split = Split[split]
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
@@ -446,7 +448,7 @@ class TextDataset(Dataset):
         cls,
         data_file_path: Path | str,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
-        split: Split,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"],
         configs: NLPTrainingConfig,
         load_data_fn: Callable[
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
@@ -455,6 +457,8 @@ class TextDataset(Dataset):
         use_cache: bool | None = None,
         **kwargs_load_data,
     ) -> Self:
+        if not isinstance(split, Split):
+            split = Split[split]
         """Load dataset from file with the given `NLPTrainingConfig`."""
         if data_file_path is None:
             logger.warning(f"⚠️  Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")

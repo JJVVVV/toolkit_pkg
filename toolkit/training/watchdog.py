@@ -6,7 +6,7 @@ from functools import reduce
 from heapq import nlargest
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 import torch.distributed as dist
 from transformers import PreTrainedTokenizer
@@ -122,8 +122,10 @@ class WatchDog:
             file_logger.debug(f"WatchDog: {self.optimal_val_metricdict[self.metric_for_compare]} {self.counter}/{self.patience}")
 
     @staticmethod
-    def report(metricdict: MetricDict, split: Split, file_logger: Logger | None = None):
+    def report(metricdict: MetricDict, split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"], file_logger: Logger | None = None):
         "Report a metric dictionary."
+        if not isinstance(split, Split):
+            split = Split[split]
         if file_logger is not None:
             logger = file_logger
         else:
