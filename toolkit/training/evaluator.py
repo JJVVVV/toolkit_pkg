@@ -74,7 +74,12 @@ class Evaluator:
                         custom_inputs = batch.pop("custom_inputs", dict())
                         if self.config.gpu:
                             batch = {key: value.cuda() for key, value in batch.items()}
-                        outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
+                        if (
+                            "generation_config" in self.extral_args_evaluation
+                        ):  # 支持使用hugging face的GenerationConfig, 防止config.generation中的参数覆盖hf GenerationConfig中的参数
+                            outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation)
+                        else:
+                            outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
                         if self.config.cut_input_from_output:
                             texts = []
                             for idx, output in enumerate(outputs):
