@@ -80,6 +80,7 @@ class NLPTrainingConfig(TrainConfig):
         repetition_penalty: float = 1.0,
         length_penalty: float = 1.0,
         generation_config_file: Path | str | None = None,
+        # hf_gen_config_file: Path | str | None = None,
         padding_side: str = "right",
         model_structure: str | None = None,
         task_type: str | None = None,
