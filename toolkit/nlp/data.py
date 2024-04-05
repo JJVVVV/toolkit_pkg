@@ -184,7 +184,7 @@ class TextDataset(Dataset):
         max_length_input: int | None = None,
         max_length_label: int | None = None,
         padding_to_max_length: bool = False,
-        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"]= Split.ANY,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"] = Split.ANY,
         **kwargs_load_data,
     ) -> None:
         """
@@ -292,8 +292,10 @@ class TextDataset(Dataset):
             new_labels = []
             for inputs, labels in zip(self.batch_model_input, self.tokens_labels):
                 inputs_len = len(inputs["input_ids"])
-                for key in inputs.keys():
-                    inputs[key] = (inputs[key] + labels)[:max_length]
+                inputs["input_ids"] = (inputs["input_ids"] + labels)[:max_length]
+                inputs["attention_mask"] = (inputs["attention_mask"] + [1] * len(labels))[:max_length]
+                # for key in inputs.keys():
+                #     inputs[key] = (inputs[key] + labels)[:max_length]
                 new_labels.append(([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length])
             self.tokens_labels = new_labels
 
@@ -337,8 +339,8 @@ class TextDataset(Dataset):
             nonlocal max_length
             if not isinstance(l[0], List):
                 diff = max_length - len(l)
-                # 生成任务时，labels的pad应该始终在右边
-                if inputkey == "labels" or self.padding_side == "right":
+                # 生成任务时，如果模型结构是encoder-decoder, 则labels的pad应该始终在右边
+                if (inputkey == "labels" and self.model_structure == "encoder-decoder") or self.padding_side == "right":
                     return l + [self.inputkey2padid[inputkey]] * diff
                 else:
                     return [self.inputkey2padid[inputkey]] * diff + l
