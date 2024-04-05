@@ -415,7 +415,7 @@ class Trainer:
                     info = OrderedDict()
                     # info["loss"] = f"{accumulate_loss:.3f}"
                     info["loss"] = f"{[round(l, 3) for l in loss_display.tolist()]}"
-                    # logger.error(f"local_rank: {self.local_rank}, loss: {info["loss"]}")
+                    # logger.error(f"local_rank: {self.local_rank}, loss: {info['loss']}, step: {curStepInGlobal}")
                     if self.config.show_lr:
                         info["lr"] = f"{lr:.2e}"
                     if self.config.show_step:
