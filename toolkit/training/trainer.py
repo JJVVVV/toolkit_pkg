@@ -378,7 +378,7 @@ class Trainer:
                         loss_display += outputs["loss_display"] / self.config.gradient_accumulation_steps
                     else:
                         loss_display += loss
-                    loss_display = loss_display.view(-1)
+                loss_display = loss_display.view(-1)
 
                 # call step()
                 if self.config.parallel_mode == "deepspeed":
@@ -415,6 +415,7 @@ class Trainer:
                     info = OrderedDict()
                     # info["loss"] = f"{accumulate_loss:.3f}"
                     info["loss"] = f"{[round(l, 3) for l in loss_display.tolist()]}"
+                    # logger.error(f"local_rank: {self.local_rank}, loss: {info["loss"]}")
                     if self.config.show_lr:
                         info["lr"] = f"{lr:.2e}"
                     if self.config.show_step:
