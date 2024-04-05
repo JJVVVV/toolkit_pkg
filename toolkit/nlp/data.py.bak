@@ -179,6 +179,11 @@ class TextDataset(Dataset):
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID] | List[str]],
         ],
+        padding_side: str = "right",
+        max_length: int | None = None,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
+        padding_to_max_length: bool = False,
         split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"] = Split.ANY,
         **kwargs_load_data,
     ) -> None:
@@ -198,8 +203,18 @@ class TextDataset(Dataset):
         self.model_structure = model_structure
         assert task_type in ("generate", "classify", "regress"), f"`task_type` invalid value: {task_type}"
         self.task_type = task_type
-        # self.padding_to_max_length = padding_to_max_length
+        # 对于decoder结构generate任务, 应该只通过`max_length`来控制裁切长度
+        if self.task_type == "generate" and self.model_structure == "decoder":
+            assert max_length_input is None and max_length_label is None, (
+                "You should use `max_length` to control total truncation length instead of "
+                f"using `max_length_input: {max_length_input}` and `max_length_label: {max_length_label}` to control the length of the input and label respectively."
+            )
+        max_length_input = tokenizer.model_max_length if max_length_input is None else max_length_input
+        max_length_label = tokenizer.model_max_length if max_length_label is None else max_length_label
+        max_length = tokenizer.model_max_length if max_length is None else max_length
+        self.padding_to_max_length = padding_to_max_length
         self.split = split
+        # self.tokenizer = tokenizer
         self.inputkey2padid = {
             "input_ids": tokenizer.pad_token_id,
             "token_type_ids": tokenizer.pad_token_type_id,
@@ -209,6 +224,8 @@ class TextDataset(Dataset):
         }
 
         # get input and label texts
+        assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is not understood, only `left` and `right` are valid values"
+        self.padding_side = padding_side
         self.texts_input, self.texts_label, *custom_args = load_data_fn(
             data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
@@ -221,47 +238,46 @@ class TextDataset(Dataset):
                 self.dicts_custom_inputs: List[Dict] = dicts_custom_inputs
 
         # tokenize input texts
+        tokenizer.padding_side = padding_side
         if isinstance(self.texts_input[0], PairedText):  # if the input type is `PairedText`
-            self.batch_model_input, self.dataset_max_length_input = self.transformers_tokenizer_tqdm(
-                tokenizer, self.texts_input, desc=f"Tokenize {split.name} input texts", is_label=False
+            self.batch_model_input, self.actual_max_length_input = self.transformers_tokenizer_tqdm(
+                tokenizer, self.texts_input, max_length_input, desc=f"Tokenize {split.name} input texts", is_label=False
             )
         elif isinstance(self.texts_input[0], FinelyControlledText):  # if the input type is `FinelyControlledText`
-            self.batch_model_input = self.__tokenize(
-                self.texts_input, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} input texts"
-            )
+            self.batch_model_input = self.__tokenize(self.texts_input, tokenizer, max_length_input, desc=f"Tokenize {split.name} input texts")
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
 
         # tokenize label texts
-        self.truncate_pad_label = False
+        self.padding_label = False
         tokenizer.padding_side = "right"
         if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
-            self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer_tqdm(
-                tokenizer, self.texts_label, desc=f"Tokenize {split.name} label texts", is_label=True
+            self.tokens_labels, self.actual_max_length_label = self.transformers_tokenizer_tqdm(
+                tokenizer, self.texts_label, max_length_label, desc=f"Tokenize {split.name} label texts", is_label=True
             )
             # self.tokens_labels = self.tokens_labels["input_ids"]
-            self.truncate_pad_label = True
+            self.padding_label = True
         elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
-            self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} label texts")[
+            self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, max_length_label, desc=f"Tokenize {split.name} label texts")[
                 "input_ids"
             ]
-            self.truncate_pad_label = True
+            self.padding_label = True
 
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], str)) or isinstance(
             self.texts_label[0], str
         ):  # if the label type is `List[str]` or `str`
             self.tokens_labels = self.texts_label
-            self.dataset_max_length_label = -1
+            self.actual_max_length_label = -1
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], int)) or isinstance(
             self.texts_label[0], ClassificationLabel
         ):  # if the label type is `ClassificationID`, i.e. `List[int]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.long)
-            self.dataset_max_length_label = self.tokens_labels.shape[-1]
+            self.actual_max_length_label = self.tokens_labels.shape[-1]
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], float)) or isinstance(
             self.texts_label[0], RegressionLabel
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
-            self.dataset_max_length_label = self.tokens_labels.shape[-1]
+            self.actual_max_length_label = self.tokens_labels.shape[-1]
         else:
             raise ValueError(
                 (
@@ -270,6 +286,18 @@ class TextDataset(Dataset):
                     "if the label is regression value, ti must be `RegressionValue (List[float])`",
                 )
             )
+
+        # 对于"decoder"的"generate"任务, 训练时需要对input和label进一步处理
+        if self.split == Split.TRAINING and self.task_type == "generate" and self.model_structure == "decoder":
+            new_labels = []
+            for inputs, labels in zip(self.batch_model_input, self.tokens_labels):
+                inputs_len = len(inputs["input_ids"])
+                inputs["input_ids"] = (inputs["input_ids"] + labels)[:max_length]
+                inputs["attention_mask"] = (inputs["attention_mask"] + [1] * len(labels))[:max_length]
+                # for key in inputs.keys():
+                #     inputs[key] = (inputs[key] + labels)[:max_length]
+                new_labels.append(([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length])
+            self.tokens_labels = new_labels
 
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
@@ -286,60 +314,25 @@ class TextDataset(Dataset):
     def report(self):
         "Log some information of dataset."
         logger.info(f"Total data: {len(self)}")
-        logger.info(f"Max length of input: {self.dataset_max_length_input}")
-        logger.info(f"Max length of label: {self.dataset_max_length_label}")
+        logger.info(f"Max length of input: {self.actual_max_length_input}")
+        logger.info(f"Max length of label: {self.actual_max_length_label}")
 
-    def __truncate(
-        self, model_max_length: int, max_length: int | None = None, max_length_input: int | None = None, max_length_label: int | None = None
-    ) -> int:
-        cnt = 0
-        max_length_input_after_trunc = 0
-        max_length_label_after_trunc = 0
-        # 对于decoder结构generate任务, 应该只通过`max_length`来控制裁切长度
-        if self.task_type == "generate" and self.model_structure == "decoder":
-            assert max_length_input is None and max_length_label is None, (
-                "You should use `max_length` to control total truncation length instead of "
-                f"using `max_length_input: {max_length_input}` and `max_length_label: {max_length_label}` to control the length of the input and label respectively."
+    @staticmethod
+    def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
+        lengths = [len(value_part) for value_part in model_input_splited["input_ids"]]
+        lengths_waiting_to_trunc = [lengths[i] for i in waiting_to_trunc_idxs]
+        if (all_tokens := sum(lengths_waiting_to_trunc)) < num_tokens_to_remove:
+            raise ValueError(
+                f"The number of tokens need to be truncated is greater than the total number of tokens: {num_tokens_to_remove}>{all_tokens}"
             )
-            max_length = max_length or model_max_length
-            # 对于"decoder"的"generate"任务, 训练时需要对input和label进一步处理
-            if self.split == Split.TRAINING:
-                for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
-                    inputs_len = len(inputs["input_ids"])
-                    inputs["input_ids"] = inputs["input_ids"] + labels
-                    if len(inputs["input_ids"]) > max_length:
-                        cnt += 1
-                    inputs["input_ids"] = inputs["input_ids"][:max_length]
-                    inputs["attention_mask"] = (inputs["attention_mask"] + [1] * len(labels))[:max_length]
-                    self.tokens_labels[idx] = ([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length]
-                    max_length_input_after_trunc = max_length_label_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
-            else:
-                for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
-                    if len(inputs["input_ids"]) > max_length:
-                        cnt += 1
-                    for key in inputs.keys():
-                        inputs[key] = inputs[key][:max_length]
-                    if self.truncate_pad_label:
-                        labels = labels[:max_length]
-                        self.tokens_labels[idx] = labels
-                    max_length_input_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
-                    if self.truncate_pad_label:
-                        max_length_label_after_trunc = max(max_length_label_after_trunc, len(labels))
-        else:
-            max_length_input = max_length_input or model_max_length
-            max_length_label = max_length_label or model_max_length
-            for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
-                if len(inputs["input_ids"]) > max_length_input:
-                    cnt += 1
-                for key in inputs.keys():
-                    inputs[key] = inputs[key][:max_length_input]
-                if self.truncate_pad_label:
-                    labels = labels[:max_length_label]
-                    self.tokens_labels[idx] = labels
-                max_length_input_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
-                if self.truncate_pad_label:
-                    max_length_label_after_trunc = max(max_length_label_after_trunc, len(labels))
-        return cnt, max_length_input_after_trunc, max_length_label_after_trunc or self.dataset_max_length_label
+        for _ in range(num_tokens_to_remove):
+            index_max = lengths_waiting_to_trunc.index(max(lengths_waiting_to_trunc))
+            lengths_waiting_to_trunc[index_max] -= 1
+        for i, j in zip(waiting_to_trunc_idxs, range(len(lengths_waiting_to_trunc))):
+            lengths[i] = lengths_waiting_to_trunc[j]
+        for value in model_input_splited.values():
+            for i in waiting_to_trunc_idxs:
+                value[i] = value[i][: lengths[i]]
 
     def __pad_one(self, model_input: ModelInput, max_length: int):
         def helper(l: List, inputkey: str):
@@ -367,9 +360,43 @@ class TextDataset(Dataset):
                 max_length = max_len_nest_list([sample["labels"] for sample in batch])
         return [self.__pad_one(model_input, max_length) for model_input in batch]
 
+    @classmethod
+    def __tokenize(
+        cls, finely_controlled_text_list: List[FinelyControlledText], tokenizer: PreTrainedTokenizer, max_length: int, desc: str, **kargs
+    ) -> BatchModelInput:
+        # TODO: 新版本的data.py暂未适配 self.__tokenize
+        raise NotImplemented
+        # TODO: bug: token_type_ids全为0
+        # TODO: bug: 对于可接受无限长输入的模型, 因为其没有 max length, 因此无法pad
+        if max_length == INFINITE:
+            raise NotImplementedError("TODO")
+
+        if "token_type_ids" in tokenizer.model_input_names:
+            logger.warning(f" model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
+        tokenized_dict = defaultdict(list)
+        waiting_to_trunc_idxs = [idx for idx in range(len(finely_controlled_text_list[0])) if finely_controlled_text_list[0][idx][0]]
+        for finely_controlled_text in tqdm(finely_controlled_text_list, desc=desc, colour="RED", smoothing=0.99):
+            # text: FinelyControlledText = tuple[tuple[bool, str], ...]
+            cur_dict: ModelInputSplited = defaultdict(list)
+            origin_length = 0
+            for _, part_text in finely_controlled_text:
+                cur_dict_ = tokenizer(text=part_text, padding=False, truncation=False, max_length=None, add_special_tokens=False, **kargs)
+                origin_length += len(cur_dict_["input_ids"])
+                for key, value in cur_dict_.items():
+                    cur_dict[key].append(value)
+            num_tokens_to_remove = (origin_length - max_length) if max_length != INFINITE else 0
+            if num_tokens_to_remove > 0:
+                cls.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
+            cur_dict: ModelInput = {key: sum(value, []) for key, value in cur_dict.items()}
+            # tokenizer.pad(cur_dict, padding="max_length", max_length=model_max_length)
+            cls.__pad_one(cur_dict, tokenizer, max_length)
+            for key, value in cur_dict.items():
+                tokenized_dict[key].append(value)
+        return tokenized_dict
+
     # @staticmethod
     def transformers_tokenizer_tqdm(
-        self, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], desc: str, is_label: bool
+        self, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], max_length: int, desc: str, is_label: bool
     ) -> Tuple[List[ModelInput], int]:
         """此函数同时完成truncation操作"""
         # print(text_pairs)
@@ -380,8 +407,8 @@ class TextDataset(Dataset):
                 text=text1,
                 text_pair=text2,
                 padding=False,
-                truncation=False,
-                max_length=None,
+                truncation="longest_first" if max_length != INFINITE else False,
+                max_length=max_length if max_length != INFINITE else None,
                 add_special_tokens=not (is_label and self.model_structure == "decoder"),
                 return_attention_mask=not is_label,
             )
@@ -398,13 +425,13 @@ class TextDataset(Dataset):
 
     def collate_fn(self, batch: list[dict]):
         batch_model_inputs = self.__pad_batch(
-            [item.pop("model_inputs") for item in batch], self.max_length_input_after_trunc if self.padding_to_max_length else None
+            [item.pop("model_inputs") for item in batch], self.actual_max_length_input if self.padding_to_max_length else None
         )
         # import pdb; pdb.set_trace()
         ret: dict = default_collate(batch_model_inputs)
-        if self.truncate_pad_label:
+        if self.padding_label:
             batch_labels = self.__pad_batch(
-                [{"labels": item.pop("labels")} for item in batch], self.max_length_label_after_trunc if self.padding_to_max_length else None
+                [{"labels": item.pop("labels")} for item in batch], self.actual_max_length_label if self.padding_to_max_length else None
             )
             ret.update(default_collate(batch_labels))
         ret.update(default_collate(batch))
@@ -463,6 +490,11 @@ class TextDataset(Dataset):
                 load_data_fn=load_data_fn,
                 model_structure=configs.model_structure,
                 task_type=configs.task_type,
+                padding_side=configs.padding_side,
+                max_length=configs.max_length,
+                max_length_input=configs.max_length_input,
+                max_length_label=configs.max_length_label,
+                padding_to_max_length=configs.padding_to_max_length,
                 split=split,
                 **kwargs_load_data,
             )
@@ -474,26 +506,8 @@ class TextDataset(Dataset):
             logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
             cls.report(dataset)
 
-        # truncate dataset
-        cnt, max_length_input_after_trunc, max_length_label_after_trunc = dataset.__truncate(
-            tokenizer.model_max_length, configs.max_length, configs.max_length_input, configs.max_length_label
-        )
-        if local_rank == 0:
-            logger.debug(
-                f"✂️  Truncating {split.name} data: cnt={cnt}, input_len={max_length_input_after_trunc}, labe_len={max_length_label_after_trunc}"
-            )
-        dataset.max_length_input_after_trunc = max_length_input_after_trunc
-        dataset.max_length_label_after_trunc = max_length_label_after_trunc
-
-        # config padding settings
-        assert configs.padding_side in (
-            "left",
-            "right",
-        ), f"`padding_side={configs.padding_side}` is not understood, only `left` and `right` are valid values"
-        # tokenizer.padding_side = configs.padding_side
-        dataset.padding_side = configs.padding_side
+        # 确保无论是从cache加载或是重新初始化, 下面这些参数的值始终是configs中设置的值
         dataset.padding_to_max_length = configs.padding_to_max_length
-
         return dataset
 
     @staticmethod
@@ -576,54 +590,3 @@ class TextDataset(Dataset):
         finally:
             f.close()
         return dataset
-
-    # @staticmethod
-    # def __truncate(model_input_splited: ModelInputSplited, waiting_to_trunc_idxs: list[int], num_tokens_to_remove: int) -> None:
-    #     lengths = [len(value_part) for value_part in model_input_splited["input_ids"]]
-    #     lengths_waiting_to_trunc = [lengths[i] for i in waiting_to_trunc_idxs]
-    #     if (all_tokens := sum(lengths_waiting_to_trunc)) < num_tokens_to_remove:
-    #         raise ValueError(
-    #             f"The number of tokens need to be truncated is greater than the total number of tokens: {num_tokens_to_remove}>{all_tokens}"
-    #         )
-    #     for _ in range(num_tokens_to_remove):
-    #         index_max = lengths_waiting_to_trunc.index(max(lengths_waiting_to_trunc))
-    #         lengths_waiting_to_trunc[index_max] -= 1
-    #     for i, j in zip(waiting_to_trunc_idxs, range(len(lengths_waiting_to_trunc))):
-    #         lengths[i] = lengths_waiting_to_trunc[j]
-    #     for value in model_input_splited.values():
-    #         for i in waiting_to_trunc_idxs:
-    #             value[i] = value[i][: lengths[i]]
-
-    # @classmethod
-    # def __tokenize(
-    #     cls, finely_controlled_text_list: List[FinelyControlledText], tokenizer: PreTrainedTokenizer, max_length: int, desc: str, **kargs
-    # ) -> BatchModelInput:
-    #     # TODO: 新版本的data.py暂未适配 self.__tokenize
-    #     raise NotImplemented
-    #     # TODO: bug: token_type_ids全为0
-    #     # TODO: bug: 对于可接受无限长输入的模型, 因为其没有 max length, 因此无法pad
-    #     if max_length == INFINITE:
-    #         raise NotImplementedError("TODO")
-
-    #     if "token_type_ids" in tokenizer.model_input_names:
-    #         logger.warning(f" model input include 'token_type_ids'. There is a bug causing all the token_type_ids to be `0`")
-    #     tokenized_dict = defaultdict(list)
-    #     waiting_to_trunc_idxs = [idx for idx in range(len(finely_controlled_text_list[0])) if finely_controlled_text_list[0][idx][0]]
-    #     for finely_controlled_text in tqdm(finely_controlled_text_list, desc=desc, colour="RED", smoothing=0.99):
-    #         # text: FinelyControlledText = tuple[tuple[bool, str], ...]
-    #         cur_dict: ModelInputSplited = defaultdict(list)
-    #         origin_length = 0
-    #         for _, part_text in finely_controlled_text:
-    #             cur_dict_ = tokenizer(text=part_text, padding=False, truncation=False, max_length=None, add_special_tokens=False, **kargs)
-    #             origin_length += len(cur_dict_["input_ids"])
-    #             for key, value in cur_dict_.items():
-    #                 cur_dict[key].append(value)
-    #         num_tokens_to_remove = (origin_length - max_length) if max_length != INFINITE else 0
-    #         if num_tokens_to_remove > 0:
-    #             cls.__truncate(cur_dict, waiting_to_trunc_idxs, num_tokens_to_remove)
-    #         cur_dict: ModelInput = {key: sum(value, []) for key, value in cur_dict.items()}
-    #         # tokenizer.pad(cur_dict, padding="max_length", max_length=model_max_length)
-    #         cls.__pad_one(cur_dict, tokenizer, max_length)
-    #         for key, value in cur_dict.items():
-    #             tokenized_dict[key].append(value)
-    #     return tokenized_dict
