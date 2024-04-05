@@ -182,12 +182,6 @@ class TextDataset(Dataset):
         split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"] = Split.ANY,
         **kwargs_load_data,
     ) -> None:
-        """
-        max_length: int | None = None, 限制整体最大长度, 该参数对于encoder结构的generate任务尤为有用.
-        max_length_input: int | None = None, 限制输入的最大长度, 用于truncate.
-        max_length_label: int | None = None, 限制标签的最大长度, 用于truncate.
-        padding_to_max_length: bool = False, 是否padding到整个数据集的最大长度(*此处数据集指的是truncated后的), 即actual_max_length_input. 设置为True时可以用于测试是否能跑完整个数据集而不会OOV.
-        """
         super().__init__()
         if not isinstance(split, Split):
             split = Split[split]
