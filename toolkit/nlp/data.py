@@ -425,7 +425,7 @@ class TextDataset(Dataset):
         ],
         use_cache: bool | None = None,
         **kwargs_load_data,
-    ) -> Self:
+    ) -> Self | None:
         if not isinstance(split, Split):
             split = Split[split]
         """Load dataset from file with the given `NLPTrainingConfig`."""

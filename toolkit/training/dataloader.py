@@ -30,7 +30,7 @@ def get_dataloader(
 ) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
     """Getting the dataloader when using multiple GPUs, which is also compatible with a single GPU"""
     if not isinstance(split, Split):
-            split = Split[split]
+        split = Split[split]
     local_rank = dist.get_rank() if dist.is_initialized() else 0
     world_size = dist.get_world_size() if dist.is_initialized() else 1
 
@@ -69,12 +69,7 @@ def get_dataloader(
         # todo 当前做法是丢弃最后的 tail, 如过不丢弃, 应该为 `if local_rank == 0 or configs.parallel_mode == "deepspeed":`
         if local_rank == 0 and configs.parallel_mode != "deepspeed":
             dataset_tail = Subset(dataset, range(len(dataloader.sampler) * world_size, len(dataset)))
-            dataloader_tail = DataLoader(
-                dataset=dataset_tail,
-                batch_size=configs.infer_batch_size // world_size // configs.gradient_accumulation_steps,
-                shuffle=False,
-                **dataloader_kwargs,
-            )
+            dataloader_tail = DataLoader(dataset=dataset_tail, batch_size=configs.infer_batch_size // world_size, shuffle=False, **dataloader_kwargs)
             logger.debug(f"Tail batch num: {len(dataloader_tail)}")
             dataloader = DataLoader(
                 list(itertools.chain(dataloader, dataloader_tail)), batch_size=None, batch_sampler=None, shuffle=False, pin_memory=True
