@@ -481,7 +481,7 @@ class TextDataset(Dataset):
         )
         if local_rank == 0:
             toolkit_logger.info(
-                f"✂️  Truncating {split.name} data: cnt={cnt}, input_len={max_length_input_after_trunc}, labe_len={max_length_label_after_trunc}"
+                f"✂️  Truncating {split.name} data: cnt={cnt}, input_len={max_length_input_after_trunc}, label_len={max_length_label_after_trunc}"
             )
         dataset.max_length_input_after_trunc = max_length_input_after_trunc
         dataset.max_length_label_after_trunc = max_length_label_after_trunc
