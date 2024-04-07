@@ -15,11 +15,15 @@ from torch.utils.data import Dataset, default_collate
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
+from .. import toolkit_logger
+
 # from ..utils.misc import get_data_types
 from ..enums import Split
-from ..logger import _getLogger
+from ..logger import _getLogger, getLogger
 from ..utils.misc import max_len_nest_list
 from .config import NLPTrainingConfig
+
+# from .. import file_logger_path
 
 Tokens = List[int]
 BatchTokens = List[Tokens]
@@ -31,6 +35,7 @@ ClassificationID = List[int]
 INFINITE = 1000000000000000019884624838656
 CACHE_DIR = "./.cache/dataset/"
 logger = _getLogger("TextDataset")
+# logger = getLogger("TextDataset", file_logger_path)
 
 
 class PairedText:
@@ -279,9 +284,9 @@ class TextDataset(Dataset):
 
     def report(self):
         "Log some information of dataset."
-        logger.info(f"Total data: {len(self)}")
-        logger.info(f"Max length of input: {self.dataset_max_length_input}")
-        logger.info(f"Max length of label: {self.dataset_max_length_label}")
+        toolkit_logger.info(f"Total {self.split.name} data: {len(self)}")
+        toolkit_logger.info(f"Max length of input: {self.dataset_max_length_input}")
+        toolkit_logger.info(f"Max length of label: {self.dataset_max_length_label}")
 
     def __truncate(
         self, model_max_length: int, max_length: int | None = None, max_length_input: int | None = None, max_length_label: int | None = None
@@ -426,19 +431,21 @@ class TextDataset(Dataset):
         use_cache: bool | None = None,
         **kwargs_load_data,
     ) -> Self | None:
+        """Load dataset from file with the given `NLPTrainingConfig`."""
         if not isinstance(split, Split):
             split = Split[split]
-        """Load dataset from file with the given `NLPTrainingConfig`."""
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+
         if data_file_path is None:
-            logger.warning(f"⚠️  Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
+            if local_rank == 0:
+                logger.warning(f"⚠️  Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
             return None
             # raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
         if isinstance(data_file_path, str):
             data_file_path = Path(data_file_path)
         if isinstance(data_file_path, Path) and not data_file_path.exists():
-            raise FileNotFoundError(f"❌ Fail to load test data. {data_file_path} does not exists.")
-
-        local_rank = dist.get_rank() if dist.is_initialized() else 0
+            if local_rank == 0:
+                raise FileNotFoundError(f"❌ Fail to load test data. {data_file_path} does not exists.")
 
         start = time.time()
         if local_rank == 0:
@@ -473,7 +480,7 @@ class TextDataset(Dataset):
             tokenizer.model_max_length, configs.max_length, configs.max_length_input, configs.max_length_label
         )
         if local_rank == 0:
-            logger.debug(
+            toolkit_logger.info(
                 f"✂️  Truncating {split.name} data: cnt={cnt}, input_len={max_length_input_after_trunc}, labe_len={max_length_label_after_trunc}"
             )
         dataset.max_length_input_after_trunc = max_length_input_after_trunc

@@ -36,20 +36,22 @@ def _getLogger(name: str) -> logging.Logger:
     return logger
 
 
-def getFileHandler(file_path: Path|str, level=logging.INFO):
+def getFileHandler(file_path: Path | str, level=logging.INFO):
     # 添加handler
     log_format = "%(asctime)s%(log_color)s <%(levelname)s> %(name)s: %(message)s"
     # "DEBUG": "white",
     log_colors = {"INFO": "green", "WARNING": "yellow", "ERROR": "red", "CRITICAL": "red,bg_white"}
     formatter = colorlog.ColoredFormatter(log_format, log_colors=log_colors)
-    file_handler = logging.FileHandler(file_path, mode='w')
+    file_handler = logging.FileHandler(file_path, mode="w")
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
     return file_handler
 
-def getLogger(name: str, file_path: Path | str) -> logging.Logger:
+
+def getLogger(name: str, file_path: Path | str | None) -> logging.Logger:
     logger = _getLogger(name)
-    file_handler = getFileHandler(file_path)
-    logger.addHandler(file_handler)
+    if file_path is not None:
+        file_handler = getFileHandler(file_path)
+        logger.addHandler(file_handler)
 
     return logger
