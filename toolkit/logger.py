@@ -42,7 +42,7 @@ def getFileHandler(file_path: Path | str, level=logging.INFO):
     # "DEBUG": "white",
     log_colors = {"INFO": "green", "WARNING": "yellow", "ERROR": "red", "CRITICAL": "red,bg_white"}
     formatter = colorlog.ColoredFormatter(log_format, log_colors=log_colors)
-    file_handler = logging.FileHandler(file_path, mode="w")
+    file_handler = logging.FileHandler(file_path, mode="a")
     file_handler.setLevel(level)
     file_handler.setFormatter(formatter)
     return file_handler

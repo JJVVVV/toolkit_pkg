@@ -288,9 +288,15 @@ class TextDataset(Dataset):
         toolkit_logger.info(f"Max length of input: {self.dataset_max_length_input}")
         toolkit_logger.info(f"Max length of label: {self.dataset_max_length_label}")
 
+    def __truncate_one(self, l: list[int] | list[list], max_length: int):
+        if not isinstance(l[0], list):
+            return l[:max_length]
+        return [self.__truncate_one(item, max_length) for item in l]
+
     def __truncate(
         self, model_max_length: int, max_length: int | None = None, max_length_input: int | None = None, max_length_label: int | None = None
     ) -> int:
+        "bug!!! 当decoder的generate任务时, inputs['input_ids']: list[list[int]]时无法裁切"
         cnt = 0
         max_length_input_after_trunc = 0
         max_length_label_after_trunc = 0
@@ -314,30 +320,34 @@ class TextDataset(Dataset):
                     max_length_input_after_trunc = max_length_label_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
             else:
                 for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
-                    if len(inputs["input_ids"]) > max_length:
+                    if max_len_nest_list(inputs["input_ids"]) > max_length:
                         cnt += 1
                     for key in inputs.keys():
-                        inputs[key] = inputs[key][:max_length]
+                        # inputs[key] = inputs[key][:max_length]
+                        inputs[key] = self.__truncate_one(inputs[key], max_length)
                     if self.truncate_pad_label:
-                        labels = labels[:max_length]
+                        # labels = labels[:max_length]
+                        labels = self.__truncate_one(labels, max_length)
                         self.tokens_labels[idx] = labels
-                    max_length_input_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
+                    max_length_input_after_trunc = max(max_length_input_after_trunc, max_len_nest_list(inputs["input_ids"]))
                     if self.truncate_pad_label:
-                        max_length_label_after_trunc = max(max_length_label_after_trunc, len(labels))
+                        max_length_label_after_trunc = max(max_length_label_after_trunc, max_len_nest_list(labels))
         else:
             max_length_input = max_length_input or model_max_length
             max_length_label = max_length_label or model_max_length
             for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
-                if len(inputs["input_ids"]) > max_length_input:
+                if max_len_nest_list(inputs["input_ids"]) > max_length_input:
                     cnt += 1
                 for key in inputs.keys():
-                    inputs[key] = inputs[key][:max_length_input]
+                    # inputs[key] = inputs[key][:max_length_input]
+                    inputs[key] = self.__truncate_one(inputs[key], max_length_input)
                 if self.truncate_pad_label:
-                    labels = labels[:max_length_label]
+                    # labels = labels[:max_length_label]
+                    labels = self.__truncate_one(labels, max_length_label)
                     self.tokens_labels[idx] = labels
-                max_length_input_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
+                max_length_input_after_trunc = max(max_length_input_after_trunc, max_len_nest_list(inputs["input_ids"]))
                 if self.truncate_pad_label:
-                    max_length_label_after_trunc = max(max_length_label_after_trunc, len(labels))
+                    max_length_label_after_trunc = max(max_length_label_after_trunc, max_len_nest_list(labels))
         return cnt, max_length_input_after_trunc, max_length_label_after_trunc or self.dataset_max_length_label
 
     def __pad_one(self, model_input: ModelInput, max_length: int):
