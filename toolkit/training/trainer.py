@@ -128,14 +128,14 @@ class Trainer:
         if isinstance(optimizer, str):
             assert (
                 optimizer in map_str2optmClass
-            ), f"Only following optimizer can be mapped to the corresponding optimizer class: {list(map_str2optmClass.keys())}, bug got `{optimizer}`"
+            ), f"Only following optimizer can be mapped to the corresponding optimizer class: {list(map_str2optmClass.keys())}, but got `{optimizer}`"
             self.optimizer = map_str2optmClass[optimizer]
         else:
             self.optimizer = optimizer
         if isinstance(scheduler, str):
             assert (
                 scheduler in map_str2getScheFn
-            ), f"Only following scheduler can be mapped to the corresponding function that return a scheduler: {list(map_str2getScheFn.keys())}, bug got `{scheduler}`"
+            ), f"Only following scheduler can be mapped to the corresponding function that return a scheduler: {list(map_str2getScheFn.keys())}, but got `{scheduler}`"
         self.scheduler = scheduler
         self.scaler = GradScaler() if config.fp16 and config.parallel_mode != "deepspeed" else None
         self.ckpt_manager = CheckpointManager(config.save_dir)
