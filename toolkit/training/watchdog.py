@@ -184,7 +184,7 @@ class WatchDog:
             if self.local_rank == 0:
                 model.module.save_pretrained(output_dir, is_main_process=(self.local_rank == 0), state_dict=state_dict, max_shard_size="10GB")
                 model.module.config.save_pretrained(output_dir, is_main_process=(self.local_rank == 0))
-                # 奇怪的bug，会多存一个没有用的 "pytorch_model.bin"
+                # 此行代码解决一个奇怪的bug，该bug导致会多存一个没有用的 "pytorch_model.bin"
                 if (output_dir / "pytorch_model.bin.index.json").exists() and (dummy_fie := (output_dir / "pytorch_model.bin")).exists():
                     dummy_fie.unlink()
         else:

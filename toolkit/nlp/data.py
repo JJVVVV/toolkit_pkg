@@ -98,8 +98,8 @@ class RegressionLabel(list):
         super().__init__(values)
 
 
-# bug: 缓存数据集存在问题, 当前版本直接在tokenize数据集时进行了truncation操作, 导致缓存的数据集是truncated后的
-# 解决方案1: 将truncation操作分离出来, 每次加载数据集时在进行truncation
+# bug(已解决, 使用方案1): 缓存数据集存在问题, 当前版本直接在tokenize数据集时进行了truncation操作, 导致缓存的数据集是truncated后的
+# 解决方案1: 将truncation操作分离出来, 每次加载数据集时在进行truncation 
 # 解放方案2: 将max_length, max_length_input, max_length_label加入到缓存路径中, 来区分不同的长度的缓存
 class TextDataset(Dataset):
     """
@@ -296,7 +296,7 @@ class TextDataset(Dataset):
     def __truncate(
         self, model_max_length: int, max_length: int | None = None, max_length_input: int | None = None, max_length_label: int | None = None
     ) -> int:
-        "bug!!! 当decoder的generate任务时, inputs['input_ids']: list[list[int]]时无法裁切"
+        "bug!!! 当decoder的generate任务时, 训练集中的inputs['input_ids']: list[list[int]]时无法裁切"
         cnt = 0
         max_length_input_after_trunc = 0
         max_length_label_after_trunc = 0
