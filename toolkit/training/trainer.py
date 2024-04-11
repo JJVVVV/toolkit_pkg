@@ -50,6 +50,7 @@ except:
     WandbWriter = object
 
 map_str2optmClass = {"AdamW": AdamW, "RMSprop": RMSprop}
+map_dsSchType2scheFN = {"WarmupLR": "linearWarmup"}
 map_str2getScheFn = {
     "linearWarmup": get_constant_schedule_with_warmup,
     "linearWarmupDecay": get_linear_schedule_with_warmup,
@@ -132,6 +133,9 @@ class Trainer:
             self.optimizer = map_str2optmClass[optimizer]
         else:
             self.optimizer = optimizer
+        # 使用deepspeed时忽略该参数, 因为当前只支持使用deepspeed提供的scheduler
+        if config.parallel_mode == "deepspeed":
+            scheduler = None
         if isinstance(scheduler, str):
             assert (
                 scheduler in map_str2getScheFn
