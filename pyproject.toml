@@ -31,6 +31,7 @@ dependencies = [
     "nltk>=3.8.1",
     "torchmetrics>=1.2.0",
     "matplotlib>=3.7.1",
+    "scikit-learn>=1.2.2"
     "deepspeed",
     'importlib-metadata; python_version>="3.11.2"',
 ]
