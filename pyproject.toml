@@ -28,9 +28,12 @@ dependencies = [
     "tensorboard>=2.14.1",
     "pandas>=2.1.1",
     "fire>=0.5.0",
+    "nltk>=3.8.1",
+    "torchmetrics>=1.2.0",
+    "matplotlib>=3.7.1",
+    "deepspeed",
     'importlib-metadata; python_version>="3.11.2"',
 ]
-# setuptools>=65.6.3 setuptools_scm>=7.1.0
 # torch>=2.0.0, deepspeed>=0.11.1
 # transformers==4.33.3, accelerate>=0.23.0, sentencepiece>=0.1.99, datasets>=2.14.5
 # torchmetrics>=1.2.0, nltk>=3.8.1
