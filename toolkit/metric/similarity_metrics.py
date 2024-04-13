@@ -14,6 +14,7 @@ def rouge(
     language: str,
     rouge_keys: str | tuple[str, ...] = "rougeL",
     accumulate: Literal["avg", "best"] = "best",
+    tqdm: bool = True,
 ) -> MetricDict:
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
@@ -43,7 +44,12 @@ def rouge(
     else:
         raise NotImplementedError(f"Do NOT support language: `{language}`")
 
-    for pred_list, label in tqdm(zip(preds, labels), total=len(labels), desc="Calculating rouge: "):
+    if tqdm:
+        iterator = tqdm(zip(preds, labels), total=len(labels), desc="Calculating rouge: ")
+    else:
+        iterator = zip(preds, labels)
+
+    for pred_list, label in iterator:
         a_pair = 0
         for pred in pred_list:
             rouge_dict = rouge_score(pred, label, rouge_keys=rouge_keys, tokenizer=tokenizer, normalizer=normalizer, accumulate=accumulate)
