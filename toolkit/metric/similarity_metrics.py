@@ -14,7 +14,7 @@ def rouge(
     language: str,
     rouge_keys: str | tuple[str, ...] = "rougeL",
     accumulate: Literal["avg", "best"] = "best",
-    tqdm: bool = True,
+    progress_bar: bool = True,
 ) -> MetricDict:
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
@@ -44,7 +44,7 @@ def rouge(
     else:
         raise NotImplementedError(f"Do NOT support language: `{language}`")
 
-    if tqdm:
+    if progress_bar:
         iterator = tqdm(zip(preds, labels), total=len(labels), desc="Calculating rouge: ")
     else:
         iterator = zip(preds, labels)
