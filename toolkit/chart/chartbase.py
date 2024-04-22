@@ -33,13 +33,14 @@ DOT_LINE_STYLE = [dot + line for dot in DOT_STYLE for line in LINE_STYLE]
 
 
 class ChartBase:
-    def __init__(self, nrows: int = 1, ncols: int = 1, figsize: Tuple = (8, 4.5), dpi: int = 100, is_ch=False) -> None:
+    def __init__(self, nrows: int = 1, ncols: int = 1, figsize: Tuple = (8, 4.5), dpi: int = 100, is_ch=False, usetex=False) -> None:
         if is_ch:
             # sns.set(font_scale=0.9)
             plt.rc("font", family="HYZhengYuan")
         else:
             plt.rcParams["font.family"] = "serif"
             plt.rcParams["font.serif"] = ["Times New Roman"] + plt.rcParams["font.serif"]
+        # plt.rcParams['text.usetex'] = usetex
         self.dpi = dpi
         self.nrows = nrows
         self.ncols = ncols
@@ -47,6 +48,8 @@ class ChartBase:
 
         if nrows == 1 and ncols == 1:
             self.axes = np.array([[self.axes]])
+        elif nrows==1:
+            self.axes = self.axes[None, :]
 
     def __getattr__(self, name):
         return getattr(self.fig, name)
