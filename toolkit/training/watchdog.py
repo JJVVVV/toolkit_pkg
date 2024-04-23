@@ -374,7 +374,9 @@ class WatchDog:
         return metric_dicts_topk, mean
 
     @staticmethod
-    def topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None):
+    def topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None, metric_for_compare: str | None = None):
+        if metric_for_compare is not None:
+            MetricDict.set_metric_for_compare(metric_for_compare)
         if base is None and metric_dicts:
             base = "test" if "test" in next(iter(metric_dicts.values())) else "val"
             if base == "test":
