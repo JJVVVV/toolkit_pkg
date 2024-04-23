@@ -69,7 +69,7 @@ class MetricDict(UserDict):
             raise TypeError("The metric used to comparison `MetricDict.metric_used_to_comp` is undefined.")
         if cls.__metric_for_compare in cls.__metric_scale_map:
             return cls.__metric_scale_map
-        elif cls.__metric_for_compare not in cls.custom_metric_scale_map:
+        elif cls.__metric_for_compare in cls.custom_metric_scale_map:
             return cls.custom_metric_scale_map
         else:
             raise KeyError("The metric' scale is undefined in `MetricDict.metric_scale` dict.")
