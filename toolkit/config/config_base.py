@@ -14,6 +14,7 @@ logger = _getLogger("Configuration")
 class ConfigBase:
     # model_type: str = ""
     attribute_alias_map: Dict[str, str] = dict()
+    log_custom_param = True
 
     def __setattr__(self, key, value):
         if key in super().__getattribute__("attribute_alias_map"):
@@ -41,7 +42,7 @@ class ConfigBase:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
         # todo 并行时会重复log
-        if kwargs:
+        if self.log_custom_param and kwargs:
             logger.info("👻 Custom attributes:")
             for key, value in kwargs.items():
                 logger.info(f"   {key}={value}")
