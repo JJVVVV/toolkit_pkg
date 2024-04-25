@@ -3,7 +3,6 @@ from collections import OrderedDict, defaultdict
 from math import ceil
 from typing import Callable, Literal, Type, TypeVar
 
-import deepspeed
 import hjson
 import torch
 import torch.distributed as dist
@@ -14,9 +13,8 @@ from torch.optim import AdamW, RMSprop
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
-from transformers import (
+from transformers import (  # PreTrainedModel,
     PretrainedConfig,
-    PreTrainedModel,
     PreTrainedTokenizer,
     PreTrainedTokenizerFast,
     get_constant_schedule,
@@ -25,7 +23,6 @@ from transformers import (
     get_cosine_with_hard_restarts_schedule_with_warmup,
     get_linear_schedule_with_warmup,
 )
-from transformers.integrations import HfDeepSpeedConfig
 
 # from .. import toolkit_logger
 from ..config import TrainConfig
@@ -81,9 +78,11 @@ class Trainer:
         task_type: str,
         evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
-        model: torch.nn.Module | PreTrainedModel | None = None,
+        # model: torch.nn.Module | PreTrainedModel | None = None,
+        model: torch.nn.Module | None = None,
         model_config: PretrainedConfig | None = None,
-        model_class: Type[PreTrainedModel] | None = None,
+        # model_class: Type[PreTrainedModel] | None = None,
+        model_class: Type | None = None,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
@@ -674,7 +673,8 @@ class Trainer:
             with open(self.config.deepspeed_config, "r") as ds_config_file:
                 deepspeed_config = hjson.load(ds_config_file)
             deepspeed_config = DeepspeedConfig(deepspeed_config)
-            if self.model is not None and isinstance(self.model, PreTrainedModel):
+            # if self.model is not None and isinstance(self.model, PreTrainedModel):
+            if self.model is not None:
                 logger.warning(
                     (
                         "⚠️  You loaded a model with `from_pretrained` before setting deepspeed config, "
@@ -688,6 +688,7 @@ class Trainer:
             else:
                 deepspeed_config.fill_ds_config(self.config, self.model_config)
                 global dschf
+                from transformers.integrations import HfDeepSpeedConfig
                 dschf = HfDeepSpeedConfig(deepspeed_config.ds_config)
                 model_dir = self.config.model_dir if self.ckpt_manager.latest_id < 0 else self.ckpt_manager.latest_dir
                 if self.from_pretrained_kwargs is None:
@@ -695,6 +696,7 @@ class Trainer:
                 else:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config, **self.from_pretrained_kwargs)
             # todo prior: 使用deepspeed的dataloader
+            import deepspeed
             self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
                 model=self.model, config=deepspeed_config.ds_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
             )
