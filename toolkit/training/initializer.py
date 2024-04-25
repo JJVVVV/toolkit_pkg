@@ -3,7 +3,6 @@ import os
 import random
 from typing import Tuple
 
-import deepspeed
 import numpy as np
 import torch
 import torch.distributed as dist
@@ -55,6 +54,7 @@ def setup_parallel_ddp(ddp_timeout: int) -> Tuple[int, int]:
 
 
 def setup_parallel_deepspeed():
+    import deepspeed
     deepspeed.init_distributed()
     local_rank, world_size = dist.get_rank(), dist.get_world_size()
     return local_rank, world_size
