@@ -55,6 +55,7 @@ def setup_parallel_ddp(ddp_timeout: int) -> Tuple[int, int]:
 
 def setup_parallel_deepspeed():
     import deepspeed
+
     deepspeed.init_distributed()
     local_rank, world_size = dist.get_rank(), dist.get_world_size()
     return local_rank, world_size
@@ -88,14 +89,15 @@ def allocate_gpu_memory(ratio=0.8) -> None:
     except:
         try:
             block_mem -= 2000
-            if 20000>block_mem>0:
-                x = torch.cuda.FloatTensor(256, 1024, (block_mem-1000))
+            if 20000 > block_mem > 0:
+                x = torch.cuda.FloatTensor(256, 1024, (block_mem - 1000))
                 del x
-        except:
+        except Exception as e:
             toolkit_logger.warning("Initially allocate GPU memory failed! The GPU memory will be dynamically allocated.")
+            print(e)
 
 
-def initialize(config: TrainConfig):
+def initialize(config: TrainConfig, allocate_memory: float | None = None):
     setup_seed(config.seed)
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
@@ -118,4 +120,7 @@ def initialize(config: TrainConfig):
         elif config.parallel_mode is None:
             setup_single_gpu()
             local_rank, world_size = 0, 1
+
+    if allocate_memory is not None:
+        allocate_gpu_memory(allocate_memory)
     return local_rank, world_size
