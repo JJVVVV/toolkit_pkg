@@ -233,6 +233,7 @@ class TextDataset(Dataset):
 
         # tokenize label texts
         self.truncate_pad_label = False
+        self.custom_label = False
         tokenizer.padding_side = "right"
         if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
             self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer_tqdm(
@@ -246,9 +247,7 @@ class TextDataset(Dataset):
             ]
             self.truncate_pad_label = True
 
-        elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], str)) or isinstance(
-            self.texts_label[0], str
-        ):  # if the label type is `List[str]` or `str`
+        elif isinstance(self.texts_label[0], str):  # if the label type is  `str`
             self.tokens_labels = self.texts_label
             self.dataset_max_length_label = -1
         elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], int)) or isinstance(
@@ -261,8 +260,9 @@ class TextDataset(Dataset):
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
             self.dataset_max_length_label = self.tokens_labels.shape[-1]
-        elif isinstance(self.texts_label[0], dict):
+        elif isinstance(self.texts_label[0], dict|list|tuple):
             logger.debug("Using custom labels ...")
+            self.custom_label = True
             self.tokens_labels = self.texts_label
             self.dataset_max_length_label = -1
         else:
@@ -271,6 +271,7 @@ class TextDataset(Dataset):
                     "If the label is text, it must be `FinelyControlledText` or `PairedText` or `str`, "
                     "if the label is classification, it must be `ClassificationID (List[int])`",
                     "if the label is regression value, ti must be `RegressionValue (List[float])`",
+                    "if the label is custom value, ti must be `dcit|list|tuple`",
                 )
             )
 
@@ -420,6 +421,9 @@ class TextDataset(Dataset):
                 [{"labels": item.pop("labels")} for item in batch], self.max_length_label_after_trunc if self.padding_to_max_length else None
             )
             ret.update(default_collate(batch_labels))
+        if self.custom_label:
+            batch_labels = [item.pop("labels") for item in batch]
+            ret['labels'] = batch_labels
         ret.update(default_collate(batch))
         # import pdb; pdb.set_trace()
         return ret
