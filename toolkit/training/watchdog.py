@@ -269,7 +269,7 @@ class WatchDog:
             json_file_path = json_file_dir_or_path / json_file_name
         # Load config dict
         try:
-            attributes_dict = cls._dict_from_json_file(json_file_path)
+            attributes_dict = cls._data_from_json_file(json_file_path)
         except (json.JSONDecodeError, UnicodeDecodeError):
             raise EnvironmentError(f"It looks like the config file at '{json_file_path}' is not a valid JSON file.")
         attributes_dict.update(kwargs)
@@ -281,14 +281,16 @@ class WatchDog:
         return watch_dog
 
     @staticmethod
-    def _dict_from_json_file(json_file: Path | str) -> Dict:
-        "Load a attributes dictionary from a json file."
+    def _data_from_json_file(json_file: Path | str) -> Dict:
+        "Load data (a attributes dictionary) from a json file."
         with open(json_file, "r", encoding="utf-8") as reader:
             text = reader.read()
         attributes_dict = json.loads(text)
         for key in ("optimal_val_metricdict", "optimal_test_metricdict", "cheat_test_metricdict"):
             if attributes_dict[key] is not None:
                 attributes_dict[key] = MetricDict(attributes_dict[key])
+                # todo update: 更好的保存读取方式(可以自动读取metricdict中的custom_metric_scale_map以及metric_for_compare), 但是不兼容过去版本
+                # attributes_dict[key] = MetricDict._load_from_data(attributes_dict[key])
         return attributes_dict
 
     @classmethod
@@ -303,10 +305,9 @@ class WatchDog:
         for key, value in attributes_dict.items():
             setattr(self, key, value)
 
-    def to_json_file(self, json_file_path: Path | str):
-        "Write json string to the given file path"
-        with open(json_file_path, "w", encoding="utf-8") as writer:
-            writer.write(self.to_json_string())
+    def to_dict(self) -> Dict[str, Any]:
+        "Return the atrribute dictionary"
+        return copy.deepcopy(self.__dict__)
 
     def to_json_string(self) -> str:
         "Dump the attribute dictionary to json string."
@@ -314,13 +315,14 @@ class WatchDog:
         for key in ("optimal_val_metricdict", "optimal_test_metricdict", "cheat_test_metricdict"):
             if attributes_dict[key] is not None:
                 attributes_dict[key] = dict(attributes_dict[key])
-                # attributes_dict[key]:MetricDict.save(save_dir=, file_name=)
+                # todo update: 更好的保存读取方式(可以自动读取metricdict中的custom_metric_scale_map以及metric_for_compare), 但是不兼容过去版本
+                # attributes_dict[key] = attributes_dict[key]._data4save()
         return json.dumps(attributes_dict, indent=2, sort_keys=False) + "\n"
 
-    def to_dict(self) -> Dict[str, Any]:
-        "Return the atrribute dictionary"
-        output = copy.deepcopy(self.__dict__)
-        return output
+    def to_json_file(self, json_file_path: Path | str):
+        "Write json string to the given file path"
+        with open(json_file_path, "w", encoding="utf-8") as writer:
+            writer.write(self.to_json_string())
 
     @classmethod
     def metric_dicts_from_diff_seeds(
@@ -374,7 +376,9 @@ class WatchDog:
         return metric_dicts_topk, mean
 
     @staticmethod
-    def topk(metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None, metric_for_compare: str | None = None):
+    def topk(
+        metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None, metric_for_compare: str | None = None
+    ):
         if metric_for_compare is not None:
             MetricDict.set_metric_for_compare(metric_for_compare)
         if base is None and metric_dicts:
