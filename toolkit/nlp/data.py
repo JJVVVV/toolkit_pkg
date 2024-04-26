@@ -99,7 +99,7 @@ class RegressionLabel(list):
 
 
 # bug(已解决, 使用方案1): 缓存数据集存在问题, 当前版本直接在tokenize数据集时进行了truncation操作, 导致缓存的数据集是truncated后的
-# 解决方案1: 将truncation操作分离出来, 每次加载数据集时在进行truncation 
+# 解决方案1: 将truncation操作分离出来, 每次加载数据集时在进行truncation
 # 解放方案2: 将max_length, max_length_input, max_length_label加入到缓存路径中, 来区分不同的长度的缓存
 class TextDataset(Dataset):
     """
@@ -261,6 +261,10 @@ class TextDataset(Dataset):
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
             self.dataset_max_length_label = self.tokens_labels.shape[-1]
+        elif isinstance(self.texts_label[0], dict):
+            logger.debug("Using custom labels ...")
+            self.tokens_labels = self.texts_label
+            self.dataset_max_length_label = -1
         else:
             raise ValueError(
                 (
