@@ -73,7 +73,7 @@ class MetricDict(UserDict):
             return cls.custom_metric_scale_map
         else:
             raise KeyError("The metric' scale is undefined in `MetricDict.metric_scale` dict.")
-        
+
     def round(self, precision=4):
         "Round the values to a given precision in decimal digits."
         for key, value in self.items():
@@ -229,17 +229,27 @@ class MetricDict(UserDict):
             ret[key] = MetricDict._mean_top_k(value, top_k)
         return ret
 
+    def _data4save(self) -> dict:
+        data = {"metric_for_compare": self.__metric_for_compare, "custom_metric_scale_map": self.custom_metric_scale_map, "data": dict(self)}
+        return data
+
     def save(self, save_dir: Path | str, file_name: str = METRIC_DICT_DATA_NAME):
         """
         Save data as a json file.
         """
         if isinstance(save_dir, str):
             save_dir = Path(save_dir)
-        assert save_dir.exists(), f"The directory `{save_dir}` dose not exists."
+        assert save_dir.exists(), f"The directory `{save_dir}` dose not exist."
         save_path = save_dir / file_name
-        data = {"metric_for_compare": self.__metric_for_compare, "data": dict(self), "custom_metric_scale_map": self.custom_metric_scale_map}
+        data = self._data4save()
         with save_path.open("w", encoding="utf8") as file:
             json.dump(data, file, indent=2)
+
+    @classmethod
+    def _load_from_data(cls, data: dict) -> "MetricDict":
+        cls.__metric_for_compare = data["metric_for_compare"]
+        cls.custom_metric_scale_map = data["custom_metric_scale_map"]
+        return cls[data["data"]]
 
     @classmethod
     def load(cls, load_dir_or_path: Path | str, file_name: str = METRIC_DICT_DATA_NAME) -> "MetricDict":
@@ -253,10 +263,8 @@ class MetricDict(UserDict):
         else:
             resolved_path = load_dir_or_path / file_name
         with resolved_path.open("r", encoding="utf8") as file:
-            o = json.load(file)
-        cls.__metric_for_compare = o["metric_for_compare"]
-        cls.custom_metric_scale_map = o["custom_metric_scale_map"]
-        return cls(o["data"])
+            data = json.load(file)
+        return cls._load_from_data(data)
 
     # def to_json(self) -> Dict:
     #     """
