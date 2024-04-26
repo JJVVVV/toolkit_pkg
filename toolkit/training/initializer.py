@@ -82,8 +82,17 @@ def allocate_gpu_memory(ratio=0.8) -> None:
     local_cuda_device_id = cuda_device_ids[local_rank]
     total, used = check_mem(local_cuda_device_id)
     block_mem = int((int(total) - int(used)) * ratio)
-    x = torch.cuda.FloatTensor(256, 1024, block_mem)
-    del x
+    try:
+        x = torch.cuda.FloatTensor(256, 1024, block_mem)
+        del x
+    except:
+        try:
+            block_mem -= 2000
+            if 20000>block_mem>0:
+                x = torch.cuda.FloatTensor(256, 1024, (block_mem-1000))
+                del x
+        except:
+            toolkit_logger.warning("Initially allocate GPU memory failed! The GPU memory will be dynamically allocated.")
 
 
 def initialize(config: TrainConfig):
