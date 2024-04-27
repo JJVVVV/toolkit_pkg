@@ -87,6 +87,7 @@ def allocate_gpu_memory(ratio=0.8) -> None:
         x = torch.cuda.FloatTensor(256, 1024, block_mem)
         del x
     except:
+        toolkit_logger.debug("Initially allocate GPU memory failed! Try to reduce the amount of GPU memory requested ...")
         try:
             block_mem -= 2000
             if 20000 > block_mem > 0:
