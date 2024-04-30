@@ -23,6 +23,10 @@ logger = _getLogger("WatchDog")
 WATCHDOG_DATA_NAME = "watchdog_data.json"
 OPTIMAL_CHECKPOINT_NAME = "optimal_checkpoint"
 
+def sync():
+    # * sync
+    if dist.is_initialized():
+        dist.barrier()
 
 class WatchDog:
     """Watch dog monitor the training if validation loss doesn't improve after a given patience."""
@@ -209,13 +213,14 @@ class WatchDog:
         if self.local_rank == 0:
             if output_dir.exists():
                 shutil.rmtree(output_dir)
-            output_dir.mkdir()
+                output_dir.mkdir()
         if not silence and self.local_rank == 0:
             logger.debug("🚩 Saving optimal model weights ...")
             logger.debug(f"❔ The optimal model weights will be saved in {output_dir}.")
             # logger.debug(f"💾 Saving the optimal model and tokenizer to {output_dir} ...")
 
         # save model and tokenizer
+        sync()
         self.save_hf_model(configs, output_dir, model, tokenizer)
 
         # write performance
