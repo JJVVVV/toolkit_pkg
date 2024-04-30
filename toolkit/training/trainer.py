@@ -456,8 +456,7 @@ class Trainer:
             training_bar.close()
             # *----------------------------------one epoch finish-------------------------------------
             # * sync
-            if dist.is_initialized():
-                dist.barrier()
+            sync()
 
             # * Evaluate after each epoch
             val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
@@ -550,8 +549,7 @@ class Trainer:
             self.ckpt_manager.next()
 
             # * sync
-            if dist.is_initialized():
-                dist.barrier()
+            sync()
         # * ===========================================================训练结束===========================================================
         if self.local_rank == 0:
             # * Report the final information
