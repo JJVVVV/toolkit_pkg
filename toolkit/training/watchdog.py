@@ -198,9 +198,9 @@ class WatchDog:
                 model_to_save.save_pretrained(output_dir, is_main_process=(self.local_rank == 0), max_shard_size="10GB")
 
         # save tokenizer
-        # if self.local_rank == 0:
-        if tokenizer is not None:
-            tokenizer.save_pretrained(output_dir, is_main_process=(self.local_rank == 0))
+        if self.local_rank == 0:
+            if tokenizer is not None:
+                tokenizer.save_pretrained(output_dir, is_main_process=(self.local_rank == 0))
 
     # TODO 当前只支持 Transformers 中的 model 和 tokenizer
     # TODO prior 保存最好的 n 个ckpt
