@@ -689,6 +689,7 @@ class Trainer:
                 deepspeed_config.fill_ds_config(self.config, self.model_config)
                 global dschf
                 from transformers.integrations import HfDeepSpeedConfig
+
                 dschf = HfDeepSpeedConfig(deepspeed_config.ds_config)
                 model_dir = self.config.model_dir if self.ckpt_manager.latest_id < 0 else self.ckpt_manager.latest_dir
                 if self.from_pretrained_kwargs is None:
@@ -697,9 +698,11 @@ class Trainer:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config, **self.from_pretrained_kwargs)
             # todo prior: 使用deepspeed的dataloader
             import deepspeed
+
             self.model, self.optimizer, self.training_dataloader, self.scheduler = deepspeed.initialize(
                 model=self.model, config=deepspeed_config.ds_config, training_data=self.dataset_train, collate_fn=self.dataset_train.collate_fn
             )
+            # deepspeed.DeepSpeedEngine.save_16bit_model()
 
     def set_evaluator(self):
         """
