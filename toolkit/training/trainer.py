@@ -666,6 +666,8 @@ class Trainer:
         """
         warp model with deepspeed engine or DDP if necessary
         """
+        if self.model is not None and self.config.activation_checkpointing:
+            self.model.gradient_checkpointing_enable()
         if self.config.parallel_mode is None:
             return
         logger.debug("Wrapping the model ...")
@@ -698,6 +700,9 @@ class Trainer:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config)
                 else:
                     self.model = self.model_class.from_pretrained(model_dir, config=self.model_config, **self.from_pretrained_kwargs)
+                # todo: 当前只支持transformers模型
+                if self.config.activation_checkpointing:
+                    self.model.gradient_checkpointing_enable()
             # todo prior: 使用deepspeed的dataloader
             import deepspeed
 
