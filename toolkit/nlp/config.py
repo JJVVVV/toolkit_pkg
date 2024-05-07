@@ -84,6 +84,7 @@ class NLPTrainingConfig(TrainConfig):
         padding_side: str = "right",
         model_structure: str | None = None,
         task_type: str | None = None,
+        activation_checkpointing: bool = False,
         **kwargs,
     ):
         """
@@ -158,6 +159,7 @@ class NLPTrainingConfig(TrainConfig):
         self.padding_to_max_length = padding_to_max_length
         self.model_structure = model_structure
         self.task_type = task_type
+        self.activation_checkpointing = activation_checkpointing
 
         # generate config
         self.do_sample = do_sample
