@@ -232,6 +232,7 @@ class Trainer:
         sync()
 
         # * Calculate some training parameters
+        self.set_batches()
         self.set_training_steps(dataloader_train)
         self.set_sch_warmup()
 
@@ -612,6 +613,9 @@ class Trainer:
                 for split, metricdict in log_dict.items():
                     for metric, value in metricdict.items():
                         self.dashboard_writer.add_scalar(f"{split}/{metric}", value, curStepInGlobal, new_style=True)
+
+    def set_batches(self):
+        self.config.train_micro_batch_size_per_gpu = int(self.config.train_batch_size / self.config.gradient_accumulation_steps / self.world_size)
 
     def set_training_steps(self, dataloader):
         """
