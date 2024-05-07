@@ -88,7 +88,12 @@ class DeepspeedConfig:
         for key in scheduler_parmas:
             self.fill_match(f"scheduler.params.{key}", getattr(train_config, f"sch_{key}"), f"sch_{key}")
         # training hyper
-        keys = ["gradient_accumulation_steps", "gradient_clipping", "train_batch_size"]  # "train_micro_batch_size_per_gpu"
+        keys = [
+            "gradient_accumulation_steps",
+            "gradient_clipping",
+            "train_batch_size",
+            "train_micro_batch_size_per_gpu",
+        ]  # "train_micro_batch_size_per_gpu"
         for key in keys:
             self.fill_match(key, getattr(train_config, key), key)
 
