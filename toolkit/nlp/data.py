@@ -427,7 +427,7 @@ class TextDataset(Dataset):
             ret['labels'] = batch_labels
         ret.update(default_collate(batch))
         # import pdb; pdb.set_trace()
-        print(ret['input_ids'].shape)
+        # print(ret['input_ids'].shape)
         return ret
 
     # def collate_fn(self, batch: list[dict]):
