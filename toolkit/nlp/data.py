@@ -301,6 +301,7 @@ class TextDataset(Dataset):
     def __truncate(
         self, model_max_length: int, max_length: int | None = None, max_length_input: int | None = None, max_length_label: int | None = None
     ) -> int:
+        "返回的`max_length_input_after_trunc`是经过裁切后的<数据集>的最大长度, 不是<设置>的最大长度 !!!"
         "bug!!! 当decoder的generate任务时, 训练集中的inputs['input_ids']: list[list[int]]时无法裁切"
         cnt = 0
         max_length_input_after_trunc = 0
@@ -426,6 +427,7 @@ class TextDataset(Dataset):
             ret['labels'] = batch_labels
         ret.update(default_collate(batch))
         # import pdb; pdb.set_trace()
+        print(ret['input_ids'].shape)
         return ret
 
     # def collate_fn(self, batch: list[dict]):
@@ -503,6 +505,11 @@ class TextDataset(Dataset):
             )
         dataset.max_length_input_after_trunc = max_length_input_after_trunc
         dataset.max_length_label_after_trunc = max_length_label_after_trunc
+
+        # ? 此段代码只是为了测试固定长度的输入所需的显存(为了项目 memcal), 正常训练无需设置这个参数, 因为除了浪费算力外没有任何意义
+        if hasattr(configs, "padding_to_configed_max_length") and configs.padding_to_configed_max_length:
+            dataset.max_length_input_after_trunc = configs.max_length_input or configs.max_length
+            dataset.max_length_label_after_trunc = configs.max_length_label 
 
         # config padding settings
         assert configs.padding_side in (
