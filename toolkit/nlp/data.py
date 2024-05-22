@@ -260,7 +260,7 @@ class TextDataset(Dataset):
         ):  # if the label type is `RegressionValue`, i.e. `List[float]`
             self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
             self.dataset_max_length_label = self.tokens_labels.shape[-1]
-        elif isinstance(self.texts_label[0], dict|list|tuple):
+        elif isinstance(self.texts_label[0], dict | list | tuple):
             logger.debug("Using custom labels ...")
             self.custom_label = True
             self.tokens_labels = self.texts_label
@@ -386,7 +386,7 @@ class TextDataset(Dataset):
     def transformers_tokenizer_tqdm(
         self, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], desc: str, is_label: bool
     ) -> Tuple[List[ModelInput], int]:
-        """此函数同时完成truncation操作"""
+        # // """此函数同时完成truncation操作"""
         # print(text_pairs)
         batch_model_input = []
         longest = 0
@@ -424,10 +424,10 @@ class TextDataset(Dataset):
             ret.update(default_collate(batch_labels))
         if self.custom_label:
             batch_labels = [item.pop("labels") for item in batch]
-            ret['labels'] = batch_labels
+            ret["labels"] = batch_labels
         ret.update(default_collate(batch))
         # import pdb; pdb.set_trace()
-        # print(ret['input_ids'].shape)
+        # print(ret["input_ids"].shape)
         return ret
 
     # def collate_fn(self, batch: list[dict]):
@@ -509,7 +509,9 @@ class TextDataset(Dataset):
         # ? 此段代码只是为了测试固定长度的输入所需的显存(为了项目 memcal), 正常训练无需设置这个参数, 因为除了浪费算力外没有任何意义
         if hasattr(configs, "padding_to_configed_max_length") and configs.padding_to_configed_max_length:
             dataset.max_length_input_after_trunc = configs.max_length_input or configs.max_length
-            dataset.max_length_label_after_trunc = configs.max_length_label 
+            dataset.max_length_label_after_trunc = configs.max_length_label or configs.max_length
+            print(dataset.max_length_input_after_trunc)
+            print(dataset.max_length_label_after_trunc)
 
         # config padding settings
         assert configs.padding_side in (
