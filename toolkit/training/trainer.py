@@ -443,7 +443,7 @@ class Trainer:
                     val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
                     test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
                     watch_dog(
-                        val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(Loss=accumulate_loss),
+                        val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(loss=accumulate_loss),
                         test_metricdict=test_metricdict,
                         epoch=epoch,
                         step_global=curStepInGlobal,
@@ -463,7 +463,7 @@ class Trainer:
             val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
             test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
             watch_dog(
-                val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(Loss=accumulate_loss),
+                val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(loss=accumulate_loss),
                 test_metricdict=test_metricdict,
                 epoch=epoch,
                 step_global=curStepInGlobal,
