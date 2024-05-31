@@ -39,7 +39,7 @@ class ConfigBase:
             try:
                 setattr(self, key, value)
                 if self.log_custom_param:
-                    logger.info(f"🕸️Custom attribute: {key}={value}")
+                    logger.info(f"🕸️ Custom attribute: {key}={value}")
             except AttributeError as err:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
