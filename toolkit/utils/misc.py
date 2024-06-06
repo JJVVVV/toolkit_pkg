@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Literal, Tuple
 
 
 def type_to_str(data):
@@ -73,7 +73,29 @@ def find_files(dir: str, filename: str, depth: int = 0) -> List[str]:
     return found_files  #
 
 
-def max_len_nest_list(l:List):
+def max_len_nest_list(l: List):
     if not isinstance(l[0], List):
         return len(l)
     return max((max_len_nest_list(l_) for l_ in l))
+
+
+def reduce_nested_dicts(*dicts, reduction: Literal["sun", "mean"] = "sum", precision: int = 2):
+    # 确定字典的数量
+    num_dicts = len(dicts)
+
+    # 创建一个用于存放结果的字典
+    result = {}
+
+    # 遍历第一个字典的键
+    for key in dicts[0]:
+        if isinstance(dicts[0][key], dict):
+            # 如果值是字典，则递归调用nested_dicts_average函数
+            result[key] = reduce_nested_dicts(*[d[key] for d in dicts], reduction=reduction, precision=precision)
+        else:
+            # 否则，计算所有字典对应键的值的平均值
+            if reduction == "mean":
+                s = sum(d[key] for d in dicts) / num_dicts
+            else:
+                s = sum(d[key] for d in dicts)
+            result[key] = round(s, precision)
+    return result
