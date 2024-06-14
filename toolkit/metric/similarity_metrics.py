@@ -3,6 +3,8 @@ from typing import Iterable, Literal
 
 from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
 from torchmetrics.functional.text.rouge import rouge_score
+
+# from torchmetrics.text.rouge import ROUGEScore
 from tqdm.auto import tqdm
 
 from . import MetricDict
