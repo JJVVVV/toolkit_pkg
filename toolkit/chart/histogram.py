@@ -16,10 +16,13 @@ class Histogram(ChartBase):
         title="",
         xlabel="Value",
         ylabel="Count",
+        color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
+        color_no: int = 1,
         **kwargs,
     ) -> None:
-        colors = sns.color_palette("Greens")
-        self.axes[0][0].hist(data, bins=bins, edgecolor="black", color=colors[1], **kwargs)
+        colors = sns.color_palette(color_palette)
+
+        self.axes[0][0].hist(data, bins=bins, edgecolor="black", color=colors[color_no], **kwargs)
         for _, ax in enumerate(self.axes.flat):
             ax.set_title(title, fontsize=14)
             ax.set_xlabel(xlabel, fontsize=10)
@@ -27,4 +30,5 @@ class Histogram(ChartBase):
             ax.grid(axis="y", alpha=0.5)
             ax.spines["top"].set_visible(False)
             ax.spines["right"].set_visible(False)
+            ax.legend(loc="best")
         self.fig.tight_layout()
