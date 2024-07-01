@@ -118,7 +118,7 @@ class Evaluator:
                         loss, logits = outputs["loss"], outputs["logits"]
                         all_losses.append(loss.item())
                         all_labels.extend(labels.numpy(force=True).tolist())
-                        all_logits.extend(logits.numpy(force=True).tolist())
+                        all_logits.extend(logits.to(torch.float32).numpy(force=True).tolist())
         self.model.train()
 
         if world_size > 1:
