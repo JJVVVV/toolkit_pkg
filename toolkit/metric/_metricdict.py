@@ -43,7 +43,7 @@ class MetricDict(UserDict):
     @classmethod
     def support_metrics(cls):
         "Return a set which contains all supported metrics."
-        return cls.__metric_scale_map.keys()
+        return set(cls.__metric_scale_map.keys()) | set(cls.custom_metric_scale_map.keys())
 
     def __setitem__(self, key: str, value: float | int):
         if key not in self.__metric_scale_map and key not in self.custom_metric_scale_map:
