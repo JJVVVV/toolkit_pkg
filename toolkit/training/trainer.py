@@ -47,7 +47,7 @@ except:
     WandbWriter = object
 
 map_str2optmClass = {"AdamW": AdamW, "RMSprop": RMSprop}
-map_dsSchType2scheFN = {"WarmupLR": "linearWarmup"}
+map_dsSchType2scheFnStr = {"WarmupLR": "linearWarmup", "WarmupDecayLR": "linearWarmupDecay"}
 map_str2getScheFn = {
     "linearWarmup": get_constant_schedule_with_warmup,
     "linearWarmupDecay": get_linear_schedule_with_warmup,
@@ -136,6 +136,9 @@ class Trainer:
         if config.parallel_mode == "deepspeed":
             scheduler = None
         if isinstance(scheduler, str):
+            # 如果用的是deepspeed中scheduler的命名格式, 则进行映射
+            if scheduler in map_dsSchType2scheFnStr:
+                scheduler = map_dsSchType2scheFnStr[scheduler]
             assert (
                 scheduler in map_str2getScheFn
             ), f"Only following scheduler can be mapped to the corresponding function that return a scheduler: {list(map_str2getScheFn.keys())}, but got `{scheduler}`"
