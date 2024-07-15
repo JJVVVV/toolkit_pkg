@@ -13,7 +13,7 @@ from . import MetricDict
 def rouge(
     preds: str | list[str] | list[list[str]],
     labels: str | list[str] | list[list[str]],
-    language: str,
+    language: Literal["zh", "en"],
     rouge_keys: str | tuple[str, ...] = "rougeL",
     accumulate: Literal["avg", "best"] = "best",
     progress_bar: bool = True,

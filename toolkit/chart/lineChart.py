@@ -10,7 +10,9 @@ Data = Tuple[float]
 
 
 class LineChart(ChartBase):
-    def __init__(self, nrows: int = 1, ncols: int = 1, figsize: Tuple = (8, 4.5), dpi: int = 100, is_ch=False, usetex=False, font_size: int = 8) -> None:
+    def __init__(
+        self, nrows: int = 1, ncols: int = 1, figsize: Tuple = (8, 4.5), dpi: int = 100, is_ch=False, usetex=False, font_size: int = 8
+    ) -> None:
         super().__init__(nrows, ncols, figsize, dpi, is_ch, usetex)
         plt.rcParams["font.size"] = font_size
         plt.rcParams["axes.linewidth"] = 1.5
@@ -29,8 +31,10 @@ class LineChart(ChartBase):
         xlabel: str = "x",
         ylabel: str = "y",
         colors: List[str] | None = None,
-        no_dot: bool = True,
+        dot: bool = False,
         color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
+        bottom: int = None,
+        top: int = None,
     ) -> None:
         x = np.array(x)
         y = np.array(y)
@@ -43,7 +47,7 @@ class LineChart(ChartBase):
         if len(x.shape) == 3:
             x = x[:, :, None, :]
             y = y[:, :, None, :]
-            if len(line_label.shape)==2:
+            if len(line_label.shape) == 2:
                 line_label = line_label[:, :, None]
 
         # print(x)
@@ -67,12 +71,12 @@ class LineChart(ChartBase):
                     #     ax.plot(x[k], y[k], DOT_LINE_STYLE[k], color=colors[k], label=line_label[k])
                     # else:
                     # print(i, j, k)
-                    if len(x[i][j][k])==1 and x[i][j][k].item() is None:
+                    if len(x[i][j][k]) == 1 and x[i][j][k].item() is None:
                         continue
                     ax.plot(
                         x[i][j][k],
                         y[i][j][k],
-                        list(LINE_STYLE.keys())[k] if no_dot else DOT_LINE_STYLE[k],
+                        list(LINE_STYLE.keys())[k] if not dot else DOT_LINE_STYLE[k],
                         color=colors[k],
                         label=line_label[i][j][k].item(),
                     )
@@ -82,9 +86,12 @@ class LineChart(ChartBase):
                 ax.set_ylabel(ylabel, fontsize=self.fontsize)
                 ax.grid(axis="y", linestyle="-", alpha=0.8, linewidth=0.5)
                 # ax.legend(loc="lower right", bbox_to_anchor=(1, 0.05))
-                ax.legend(loc="lower right")
+                ax.legend(loc="best")
                 ax.spines["top"].set_visible(False)
                 ax.spines["right"].set_visible(False)
-
+                if bottom is not None:
+                    ax.set_ylim(bottom=bottom)
+                if top is not None:
+                    ax.set_ylim(top=top)
         # 调整子图间距和布局
         self.fig.subplots_adjust(wspace=0.3)
