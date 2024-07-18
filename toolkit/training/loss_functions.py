@@ -101,10 +101,10 @@ class CoSentLoss_logits(ContrastLoss):
 class PairInBatchNegCoSentLoss(ContrastLoss):
     def forward(self, text_embeddings: torch.Tensor, text_embeddings_pos: torch.Tensor) -> torch.Tensor:
         """
-        text_embddings: (batch_size, bedding_size)
-        text_embeddings_pos: (batch_size, bedding_size)
+        text_embddings: (batch_size, embedding_size)
+        text_embeddings_pos: (batch_size, num_pos, embedding_size)
         """
-        # (batch_size, 1, 1, bedding_size) - (1, batch_size, num_pos, bedding_size) -> (batch_size, batch_size, num_pos)
+        # (batch_size, 1, 1, embedding_size) @ (1, batch_size, num_pos, embedding_size) -> (batch_size, batch_size, num_pos)
         sim_matrix = torch.cosine_similarity(
             text_embeddings[:, None, None, :], text_embeddings_pos[None, :], dim=-1
         )  # (batch_size, batch_size, num_pos)
