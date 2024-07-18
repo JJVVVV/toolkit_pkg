@@ -157,7 +157,7 @@ class TripletInBatchNegCoSentLoss(ContrastLoss):
         sim_matrix = sim_matrix / self.temperature
         sim_matrix_diff = sim_matrix - sim_matrix[:, 0].unsqueeze(1)
         loss = torch.logsumexp(sim_matrix_diff, dim=1).mean()
-        if self._pair_contrast_softmax_loss:
+        if self.add_swap_loss:
             loss += self._pair_contrast_softmax_loss(text_embeddings_pos, text_embeddings)
         return loss
 
@@ -216,7 +216,7 @@ class TripletInBatchNegSigmoidContrastLoss(ContrastLoss):
         # (batch_size, 1) - (batch_size, batch_size) -> (batch_size, batch_size)
         sim_diff_matrix = sim_pos_vector.unsqueeze(1) - sim_neg_matrix
         loss = -torch.log(torch.sigmoid(sim_diff_matrix)).mean()
-        if self._pair_contrast_sigmoid_loss:
+        if self.add_swap_loss:
             loss += self._pair_contrast_sigmoid_loss(text_embeddings_pos, text_embeddings)
         return loss
 
@@ -227,7 +227,7 @@ class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05, margin: float = 0):
         super().__init__(temperature, margin)
         self.temperature = temperature
-        self._cross_entropy_loss = torch.nn.CrossEntropyLoss()
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss()
 
     def forward(self, text_embeddings: torch.Tensor, text_embeddings_pos: torch.Tensor) -> torch.Tensor:
         """
@@ -238,7 +238,7 @@ class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
         sim_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_embeddings_pos.unsqueeze(0), dim=-1)
         sim_matrix = sim_matrix / self.temperature
         labels = torch.arange(sim_matrix.size(0), device=text_embeddings.device, dtype=torch.long)
-        loss = self._cross_entropy_loss(sim_matrix, labels)
+        loss = self.cross_entropy_loss(sim_matrix, labels)
         return loss
 
 
@@ -246,6 +246,7 @@ class PairInBatchNegSoftmaxContrastLoss(ContrastLoss):
 class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
     def __init__(self, temperature: float = 0.05, margin: float = 0, add_swap_loss: bool = False):
         super().__init__(temperature, margin)
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss()
         self.add_swap_loss = add_swap_loss
         if self.add_swap_loss:
             self._pair_contrast_softmax_loss = PairInBatchNegSoftmaxContrastLoss(temperature)
@@ -257,6 +258,8 @@ class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
         text_embddings: (batch_size, embedding_size)
         text_embeddings_pos: (batch_size, embedding_size)
         text_embeddings_neg: (batch_size, embedding_size)
+        text_embedding_pos是text_embeddings一一对应对应的pos,构成一个个正样本对.
+        而text_embeddings_neg则是, 任何一个text_embeddings的与任何一个text_embeddings_neg都是负样本对. (inbatch就是体现在这里)
         """
         # (batch_size, embedding_size) @ (batch_size, embedding_size) -> (batch_size, )
         sim_pos_vector = torch.cosine_similarity(text_embeddings, text_embeddings_pos, dim=-1)
@@ -267,9 +270,41 @@ class TripletInBatchNegSoftmaxContrastLoss(ContrastLoss):
         sim_matrix = sim_matrix / self.temperature
         # -> (batch_size,)
         labels = torch.zeros(sim_matrix.size(0), dtype=torch.long, device=sim_matrix.device)
-        loss = torch.nn.CrossEntropyLoss()(sim_matrix, labels)
+        loss = self.cross_entropy_loss(sim_matrix, labels)
         if self._pair_contrast_softmax_loss:
             loss += self._pair_contrast_softmax_loss(text_embeddings_pos, text_embeddings)
+        return loss
+
+
+# 对TripletInBatchNegSoftmaxContrastLoss的改进
+# 1. 可以接受一个正例和多个负例
+# 2. inbatch改为用同batch内的其他样本正例作为当前样本的负例, 更合理
+class TripletSoftmaxContrastLoss(ContrastLoss):
+    def __init__(self, temperature: float = 0.05, margin: float = 0, add_inbatch_neg: bool = False):
+        super().__init__(temperature, margin)
+        self.add_inbatch_neg = add_inbatch_neg
+        self.cross_entropy_loss = torch.nn.CrossEntropyLoss()
+        if self.add_inbatch_neg:
+            self.pair_inbatch_softmax_loss = PairInBatchNegSoftmaxContrastLoss(temperature)
+
+    def forward(self, text_embeddings: torch.Tensor, text_embeddings_pos: torch.Tensor, text_embeddings_neg: torch.Tensor) -> torch.Tensor:
+        """
+        text_embddings: (batch_size, embedding_size)
+        text_embeddings_pos: (batch_size, embedding_size)
+        text_embeddings_neg: (batch_size, n, embedding_size)
+        """
+        # (batch_size, embedding_size) @ (batch_size, embedding_size) -> (batch_size, )
+        sim_pos_vector = torch.cosine_similarity(text_embeddings, text_embeddings_pos, dim=-1)
+        # (batch_size, 1, embedding_size) @ (batch_size, n, embedding_size) -> (batch_size, n)
+        sim_neg_matrix = torch.cosine_similarity(text_embeddings.unsqueeze(1), text_embeddings_neg, dim=-1)
+        # [(batch_size, 1) (batch_size, n)] -> (batch_size, n+1)
+        sim_matrix = torch.cat([sim_pos_vector.unsqueeze(1), sim_neg_matrix], dim=1)
+        sim_matrix = sim_matrix / self.temperature
+        # -> (batch_size,)
+        labels = torch.zeros(sim_matrix.size(0), dtype=torch.long, device=sim_matrix.device)
+        loss = self.cross_entropy_loss(sim_matrix, labels)
+        if self.add_inbatch_neg:
+            loss += self.pair_inbatch_softmax_loss(text_embeddings, text_embeddings_pos)
         return loss
 
 
