@@ -49,7 +49,8 @@ dependencies = [
 
 dynamic = ["version"]
 [tool.setuptools_scm]
-
+version_file = "toolkit/_version.py"
+fallback_version = "0.0.0"
 
 
 # 1 - Planning：软件还处于计划阶段，尚未开始开发。
