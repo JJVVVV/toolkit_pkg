@@ -14,7 +14,7 @@ class TrainConfig(ConfigBase):
         self,
         seed: int = 0,
         gpu: bool = True,
-        problem_type: str | None = None,
+        problem_type: str = "",
         dataset_name: str = "",
         train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
@@ -75,12 +75,12 @@ class TrainConfig(ConfigBase):
 
         # attributes related to the data
         self.problem_type = problem_type
-        allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
-        if self.problem_type is not None and self.problem_type not in allowed_problem_types:
-            raise ValueError(
-                f"The config parameter `problem_type` was not understood: received {self.problem_type} "
-                "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
-            )
+        # allowed_problem_types = ("regression", "single_label_classification", "multi_label_classification")
+        # if self.problem_type is not None and self.problem_type not in allowed_problem_types:
+        #     raise ValueError(
+        #         f"The config parameter `problem_type` was not understood: received {self.problem_type} "
+        #         "but only 'regression', 'single_label_classification' and 'multi_label_classification' are valid."
+        #     )
         self.dataset_name = dataset_name
         self.train_file_path = Path(train_file_path) if train_file_path is not None else None
         self.val_file_path = Path(val_file_path) if val_file_path is not None else None
@@ -94,11 +94,6 @@ class TrainConfig(ConfigBase):
 
         # attributes related to the metric
         self.metric = metric
-        if self.metric not in MetricDict.support_metrics():
-            raise ValueError(
-                f"The config parameter `metric` was not understood: received `{self.metric}` "
-                f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
-            )
 
         # attributes related to training steps
         self.epochs = epochs
@@ -142,12 +137,7 @@ class TrainConfig(ConfigBase):
         # Optimization about load and memory
         self.cache_dataset = cache_dataset
         self.gradient_accumulation_steps = gradient_accumulation_steps
-        assert parallel_mode in [None, "DDP", "deepspeed"], (
-            f"[parallel_mode] Only `DDP` and `deepspeed` are supported, but got `{parallel_mode}`.\n"
-            "if you do not need parallel, plase set it to `None`."
-        )
         self.parallel_mode = parallel_mode
-        assert not (fp16 and bf16), f"❌  `fp16` and `bf16` cannot be enabled at the same time!"
         self.fp16 = fp16
         self.bf16 = bf16
 
@@ -157,10 +147,6 @@ class TrainConfig(ConfigBase):
         self.training_runtime: dict = kwargs.get("training_runtime", None)
 
         # 杂项
-        assert dashboard in ["wandb", "tensorboard", None], (
-            f"Only `wandb` and `tensorboard` dashboards are supported, but got `{dashboard}`.\n"
-            "if you do not need dashboard, plase set it to `None`."
-        )
         self.dashboard = dashboard
         self.shuffle = shuffle
         self.ddp_timeout = ddp_timeout
@@ -174,6 +160,25 @@ class TrainConfig(ConfigBase):
         self.show_step = show_step
         self.record_cheat = record_cheat
         # self.warning_default()
+
+        def check():
+            if self.metric not in MetricDict.support_metrics():
+                raise ValueError(
+                    f"The config parameter `metric` was not understood: received `{self.metric}` "
+                    f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
+                )
+            assert self.parallel_mode in [None, "DDP", "deepspeed"], (
+                f"[parallel_mode] Only `DDP` and `deepspeed` are supported, but got `{self.parallel_mode}`.\n"
+                "if you do not need parallel, plase set it to `None`."
+            )
+            assert not (self.fp16 and self.bf16), f"❌  `fp16` and `bf16` cannot be enabled at the same time!"
+            assert self.dashboard in ["wandb", "tensorboard", None], (
+                f"Only `wandb` and `tensorboard` dashboards are supported, but got `{self.dashboard}`.\n"
+                "if you do not need dashboard, plase set it to `None`."
+            )
+
+        if self.is_check:
+            check()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if not silence:

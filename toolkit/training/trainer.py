@@ -1,6 +1,7 @@
 import pathlib
 from collections import OrderedDict, defaultdict
 from math import ceil
+from pathlib import Path
 from typing import Callable, Literal, Type, TypeVar
 
 import hjson
@@ -35,6 +36,7 @@ from .checkpoint_manager import CheckpointManager
 from .components import Optimizer, Scaler, Scheduler, set_weight_decay
 from .dataloader import get_dataloader, gradient_accumulate
 from .evaluator import Evaluator
+from .initializer import *
 from .watchdog import WatchDog
 
 logger = _getLogger("Trainer")
@@ -58,7 +60,7 @@ map_str2getScheFn = {
 OptimizerClass = TypeVar("OptimizerClass", bound=torch.optim.Optimizer)
 SchedulerClass = TypeVar("SchedulerClass", bound=torch.optim.lr_scheduler.LRScheduler)
 
-allowed_task_type = ("generate", "classify", "regress")
+# allowed_task_type = ("generate", "classify", "regress")
 
 # dschf: HfDeepSpeedConfig
 # instructs transformers to partition the model directly over multiple gpus using
@@ -73,10 +75,10 @@ def sync():
 
 
 class Trainer:
+    is_initialized = False
+
     def __init__(
         self,
-        task_type: str,
-        evaluate_only: bool,
         config: TrainConfig | NLPTrainingConfig,
         # model: torch.nn.Module | PreTrainedModel | None = None,
         model: torch.nn.Module | None = None,
@@ -103,10 +105,11 @@ class Trainer:
         `scheduler`: "linearWarmup", "linearWarmupDecay", "cosineWarmupDecay", "cosineWarmupDecayRestart"\n
         `calculate_metric_callback` will be called as `calculate_metric_callback(all_labels, all_logits, mean_loss)`
         """
+        assert self.is_initialized, "❗ You must run `initialize` function before training."
         self.local_rank = dist.get_rank() if dist.is_initialized() else 0
         self.world_size = dist.get_world_size() if dist.is_initialized() else 1
         # world_size = dist.get_world_size() if dist.is_initialized() else 1
-        self.task_type = task_type
+        self.task_type = config.task_type
         self.config = config
         self.model = model
         self.model_config = model_config
@@ -116,14 +119,10 @@ class Trainer:
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.calculate_metric_callback = calculate_metric_callback
-        if task_type not in allowed_task_type:
-            raise ValueError(f"The parameter `task_type` was not understood: received `{task_type}` " f"but only {allowed_task_type} are valid.")
         self.extral_args_training = extral_args_training if extral_args_training is not None else dict()
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
         self.from_pretrained_kwargs = from_pretrained_kwargs
         self.extral_evaluators = extral_evaluators if extral_evaluators is not None else []
-        if evaluate_only:
-            return
 
         if isinstance(optimizer, str):
             assert (
@@ -185,6 +184,39 @@ class Trainer:
             elif self.config.dashboard == "tensorboard":
                 self.dashboard_writer.close()
 
+    @classmethod
+    def initialize(cls, config: TrainConfig, allocate_memory: float | None = None, log_file="report.log"):
+        output_path_logger = Path(config.save_dir) / log_file
+        set_file_logger(output_path_logger)
+
+        setup_seed(config.seed)
+        if "CUDA_VISIBLE_DEVICES" in os.environ:
+            cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")
+            cuda_device_ids = [cuda_device_id for cuda_device_id in cuda_device_ids if cuda_device_id]
+            if len(cuda_device_ids) > 1:
+                if config.parallel_mode == "DDP":
+                    local_rank, world_size = setup_parallel_ddp(config.ddp_timeout)
+                elif config.parallel_mode == "deepspeed":
+                    local_rank, world_size = setup_parallel_deepspeed()
+                else:
+                    raise ValueError("You are using multi-gpu, and you must specify the `parallel_mode`")
+            else:
+                setup_single_gpu()
+                local_rank, world_size = 0, 1
+        else:
+            if config.parallel_mode == "DDP":
+                local_rank, world_size = setup_parallel_ddp(config.ddp_timeout)
+            elif config.parallel_mode == "deepspeed":
+                local_rank, world_size = setup_parallel_deepspeed()
+            elif config.parallel_mode is None:
+                setup_single_gpu()
+                local_rank, world_size = 0, 1
+
+        if allocate_memory is not None:
+            allocate_gpu_memory(allocate_memory)
+        cls.is_initialized = True
+        return local_rank, world_size
+
     def train(self) -> None:
         self.config.training_runtime = dict()
 
@@ -238,6 +270,8 @@ class Trainer:
         self.set_batches()
         self.set_training_steps(dataloader_train)
         self.set_sch_warmup()
+
+        # todo 如果self.model==None, 尝试用ckpt_manager 加载模型进行继续训练。
 
         # * wrap model
         self.wrap_model()
