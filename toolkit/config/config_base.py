@@ -15,6 +15,8 @@ class ConfigBase:
     # model_type: str = ""
     attribute_alias_map: Dict[str, str] = dict()
     log_custom_param = True
+    # 用于跳过值的检查，为了能成功获得类中属性的默认值。
+    is_check = True
 
     def __setattr__(self, key, value):
         if key in super().__getattribute__("attribute_alias_map"):
@@ -39,7 +41,7 @@ class ConfigBase:
             try:
                 setattr(self, key, value)
                 if self.log_custom_param:
-                    logger.info(f"🕸️ Custom attribute: {key}={value}")
+                    logger.info(f"🕸️  Custom attribute: {key}={value}")
             except AttributeError as err:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
@@ -253,7 +255,9 @@ class ConfigBase:
         default_values_baseclass = ConfigBase().to_dict()
         # print(f"base:        {base_config_dict}")
         # get class specific config dict (including attributes defined in subclass)
+        self.__class__.is_check = False
         default_values_subclass = self.__class__().to_dict()
+        self.__class__.is_check = True
         # print(f"class specific: {class_config_dict}")
         # serializable_config_dict = {}
 

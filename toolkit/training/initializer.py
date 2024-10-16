@@ -1,13 +1,14 @@
 import datetime
 import os
 import random
+from pathlib import Path
 from typing import Tuple
 
 import numpy as np
 import torch
 import torch.distributed as dist
 
-from .. import toolkit_logger
+from .. import set_file_logger, toolkit_logger
 from ..config.trainconfig import TrainConfig
 
 # from ..logger import _getLogger
@@ -99,7 +100,10 @@ def allocate_gpu_memory(ratio=0.8) -> None:
             print(e)
 
 
-def initialize(config: TrainConfig, allocate_memory: float | None = None):
+def initialize(config: TrainConfig, allocate_memory: float | None = None, log_file="report.log"):
+    output_path_logger = Path(config.save_dir) / log_file
+    set_file_logger(output_path_logger)
+
     setup_seed(config.seed)
     if "CUDA_VISIBLE_DEVICES" in os.environ:
         cuda_device_ids = os.environ["CUDA_VISIBLE_DEVICES"].split(",")

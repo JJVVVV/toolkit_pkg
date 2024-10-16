@@ -7,11 +7,13 @@ from ..config.trainconfig import TrainConfig
 
 
 class NLPTrainingConfig(TrainConfig):
+    allowed_task_type = ("generate", "classify", "regress")
+
     def __init__(
         self,
         seed: int = 0,
         gpu: bool = True,
-        problem_type: str | None = None,
+        problem_type: str = "",
         dataset_name: str = "",
         train_file_path: Path | str | None = None,
         val_file_path: Path | str | None = None,
@@ -182,6 +184,16 @@ class NLPTrainingConfig(TrainConfig):
         # 如果没有设定gen_max_length,则使用训练时的max_lengthd
         self.gen_max_length = self.max_length if self.gen_max_length is None else self.gen_max_length
         # self.pretrained_model_path = pretrained_model_path
+
+        def check():
+            assert self.model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {self.model_structure}"
+            if self.task_type not in self.allowed_task_type:
+                raise ValueError(
+                    f"The parameter `task_type` was not understood: received `{self.task_type}` " f"but only {self.allowed_task_type} are valid."
+                )
+
+        if self.is_check:
+            check()
 
     @property
     def generate_kwargs(self):
