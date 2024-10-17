@@ -1,5 +1,6 @@
 import json
 from collections import UserDict
+from copy import deepcopy
 from functools import reduce
 from heapq import nlargest
 from pathlib import Path
@@ -12,7 +13,6 @@ MetricDictGroup = Iterable["MetricDictGroup"] | Dict[int, "MetricDict"]
 
 class MetricDict(UserDict):
     ("Support metrics: `accuracy`, `F1-score`, `loss`, `bleu(1~4)`, `rougeL`, `hit@1`, `MRR`, `rouge(1~3)`, `self-bleu(1~4)`")
-    __metric_for_compare = None
 
     __metric_scale_map = {
         "accuracy": 1,
@@ -41,10 +41,14 @@ class MetricDict(UserDict):
     }
     custom_metric_scale_map = dict()
 
-    # def __init__(self, *args):
-    #     super().__init__(*args)
-    #     self.metric_used_to_comp = MetricsDict.metric_used_to_comp
-    #     self.scale = MetricsDict.scale
+    def __init__(self, a_dict=None, /, metric_for_compare=None, **kwargs):
+        super().__init__(a_dict, **kwargs)
+        if isinstance(a_dict, MetricDict):
+            self.__metric_for_compare = a_dict.__metric_for_compare
+            if metric_for_compare is not None:
+                self.__metric_for_compare = metric_for_compare
+        else:
+            self.__metric_for_compare = metric_for_compare
 
     @classmethod
     def support_metrics(cls):
@@ -53,32 +57,34 @@ class MetricDict(UserDict):
 
     def __setitem__(self, key: str, value: float | int):
         if key not in self.__metric_scale_map and key not in self.custom_metric_scale_map:
-            raise KeyError(f"Key '{key}' is not allowed.")
+            raise KeyError(f"Key '{key}' is not allowed. Supported keys: {self.support_metrics()}")
         super().__setitem__(key, value)
 
-    @classmethod
-    def set_metric_for_compare(cls, value: str):
-        if value not in cls.__metric_scale_map and value not in cls.custom_metric_scale_map:
+    @property
+    def metric_for_compare(self):
+        return self.__metric_for_compare
+
+    @metric_for_compare.setter
+    def metric_for_compare(self, value: str):
+        if value not in self.__metric_scale_map and value not in self.custom_metric_scale_map:
             raise ValueError(
-                f"The value for attribute `metric_for_compare` was not understood: received `{value}` "
-                f"but only {[key for key in cls.__metric_scale_map.keys()]} and {[key for key in cls.custom_metric_scale_map.keys()]} are valid."
+                f"The value for attribute `metric_for_compare` is invalid. "
+                f"Only {self.support_metrics()} are valid, or maybe you can define the custom metric in `MetricDict.custom_metric_scale_map`"
             )
-        cls.__metric_for_compare = value
+        self.__metric_for_compare = value
 
-    @classmethod
-    def metric_for_compare(cls):
-        return cls.__metric_for_compare
-
-    @classmethod
-    def _check(cls):
-        if cls.__metric_for_compare is None:
-            raise TypeError("The metric used to comparison `MetricDict.metric_used_to_comp` is undefined.")
-        if cls.__metric_for_compare in cls.__metric_scale_map:
-            return cls.__metric_scale_map
-        elif cls.__metric_for_compare in cls.custom_metric_scale_map:
-            return cls.custom_metric_scale_map
+    def _check(self):
+        if self.__metric_for_compare is None:
+            raise TypeError("The `metric_for_compare` is undefined.")
+        if self.__metric_for_compare in self.__metric_scale_map:
+            return self.__metric_scale_map
+        elif self.__metric_for_compare in self.custom_metric_scale_map:
+            return self.custom_metric_scale_map
         else:
-            raise KeyError("The metric' scale is undefined in `MetricDict.metric_scale` dict.")
+            raise ValueError(
+                f"The value for attribute `metric_for_compare` is invalid. "
+                f"Only {self.support_metrics()} are valid, or maybe you can define the custom metric in `MetricDict.custom_metric_scale_map`"
+            )
 
     def round(self, precision=4):
         "Round the values to a given precision in decimal digits."
@@ -87,11 +93,14 @@ class MetricDict(UserDict):
         return self
 
     def __eq__(self, other):
+        assert (
+            self.__metric_for_compare == other.__metric_for_compare
+        ), f"Only the MetricDict with same `metric_for_compare` can be compare, got `{self.__metric_for_compare }!={other.__metric_for_compare}`"
         metric_scale_map = self._check()
         if isinstance(other, MetricDict):
             return (
-                self.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
-                == other.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                self.get(self.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                == other.get(other.__metric_for_compare) * metric_scale_map[other.__metric_for_compare]
             )
         raise NotImplementedError()
 
@@ -103,38 +112,50 @@ class MetricDict(UserDict):
         return not result
 
     def __lt__(self, other):
+        assert (
+            self.__metric_for_compare == other.__metric_for_compare
+        ), f"Only the MetricDict with same `metric_for_compare` can be compare, got `{self.__metric_for_compare }!={other.__metric_for_compare}`"
         metric_scale_map = self._check()
         if isinstance(other, MetricDict):
             return (
-                self.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
-                < other.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                self.get(self.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                < other.get(other.__metric_for_compare) * metric_scale_map[other.__metric_for_compare]
             )
         raise NotImplementedError()
 
     def __le__(self, other):
+        assert (
+            self.__metric_for_compare == other.__metric_for_compare
+        ), f"Only the MetricDict with same `metric_for_compare` can be compare, got `{self.__metric_for_compare }!={other.__metric_for_compare}`"
         metric_scale_map = self._check()
         if isinstance(other, MetricDict):
             return (
-                self.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
-                <= other.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                self.get(self.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                <= other.get(other.__metric_for_compare) * metric_scale_map[other.__metric_for_compare]
             )
         raise NotImplementedError()
 
     def __gt__(self, other):
+        assert (
+            self.__metric_for_compare == other.__metric_for_compare
+        ), f"Only the MetricDict with same `metric_for_compare` can be compare, got `{self.__metric_for_compare }!={other.__metric_for_compare}`"
         metric_scale_map = self._check()
         if isinstance(other, MetricDict):
             return (
-                self.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
-                > other.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                self.get(self.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                > other.get(other.__metric_for_compare) * metric_scale_map[other.__metric_for_compare]
             )
         raise NotImplementedError()
 
     def __ge__(self, other):
+        assert (
+            self.__metric_for_compare == other.__metric_for_compare
+        ), f"Only the MetricDict with same `metric_for_compare` can be compare, got `{self.__metric_for_compare }!={other.__metric_for_compare}`"
         metric_scale_map = self._check()
         if isinstance(other, MetricDict):
             return (
-                self.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
-                >= other.get(MetricDict.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                self.get(self.__metric_for_compare) * metric_scale_map[self.__metric_for_compare]
+                >= other.get(other.__metric_for_compare) * metric_scale_map[other.__metric_for_compare]
             )
         raise NotImplementedError()
 
@@ -206,37 +227,40 @@ class MetricDict(UserDict):
             return self * multiplicand
         raise NotImplementedError()
 
-    @staticmethod
-    def _mean_top_k(metric_dicts: Dict[int, "MetricDict"], top_k: int | None = None) -> Tuple[List | "MetricDict"] | None:
-        """
-        metric_dicts: `metric_dicts[seed] = MetricDict`
-        """
-        if not metric_dicts:
-            return None
-        elif isinstance(metric_dicts, Dict):
-            if top_k is None:
-                seeds = list(metric_dicts.keys())
-                ret = reduce(lambda x, y: x + y, metric_dicts.values()) / len(metric_dicts)
-            else:
-                metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1]))
-                seeds = list(metric_dicts_topk.keys())
-                ret = reduce(lambda x, y: x + y, metric_dicts_topk.values()) / len(metric_dicts_topk)
-            for key, value in ret.items():
-                ret[key] = round(value, 2)
-            return ret, seeds
+    # # ! deprecated
+    # @staticmethod
+    # def _mean_top_k(metric_dicts: Dict[int, "MetricDict"], top_k: int | None = None) -> Tuple[List | "MetricDict"] | None:
+    #     """
+    #     metric_dicts: `metric_dicts[seed] = MetricDict`
+    #     """
+    #     if not metric_dicts:
+    #         return None
+    #     elif isinstance(metric_dicts, Dict):
+    #         if top_k is None:
+    #             seeds = list(metric_dicts.keys())
+    #             ret = reduce(lambda x, y: x + y, metric_dicts.values()) / len(metric_dicts)
+    #         else:
+    #             metric_dicts_topk = dict(nlargest(top_k, metric_dicts.items(), key=lambda item: item[1]))
+    #             seeds = list(metric_dicts_topk.keys())
+    #             ret = reduce(lambda x, y: x + y, metric_dicts_topk.values()) / len(metric_dicts_topk)
+    #         for key, value in ret.items():
+    #             ret[key] = round(value, 2)
+    #         return ret, seeds
 
-    # ! deprecated
-    @staticmethod
-    def mean_topk(metric_dicts_group: Dict[str, Dict], top_k: int | None = None) -> Dict[str, Tuple[List | "MetricDict"] | None]:
-        "Deprecated! ! !"
-        "metric_dicts_group: `metric_dicts_group[split][seed] = MetricDict`"
-        ret = dict()
-        for key, value in metric_dicts_group.items():
-            ret[key] = MetricDict._mean_top_k(value, top_k)
-        return ret
+    # # ! deprecated
+    # @staticmethod
+    # def mean_topk(metric_dicts_group: Dict[str, Dict], top_k: int | None = None) -> Dict[str, Tuple[List | "MetricDict"] | None]:
+    #     "Deprecated! ! !"
+    #     "metric_dicts_group: `metric_dicts_group[split][seed] = MetricDict`"
+    #     ret = dict()
+    #     for key, value in metric_dicts_group.items():
+    #         ret[key] = MetricDict._mean_top_k(value, top_k)
+    #     return ret
 
-    def _data4save(self) -> dict:
-        data = {"metric_for_compare": self.__metric_for_compare, "custom_metric_scale_map": self.custom_metric_scale_map, "data": dict(self)}
+    def _get_attridata(self) -> dict:
+        "获得属性字典, 并加入类属性. 返回`字典`"
+        data = deepcopy(self.__dict__)
+        data["custom_metric_scale_map"] = self.custom_metric_scale_map
         return data
 
     def save(self, save_dir: Path | str, file_name: str = METRIC_DICT_DATA_NAME):
@@ -247,15 +271,17 @@ class MetricDict(UserDict):
             save_dir = Path(save_dir)
         assert save_dir.exists(), f"The directory `{save_dir}` dose not exist."
         save_path = save_dir / file_name
-        data = self._data4save()
+        data = self._get_attridata()
         with save_path.open("w", encoding="utf8") as file:
             json.dump(data, file, indent=2)
 
     @classmethod
-    def _load_from_data(cls, data: dict) -> "MetricDict":
-        cls.__metric_for_compare = data["metric_for_compare"]
-        cls.custom_metric_scale_map = data["custom_metric_scale_map"]
-        return cls[data["data"]]
+    def _load_attridata(cls, data: dict) -> "MetricDict":
+        "加载属性字典, 并加载类属性. 返回`MetricDict`"
+        cls.custom_metric_scale_map = data.pop("custom_metric_scale_map")
+        metricdict = cls()
+        metricdict.__dict__ = data
+        return metricdict
 
     @classmethod
     def load(cls, load_dir_or_path: Path | str, file_name: str = METRIC_DICT_DATA_NAME) -> "MetricDict":
@@ -270,7 +296,20 @@ class MetricDict(UserDict):
             resolved_path = load_dir_or_path / file_name
         with resolved_path.open("r", encoding="utf8") as file:
             data = json.load(file)
-        return cls._load_from_data(data)
+        return cls._load_attridata(data)
+
+    @staticmethod
+    def recur_set_metric_for_compare(data: list | dict, metric_for_compare: str):
+        if isinstance(data, list):
+            for item in data:
+                MetricDict.recur_set_metric_for_compare(item, metric_for_compare)
+        elif isinstance(data, dict):
+            for value in data.values():
+                MetricDict.recur_set_metric_for_compare(value, metric_for_compare)
+        elif isinstance(data, MetricDict):
+            data.metric_for_compare = metric_for_compare
+        else:
+            raise ValueError(f"不支持的类型: {type(data)}")
 
     # def to_json(self) -> Dict:
     #     """
@@ -290,3 +329,29 @@ class MetricDict(UserDict):
     #     for key, value in data.items():
     #         ret[Metric[key]] = value
     #     return ret
+
+
+if __name__ == "__main__":
+    d1 = MetricDict({"accuracy": 98, "loss": 1}, metric_for_compare="accuracy")
+    d3 = MetricDict({"accuracy": 99, "loss": 2}, metric_for_compare="accuracy")
+    attridata = d3._get_attridata()
+    d2 = MetricDict._load_attridata(attridata)
+    print(d2 == d3)
+    print(d1 == d2)
+    print(d1 < d2)
+    print(d1 > d2)
+    print(-d2)
+    print(d2 + 1)
+    print(d2 - 1)
+    print(d2 * 2)
+    print(d2 / 2)
+    print(d1 + d2)
+    print(d1 - d2)
+    print(d2.__dict__)
+
+    MetricDict.recur_set_metric_for_compare({"a": {1: [d1, d3]}}, "loss")
+    print(d1.metric_for_compare, d3.metric_for_compare, d2.metric_for_compare)
+    print(d1 > d3)
+
+    # print(d1 * d2)
+    # print(d1 / d2)

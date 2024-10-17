@@ -235,9 +235,7 @@ class Trainer:
             if self.config.early_stop and self.config.continue_train_more_patience:
                 watch_dog.counter = 0
         else:
-            watch_dog = WatchDog(
-                patience=5 if self.config.early_stop else 2 * (self.config.epochs), metric=self.config.metric, record_cheat=self.config.record_cheat
-            )
+            watch_dog = WatchDog(patience=5 if self.config.early_stop else 2 * (self.config.epochs), record_cheat=self.config.record_cheat)
         sync()
 
         # # * Calculate some training parameters
@@ -610,7 +608,7 @@ class Trainer:
             # logger.debug("")
             logger.debug(f"❄️  Evaluate on {split.name} set ❄️")
             logger.debug(f"epoch: {epoch:03d} step_global: {step_global:06d}")
-        metricdict = MetricDict()
+        metricdict = MetricDict(metric_for_compare=self.config.metric)
         for evaluator in evaluators:
             metricdict.update(evaluator.eval())
             sync()
