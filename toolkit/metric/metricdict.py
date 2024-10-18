@@ -260,7 +260,7 @@ class MetricDict(UserDict):
     def _get_attridata(self) -> dict:
         "获得属性字典, 并加入类属性. 返回`字典`"
         data = deepcopy(self.__dict__)
-        data["custom_metric_scale_map"] = self.custom_metric_scale_map
+        data["custom_metric_scale_map"] = deepcopy(self.custom_metric_scale_map)
         return data
 
     def save(self, save_dir: Path | str, file_name: str = METRIC_DICT_DATA_NAME):
