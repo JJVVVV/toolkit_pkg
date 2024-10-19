@@ -1,14 +1,17 @@
 import re
 from typing import Iterable, Literal
 
-from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
-from torchmetrics.functional.text.rouge import rouge_score
-
-# from torchmetrics.text.rouge import ROUGEScore
 from tqdm.auto import tqdm
 
 from . import MetricDict
 from .utils.tokenizer import tokenize
+
+# 导入下面的包会触发
+# `[2024-10-19 17:19:48,636] [INFO] [real_accelerator.py:158:get_accelerator] Setting ds_accelerator to cuda (auto detect)`
+# 导致导入非常慢，原因未知
+# from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
+# from torchmetrics.functional.text.rouge import rouge_score
+# from torchmetrics.text.rouge import ROUGEScore
 
 
 def rouge(
@@ -22,6 +25,8 @@ def rouge(
     """
     rouge_keys that are allowed are `rougeL`, `rougeLsum`, and `rouge1` through `rouge9`.
     """
+    from torchmetrics.functional.text.rouge import rouge_score
+
     if isinstance(labels, str):
         labels = [labels]
     if isinstance(labels[0], str):
@@ -94,6 +99,8 @@ def bleu(
     More detail about smoothing: `https://www.nltk.org/api/nltk.translate.bleu_score.html`
     language: str, Optional["zh", "en"]
     """
+    from nltk.translate.bleu_score import SmoothingFunction, corpus_bleu
+
     return_metricdict = weights is None
     if isinstance(preds, str):
         preds = [preds]

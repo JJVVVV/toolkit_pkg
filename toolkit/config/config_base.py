@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Self
 
-import hjson
+# import hjson
 
 from ..logger import _getLogger
 
