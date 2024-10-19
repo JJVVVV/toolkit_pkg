@@ -6,7 +6,7 @@ from functools import reduce
 from heapq import nlargest
 from logging import Logger
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Tuple
+from typing import Any, Dict, Literal
 
 import torch.distributed as dist
 from transformers import PreTrainedTokenizer
@@ -15,7 +15,7 @@ from .. import toolkit_logger
 from ..config.trainconfig import TrainConfig
 from ..enums import Split
 from ..logger import _getLogger
-from ..metric import MetricDict
+from ..metric.metricdict import MetricDict
 from ..utils.misc import find_file
 
 logger = _getLogger("WatchDog")
