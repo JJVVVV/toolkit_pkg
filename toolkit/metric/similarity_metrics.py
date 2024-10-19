@@ -8,6 +8,7 @@ from torchmetrics.functional.text.rouge import rouge_score
 from tqdm.auto import tqdm
 
 from . import MetricDict
+from .utils.tokenizer import tokenize
 
 
 def rouge(
@@ -41,7 +42,9 @@ def rouge(
         tokenizer = list
         normalizer = lambda x: x
     elif language == "en":
-        tokenizer = lambda s: s.split()
+        # tokenizer = lambda s: s.split()
+        # tokenizer = lambda text: re.findall(r"\w+|[^\w\s]", text)
+        tokenizer = lambda text: tokenize(text, True)
         normalizer = lambda x: x
     else:
         raise NotImplementedError(f"Do NOT support language: `{language}`")

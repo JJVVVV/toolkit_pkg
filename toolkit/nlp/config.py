@@ -8,6 +8,7 @@ from ..config.trainconfig import TrainConfig
 
 class NLPTrainingConfig(TrainConfig):
     allowed_task_type = ("generate", "classify", "regress")
+    allowed_model_structure = ("encoder-decoder", "encoder", "decoder")
 
     def __init__(
         self,
@@ -70,7 +71,7 @@ class NLPTrainingConfig(TrainConfig):
         max_length_label: int | None = None,
         padding_to_max_length: bool = False,
         gen_max_length: int | None = None,
-        max_new_tokens: int | None = None,
+        max_new_tokens: int = 2048,
         do_sample: bool = False,
         num_beams: int = 1,
         early_stopping: bool = False,
@@ -181,12 +182,12 @@ class NLPTrainingConfig(TrainConfig):
             self.generation_config_file = Path(generation_config_file)
             with self.generation_config_file.open() as f:
                 self.generate_kwargs = json.load(f)
-        # 如果没有设定gen_max_length,则使用训练时的max_lengthd
+        # 如果没有设定gen_max_length,则使用训练时的max_length
         self.gen_max_length = self.max_length if self.gen_max_length is None else self.gen_max_length
         # self.pretrained_model_path = pretrained_model_path
 
         def check():
-            assert self.model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {self.model_structure}"
+            assert self.model_structure in self.allowed_model_structure, f"`model_structure` invalid value: {self.model_structure}"
             if self.task_type not in self.allowed_task_type:
                 raise ValueError(
                     f"The parameter `task_type` was not understood: received `{self.task_type}` " f"but only {self.allowed_task_type} are valid."
@@ -212,11 +213,9 @@ class NLPTrainingConfig(TrainConfig):
             "max_length": self.gen_max_length,
         }
 
-        # # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer 的 warning
-        # if self.max_new_tokens is not None:
-        #     ret["max_new_tokens"] = self.max_new_tokens
-        # else:
-        #     ret["max_length"] = self.max_length if self.max_length is not None else 20
+        # 如果设置了`max_new_tokens`就不设置`max_length`, 防止 transformer 的 warning
+        if self.max_new_tokens is not None:
+            ret.pop("max_length")
         return ret
 
     # todo 当前只会覆盖 d 中出现的参数, 正常应该还要把 d 中没出现的参数置为默认值
