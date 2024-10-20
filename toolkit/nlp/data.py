@@ -232,7 +232,7 @@ class TextDataset(Dataset):
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
 
         # tokenize label texts
-        self.truncate_pad_label = False
+        self.truncate_pad_label = False  # 用于控制是否对label进行truncate和pad。只有生成任务的训练才需要设为 True
         self.custom_label = False
         tokenizer.padding_side = "right"
         if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
@@ -391,6 +391,9 @@ class TextDataset(Dataset):
         batch_model_input = []
         longest = 0
         for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
+            # 为 decoder-only 模型的 label 加上 eos
+            if is_label and self.model_structure == "decoder":
+                text1 += tokenizer.eos_token
             a_sample = tokenizer(
                 text=text1,
                 text_pair=text2,
@@ -405,10 +408,11 @@ class TextDataset(Dataset):
             else:
                 batch_model_input.append(a_sample)
             input_ids = a_sample["input_ids"]
-            if isinstance(input_ids[0], list):
-                longest = max(longest, max([len(value_) for value_ in input_ids]))
-            else:
-                longest = max(longest, len(input_ids))
+            # if isinstance(input_ids[0], list):
+            #     longest = max(longest, max([len(value_) for value_ in input_ids]))
+            # else:
+            #     longest = max(longest, len(input_ids))
+            longest = max(longest, max_len_nest_list(input_ids))
         return batch_model_input, longest
 
     def collate_fn(self, batch: list[dict]):
