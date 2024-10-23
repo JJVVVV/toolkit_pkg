@@ -365,7 +365,10 @@ class WatchDog:
 
     @staticmethod
     def topk(
-        metric_dicts: Dict[int, Dict[str, MetricDict]], top_k: int | None = None, base: str | None = None, metric_for_compare: str | None = None
+        metric_dicts: Dict[int, Dict[str, MetricDict]],
+        top_k: int | None = None,
+        base: Literal["val", "test", None] = None,
+        metric_for_compare: str | None = None,
     ):
         if metric_for_compare is not None:
             MetricDict.recur_set_metric_for_compare(metric_dicts, metric_for_compare)
