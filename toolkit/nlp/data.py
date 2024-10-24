@@ -206,6 +206,7 @@ class TextDataset(Dataset):
             "special_tokens_mask": 1,
             "labels": -100,
         }
+        assert tokenizer.pad_token_id is not None, "Pad token must be defined for batch training and inference."
 
         # get input and label texts
         self.texts_input, self.texts_label, *custom_args = load_data_fn(
