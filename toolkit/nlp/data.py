@@ -58,8 +58,8 @@ class PairedText:
     def tolist(self):
         return [self.first_text, self.second_text] if self.second_text is not None else [self.first_text]
 
-    def __str__(self) -> str:
-        return str(self.tolist())
+    def __repr__(self) -> str:
+        return f"Pair 1️⃣: \n{self.first_text}\nPair 2️⃣: \n{self.second_text}" if self.second_text is not None else self.first_text
 
 
 class FinelyControlledText:
