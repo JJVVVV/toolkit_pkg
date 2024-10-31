@@ -392,16 +392,17 @@ class TextDataset(Dataset):
         batch_model_input = []
         longest = 0
         for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
-            # 为 decoder-only 模型的 label 加上 eos
-            if is_label and self.model_structure == "decoder":
-                text1 += tokenizer.eos_token
+            # # 为 decoder-only 模型的 label 加上 eos
+            # if is_label and self.model_structure == "decoder":
+            #     text1 += tokenizer.eos_token
             a_sample = tokenizer(
                 text=text1,
                 text_pair=text2,
                 padding=False,
                 truncation=False,
                 max_length=None,
-                add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                # add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                add_special_tokens=self.model_structure != "decoder",
                 return_attention_mask=not is_label,
             )
             if is_label:
