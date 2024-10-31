@@ -185,17 +185,27 @@ class TextDataset(Dataset):
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID] | List[str]],
         ],
         split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"] = Split.ANY,
+        padding_side: str = "right",
+        padding_to_max_length: bool = False,
         **kwargs_load_data,
     ) -> None:
         super().__init__()
-        if not isinstance(split, Split):
-            split = Split[split]
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
             logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
+        if not isinstance(split, Split):
+            split = Split[split]
         assert model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {model_structure}"
-        self.model_structure = model_structure
         assert task_type in ("generate", "classify", "regress"), f"`task_type` invalid value: {task_type}"
+        # config padding settings
+        assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is invalid, only `left` and `right` are valid values"
+        if padding_side == "right" and task_type == "generate":
+            logger.warning(
+                "⚠️  Detect the `padding_side=right` and the `task_type=generate`, We strongly recommend that padding_side be set to `left` for generation tasks."
+            )
+        self.model_structure = model_structure
+        self.padding_side = padding_side
+        self.padding_to_max_length = padding_to_max_length
         self.task_type = task_type
         # self.padding_to_max_length = padding_to_max_length
         self.split = split
@@ -235,7 +245,8 @@ class TextDataset(Dataset):
         # tokenize label texts
         self.truncate_pad_label = False  # 用于控制是否对label进行truncate和pad。只有生成任务的训练才需要设为 True
         self.custom_label = False
-        tokenizer.padding_side = "right"
+        # ! 不再使用 tokenizer 做 padding
+        # tokenizer.padding_side = "right"
         if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
             self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer_tqdm(
                 tokenizer, self.texts_label, desc=f"Tokenize {split.name} label texts", is_label=True
@@ -362,7 +373,7 @@ class TextDataset(Dataset):
             nonlocal max_length
             if not isinstance(l[0], List):
                 diff = max_length - len(l)
-                # 生成任务时，如果模型结构是encoder-decoder, 则labels的pad应该始终在右边
+                # 生成任务时，如果模型结构是encoder-decoder, 则labels的pad应该始终在右边 (而对于decoder模型，input和label的pad方向应一致, 因为模型最终的输入和标签都是input+label)
                 if (inputkey == "labels" and self.model_structure == "encoder-decoder") or self.padding_side == "right":
                     return l + [self.inputkey2padid[inputkey]] * diff
                 else:
@@ -491,6 +502,8 @@ class TextDataset(Dataset):
                 model_structure=configs.model_structure,
                 task_type=configs.task_type,
                 split=split,
+                padding_side=configs.padding_side,
+                padding_to_max_length=configs.padding_to_max_length,
                 **kwargs_load_data,
             )
             if use_cache:
@@ -518,15 +531,6 @@ class TextDataset(Dataset):
             dataset.max_length_label_after_trunc = configs.max_length_label or configs.max_length
             print(dataset.max_length_input_after_trunc)
             print(dataset.max_length_label_after_trunc)
-
-        # config padding settings
-        assert configs.padding_side in (
-            "left",
-            "right",
-        ), f"`padding_side={configs.padding_side}` is not understood, only `left` and `right` are valid values"
-        # tokenizer.padding_side = configs.padding_side
-        dataset.padding_side = configs.padding_side
-        dataset.padding_to_max_length = configs.padding_to_max_length
 
         return dataset
 
