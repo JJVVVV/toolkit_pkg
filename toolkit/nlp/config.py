@@ -192,6 +192,10 @@ class NLPTrainingConfig(TrainConfig):
                 raise ValueError(
                     f"The parameter `task_type` was not understood: received `{self.task_type}` " f"but only {self.allowed_task_type} are valid."
                 )
+            assert self.padding_side in (
+                "left",
+                "right",
+            ), f"`padding_side={self.padding_side}` is invalid, only `left` and `right` are valid values"
 
         if self.is_check:
             check()
