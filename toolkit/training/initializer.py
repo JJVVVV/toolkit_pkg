@@ -100,6 +100,7 @@ def allocate_gpu_memory(ratio=0.8) -> None:
             print(e)
 
 
+# ! deprecated
 def initialize(config: TrainConfig, allocate_memory: float | None = None, log_file="report.log"):
     output_path_logger = Path(config.save_dir) / log_file
     set_file_logger(output_path_logger)
