@@ -296,22 +296,22 @@ class Trainer:
             self.optimizer = Optimizer(optimizer)
             if self.scheduler is not None:  # scheduler
                 if isinstance(self.scheduler, torch.optim.lr_scheduler.LRScheduler):
-                    scheduler = self.scheduler
+                    self.scheduler = self.scheduler
                 else:  # a string which can be mapped to a function that return a scheduler with a given optimizer
                     get_scheduler_fn = map_str2getScheFn[self.scheduler]
                     if self.scheduler == "linearWarmup":
-                        scheduler = get_scheduler_fn(self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps)
+                        self.scheduler = get_scheduler_fn(self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps)
                     elif self.scheduler == "linearWarmupDecay":
-                        scheduler = get_scheduler_fn(
+                        self.scheduler = get_scheduler_fn(
                             self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_num_steps
                         )
                     elif self.scheduler in ("cosineWarmupDecay", "cosineWarmupDecayRestart"):
                         if self.config.sch_num_cycles == -1:
-                            scheduler = get_scheduler_fn(
+                            self.scheduler = get_scheduler_fn(
                                 self.optimizer.object_with_state_dict, self.config.sch_warmup_num_steps, self.config.total_num_steps
                             )
                         else:
-                            scheduler = get_scheduler_fn(
+                            self.scheduler = get_scheduler_fn(
                                 self.optimizer.object_with_state_dict,
                                 self.config.sch_warmup_num_steps,
                                 self.config.total_num_steps,
@@ -319,7 +319,7 @@ class Trainer:
                             )
                     else:
                         raise NotImplementedError(f"Initialization for {self.scheduler} have not been implemented.")
-            self.scheduler = Scheduler(scheduler)
+            self.scheduler = Scheduler(self.scheduler)
             self.scaler = Scaler(self.scaler)
 
             # * Load optimizer_state_dict, scheduler_state_dict and scaler if possible
@@ -373,7 +373,7 @@ class Trainer:
 
                 # forward and backward
                 accumulate_loss = 0
-                loss_display = 0
+                loss_log = 0
                 for batch in batch_in_accumulate:
                     custom_inputs = batch.pop("custom_inputs", dict())
                     # copy batch to GPU memory
@@ -413,11 +413,11 @@ class Trainer:
                             # backward
                             loss.backward()
                     accumulate_loss += loss.item()
-                    if "loss_display" in outputs:
-                        loss_display += outputs["loss_display"] / self.config.gradient_accumulation_steps
+                    if "loss_log" in outputs:
+                        loss_log += outputs["loss_log"] / self.config.gradient_accumulation_steps
                     else:
-                        loss_display += loss
-                loss_display = loss_display.view(-1)
+                        loss_log += loss
+                loss_log = loss_log.view(-1)
 
                 # call step()
                 if self.config.parallel_mode == "deepspeed":
@@ -453,7 +453,7 @@ class Trainer:
 
                     info = OrderedDict()
                     # info["loss"] = f"{accumulate_loss:.3f}"
-                    info["loss"] = f"{[round(l, 3) for l in loss_display.tolist()]}"
+                    info["loss"] = f"{[round(l, 3) for l in loss_log.tolist()]}"
                     # logger.error(f"local_rank: {self.local_rank}, loss: {info['loss']}, step: {curStepInGlobal}")
                     if self.config.show_lr:
                         info["lr"] = f"{lr:.2e}"
