@@ -14,8 +14,10 @@ def kl_loss(p: torch.Tensor, q: torch.Tensor, temperature=1.0, reduction="batchm
     """计算kl散度损失"""
     p = p / temperature
     q = q / temperature
-    loss1 = F.kl_div(F.log_softmax(p, dim=-1), F.log_softmax(q, dim=-1), reduction=reduction, log_target=True)
-    loss2 = F.kl_div(F.log_softmax(q, dim=-1), F.log_softmax(p, dim=-1), reduction=reduction, log_target=True)
+    p_log_softmax = F.log_softmax(p, dim=-1)
+    q_log_softmax = F.log_softmax(q, dim=-1)
+    loss1 = F.kl_div(p_log_softmax, q_log_softmax, reduction=reduction, log_target=True)
+    loss2 = F.kl_div(q_log_softmax, p_log_softmax, reduction=reduction, log_target=True)
     return (loss1 + loss2) / 2
 
 
