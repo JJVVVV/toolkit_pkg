@@ -99,9 +99,10 @@ class Evaluator:
                         else:
                             outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
                         if self.config.cut_input_from_output:
-                            texts = []
-                            for idx, output in enumerate(outputs):
-                                texts.append(self.tokenizer.decode(output[batch["input_ids"][idx].size(0) :], skip_special_tokens=True))
+                            texts = self.tokenizer.batch_decode(outputs[..., batch["input_ids"].shape[-1] :], skip_special_tokens=True)
+                            # texts = []
+                            # for idx, output in enumerate(outputs):
+                            #     texts.append(self.tokenizer.decode(output[batch["input_ids"][idx].size(0) :], skip_special_tokens=True))
                         else:
                             texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                         all_losses.append(-1)
