@@ -406,16 +406,36 @@ class TextDataset(Dataset):
             # # 为 decoder-only 模型的 label 加上 eos
             # if is_label and self.model_structure == "decoder":
             #     text1 += tokenizer.eos_token
-            a_sample = tokenizer(
-                text=text1,
-                text_pair=text2,
-                padding=False,
-                truncation=False,
-                max_length=None,
-                # add_special_tokens=not (is_label and self.model_structure == "decoder"),
-                add_special_tokens=self.model_structure != "decoder",
-                return_attention_mask=not is_label,
-            )
+            # * 为了当一个样本是一个列表时，能允许列表中部分是单个输入，部分是成对输入（即text_pair=None）
+            if isinstance(text1, Iterable):
+                a_sample = dict()
+                for t1, t2 in zip(text1, text2):
+                    part_a_sample = tokenizer(
+                        text=t1,
+                        text_pair=t2,
+                        padding=False,
+                        truncation=False,
+                        max_length=None,
+                        # add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                        add_special_tokens=self.model_structure != "decoder",
+                        return_attention_mask=not is_label,
+                    )
+                    for k, v in part_a_sample.items():
+                        if k in a_sample:
+                            a_sample[k].append(v)
+                        else:
+                            a_sample[k] = [v]
+            else:
+                a_sample = tokenizer(
+                    text=text1,
+                    text_pair=text2,
+                    padding=False,
+                    truncation=False,
+                    max_length=None,
+                    # add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                    add_special_tokens=self.model_structure != "decoder",
+                    return_attention_mask=not is_label,
+                )
             if is_label:
                 batch_model_input.append(a_sample["input_ids"])
             else:
