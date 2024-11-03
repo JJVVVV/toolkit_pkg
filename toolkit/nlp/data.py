@@ -407,7 +407,7 @@ class TextDataset(Dataset):
             # if is_label and self.model_structure == "decoder":
             #     text1 += tokenizer.eos_token
             # * 为了当一个样本是一个列表时，能允许列表中部分是单个输入，部分是成对输入（即text_pair=None）
-            if isinstance(text1, Iterable):
+            if not isinstance(text1, str):
                 a_sample = dict()
                 for t1, t2 in zip(text1, text2):
                     part_a_sample = tokenizer(
