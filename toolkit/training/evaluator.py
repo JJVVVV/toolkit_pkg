@@ -20,6 +20,8 @@ class Evaluator:
     `task_type`: "generate", "classify", "regress"\n
     """
 
+    save_result = False
+
     def __new__(
         cls,
         task_type: str,
@@ -143,14 +145,37 @@ class Evaluator:
 
             # if local_rank != 0:  # final result will be calculated on `local rank 0` process
             #     return None
-
-            all_labels = sum(labels_gather_list, [])
-            all_logits = sum(logits_gather_list, [])
+            # * 因为 dataloader 中的 sampler 的采用方式, labels_gather_list 中每一个列表的第 i 个元素的组合， 才对应第 i 个 batch 中的内容， 为了保证 all_labels
+            all_labels = sum(zip(*labels_gather_list), ())
+            all_logits = sum(zip(*logits_gather_list), ())
             mean_loss = (mean_loss / world_size).item()
         else:
             mean_loss = sum(all_losses) / len(all_losses)
 
         return self.calculate_metric_callback(all_labels, all_logits, mean_loss)
 
-    def calculate_metric_callback(self, all_labels: list, all_logits: list, mean_loss: float) -> MetricDict:
+    def calculate_metric_callback(self, all_labels: list | tuple, all_logits: list | tuple, mean_loss: float) -> MetricDict:
         raise NotImplementedError("Please implement the function of calculate metrics.")
+
+    def calculate_metric_callback_rougel(
+        self, all_labels: list | tuple, all_logits: list | tuple, mean_loss: float, language: Literal["en", "ch"] = "en"
+    ):
+        import pandas as pd
+
+        from ..metric.similarity_metrics import rouge
+
+        if self.save_result:
+            df = pd.DataFrame.from_dict(
+                dict(inputs=[a_sample.tolist() for a_sample in self.dataset.texts_input[: len(all_labels)]], preds=all_logits, labels=all_labels)
+            )
+            generate_result_path = (
+                self.config.save_dir
+                / "evaluators"
+                / self.__class__.__name__.lower()
+                / self.split.name
+                / f"epoch={self.config.training_runtime['cur_epoch']:03d}_step={self.config.training_runtime['cur_step']}.json"
+            )
+            generate_result_path.parent.mkdir(parents=True, exist_ok=True)
+            df.to_json(generate_result_path, force_ascii=False, indent=2, orient="records")
+        metric = (rouge(all_logits, all_labels, language, ("rougeL")) * 100).round(2)
+        return metric
