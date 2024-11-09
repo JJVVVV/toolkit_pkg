@@ -85,7 +85,6 @@ class TrainConfig(ConfigBase):
         self.train_file_path = Path(train_file_path) if train_file_path is not None else None
         self.val_file_path = Path(val_file_path) if val_file_path is not None else None
         self.test_file_path = Path(test_file_path) if test_file_path is not None else None
-        self.check_data_file()
 
         # attributes related to the model
         self.model_type = model_type
@@ -161,24 +160,7 @@ class TrainConfig(ConfigBase):
         self.record_cheat = record_cheat
         # self.warning_default()
 
-        def check():
-            if self.metric not in MetricDict.support_metrics():
-                raise ValueError(
-                    f"The config parameter `metric` was not understood: received `{self.metric}` "
-                    f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
-                )
-            assert self.parallel_mode in [None, "DDP", "deepspeed"], (
-                f"[parallel_mode] Only `DDP` and `deepspeed` are supported, but got `{self.parallel_mode}`.\n"
-                "if you do not need parallel, plase set it to `None`."
-            )
-            assert not (self.fp16 and self.bf16), f"❌  `fp16` and `bf16` cannot be enabled at the same time!"
-            assert self.dashboard in ["wandb", "tensorboard", None], (
-                f"Only `wandb` and `tensorboard` dashboards are supported, but got `{self.dashboard}`.\n"
-                "if you do not need dashboard, plase set it to `None`."
-            )
-
-        if self.is_check:
-            check()
+        self.check()
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if not silence:
@@ -193,9 +175,10 @@ class TrainConfig(ConfigBase):
             logger.debug(f"💾 Loading training configuration ...")
         return super().load(load_dir_or_path, json_file_name, silence, **kwargs)
 
-    def check_data_file(self):
+    def check(self):
         """
-        Check whether the data files exist.
+        Check whether the data files exist.\\
+        Check whether values of `metric`, `parallel_mode`, `fp16`, `bf16`, `dashboard` is valid.
         """
         if self.train_file_path is not None:
             assert self.train_file_path.exists(), f"Training file: {self.train_file_path} dose not exists"
@@ -203,6 +186,20 @@ class TrainConfig(ConfigBase):
             assert self.val_file_path.exists(), f"Validation file: {self.val_file_path} dose not exists"
         if self.test_file_path is not None:
             assert self.test_file_path.exists(), f"Test file: {self.test_file_path} dose not exists"
+        if self.metric not in MetricDict.support_metrics():
+            raise ValueError(
+                f"The config parameter `metric` was not understood: received `{self.metric}` "
+                f"but only {[key for key in  MetricDict.support_metrics()]} are valid."
+            )
+        assert self.parallel_mode in [None, "DDP", "deepspeed"], (
+            f"[parallel_mode] Only `DDP` and `deepspeed` are supported, but got `{self.parallel_mode}`.\n"
+            "if you do not need parallel, plase set it to `None`."
+        )
+        assert not (self.fp16 and self.bf16), f"❌  `fp16` and `bf16` cannot be enabled at the same time!"
+        assert self.dashboard in ["wandb", "tensorboard", None], (
+            f"Only `wandb` and `tensorboard` dashboards are supported, but got `{self.dashboard}`.\n"
+            "if you do not need dashboard, plase set it to `None`."
+        )
 
     # 未使用
     def warning_default(self):

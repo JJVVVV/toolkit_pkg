@@ -3,9 +3,10 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Self
 
+from ..logger import _getLogger
+
 # import hjson
 
-from ..logger import _getLogger
 
 CONFIG_NAME = "config.json"
 logger = _getLogger("Configuration")
@@ -186,7 +187,7 @@ class ConfigBase:
                 ConfigBase.dict_torch_dtype_to_str(value)
 
     @staticmethod
-    def _convert_objects(d: Dict):
+    def convert_objects(d: Dict):
         """
         Convert objects' type to the types that can be encoded by json.
         For example: `Path` -> `str`
@@ -196,7 +197,8 @@ class ConfigBase:
                 d[key] = str(value)
 
     @staticmethod
-    def _convert_and_flat_objects(d: Dict):
+    def convert_and_flat_objects(d: Dict):
+        # ! deprecated
         """
         Convert objects' type to the types that can be encoded by json.
         For example: `Path` -> `str`\n
@@ -218,7 +220,7 @@ class ConfigBase:
     def __repr__(self):
         return f"{self.__class__.__name__} {self.to_json_string()}"
 
-    def to_dict(self, flat=False) -> Dict[str, Any]:
+    def to_dict(self) -> Dict[str, Any]:
         """
         Serializes this instance to a Python dictionary.\n
         flat: Whether to flat the nest dict.
@@ -234,10 +236,7 @@ class ConfigBase:
         # if hasattr(self.__class__, "model_type"):
         #     output["model_type"] = self.__class__.model_type
         self.dict_torch_dtype_to_str(output)
-        if flat:
-            self._convert_and_flat_objects(output)
-        else:
-            self._convert_objects(output)
+        self.convert_objects(output)
         return output
 
     def to_diff_dict(self) -> Dict[str, Any]:
