@@ -108,6 +108,8 @@ class Evaluator:
                         else:
                             texts = self.tokenizer.batch_decode(outputs, skip_special_tokens=True)
                         all_losses.append(-1)
+                        if isinstance(labels, torch.Tensor):
+                            labels = labels.numpy(force=True).tolist()
                         all_labels.extend(labels)
                         all_logits.extend(texts)
             case "classify" | "regress":
