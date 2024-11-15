@@ -99,7 +99,13 @@ class Evaluator:
                         ):  # 支持使用hugging face的GenerationConfig, 防止config.generation中的参数覆盖hf GenerationConfig中的参数
                             outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation)
                         else:
-                            outputs = self.model.generate(**batch, **custom_inputs, **self.extral_args_evaluation, **self.config.generate_kwargs)
+                            outputs = self.model.generate(
+                                **batch,
+                                **custom_inputs,
+                                **self.extral_args_evaluation,
+                                **self.config.generate_kwargs,
+                                pad_token_id=self.tokenizer.pad_token_id,
+                            )
                         if self.config.cut_input_from_output:
                             texts = self.tokenizer.batch_decode(outputs[..., batch["input_ids"].shape[-1] :], skip_special_tokens=True)
                             # texts = []
