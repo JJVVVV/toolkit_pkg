@@ -769,7 +769,8 @@ class Trainer:
                 if evaluator is not None:
                     self.evaluators[split].append(evaluator)
         if self.local_rank == 0:
-            logger.debug(str(self.evaluators))
+            for key, value in self.evaluators.items():
+                logger.debug(f"{key.name}: {[e.__class__.__name__ for e in value]}")
         # self.evaluator_val = Evaluator(
         #     self.task_type,
         #     Split.VALIDATION,
