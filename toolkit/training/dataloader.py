@@ -26,7 +26,7 @@ def gradient_accumulate(dataloader: DataLoader, accumulate_step: int) -> Generat
 
 
 def get_dataloader(
-    dataset: Dataset, configs: TrainConfig, split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"], shuffle=None, **dataloader_kwargs
+    dataset: Dataset, configs: TrainConfig, split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"], shuffle=None, **dataloader_kwargs
 ) -> Tuple[DataLoader, DistributedSampler] | DataLoader:
     """Getting the dataloader when using multiple GPUs, which is also compatible with a single GPU"""
     if not isinstance(split, Split):

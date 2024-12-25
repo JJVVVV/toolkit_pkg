@@ -126,7 +126,7 @@ class WatchDog:
             )
 
     @staticmethod
-    def report(metricdict: MetricDict, split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"], file_logger: Logger | None = None):
+    def report(metricdict: MetricDict, split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"], file_logger: Logger | None = None):
         "Report a metric dictionary."
         if not isinstance(split, Split):
             split = Split[split]

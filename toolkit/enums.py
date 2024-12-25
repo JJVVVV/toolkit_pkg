@@ -5,7 +5,7 @@ class Split(Enum):
     TRAINING = auto()
     VALIDATION = auto()
     TEST = auto()
-    ANY = auto()
+    UNK = auto()
 
 
 class ConversationStyle(Enum):
