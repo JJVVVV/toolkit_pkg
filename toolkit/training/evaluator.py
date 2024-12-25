@@ -25,7 +25,7 @@ class Evaluator:
     def __new__(
         cls,
         task_type: str,
-        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"],
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
         config: TrainConfig,
         model,
         dataset: Dataset,
@@ -42,7 +42,7 @@ class Evaluator:
     def __init__(
         self,
         task_type: str,
-        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"],
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
         config: TrainConfig,
         model,
         dataset: Dataset,
@@ -67,7 +67,7 @@ class Evaluator:
         world_size = dist.get_world_size() if dist.is_initialized() else 1
 
         self.dataloader = (
-            get_dataloader(self.dataset, self.config, self.split, False, collate_fn=self.dataset.collate_fn)
+            get_dataloader(self.dataset, self.config, self.split, shuffle=False, collate_fn=self.dataset.collate_fn)
             if not hasattr(self, "dataloader")
             else self.dataloader
         )

@@ -184,9 +184,8 @@ class TextDataset(Dataset):
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID] | List[str]],
         ],
-        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"] = Split.ANY,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"] = Split.UNK,
         padding_side: str = "right",
-        padding_to_max_length: bool = False,
         **kwargs_load_data,
     ) -> None:
         super().__init__()
@@ -205,9 +204,7 @@ class TextDataset(Dataset):
             )
         self.model_structure = model_structure
         self.padding_side = padding_side
-        self.padding_to_max_length = padding_to_max_length
         self.task_type = task_type
-        # self.padding_to_max_length = padding_to_max_length
         self.split = split
         self.inputkey2padid = {
             "input_ids": tokenizer.pad_token_id,
@@ -373,6 +370,8 @@ class TextDataset(Dataset):
             nonlocal max_length
             if not isinstance(l[0], List):
                 diff = max_length - len(l)
+                # if diff <= 0:
+                #     return l
                 # 生成任务时，如果模型结构是encoder-decoder, 则labels的pad应该始终在右边 (而对于decoder模型，input和label的pad方向应一致, 因为模型最终的输入和标签都是input+label)
                 if (inputkey == "labels" and self.model_structure == "encoder-decoder") or self.padding_side == "right":
                     return l + [self.inputkey2padid[inputkey]] * diff
@@ -387,12 +386,45 @@ class TextDataset(Dataset):
         return {key: torch.tensor(helper(value, key), dtype=torch.long) for key, value in model_input.items()}
 
     def __pad_batch(self, batch: list[ModelInput], max_length: int | None = None):
+        """
+        如果 max_length = None, 则 pad 到 batch 内样本的最大长度
+        """
         if max_length is None:
             if "input_ids" in batch[0]:
                 max_length = max_len_nest_list([sample["input_ids"] for sample in batch])
             else:
                 max_length = max_len_nest_list([sample["labels"] for sample in batch])
         return [self.__pad_one(model_input, max_length) for model_input in batch]
+
+    def __pad_one_return_list(self, model_input: ModelInput, max_length: int):
+        def helper(l: List, inputkey: str):
+            nonlocal max_length
+            if not isinstance(l[0], List):
+                diff = max_length - len(l)
+                # if diff <= 0:
+                #     return l
+                # 生成任务时，如果模型结构是encoder-decoder, 则labels的pad应该始终在右边 (而对于decoder模型，input和label的pad方向应一致, 因为模型最终的输入和标签都是input+label)
+                if (inputkey == "labels" and self.model_structure == "encoder-decoder") or self.padding_side == "right":
+                    return l + [self.inputkey2padid[inputkey]] * diff
+                else:
+                    return [self.inputkey2padid[inputkey]] * diff + l
+            ret = []
+            for l_ in l:
+                ret.append(helper(l_, inputkey))
+            return ret
+
+        return {key: helper(value, key) for key, value in model_input.items()}
+
+    def __pad_batch_return_list(self, batch: list[ModelInput], max_length: int | None = None):
+        """
+        如果 max_length = None, 则 pad 到 batch 内样本的最大长度
+        """
+        if max_length is None:
+            if "input_ids" in batch[0]:
+                max_length = max_len_nest_list([sample["input_ids"] for sample in batch])
+            else:
+                max_length = max_len_nest_list([sample["labels"] for sample in batch])
+        return [self.__pad_one_return_list(model_input, max_length) for model_input in batch]
 
     # @staticmethod
     def transformers_tokenizer_tqdm(
@@ -449,15 +481,11 @@ class TextDataset(Dataset):
         return batch_model_input, longest
 
     def collate_fn(self, batch: list[dict]):
-        batch_model_inputs = self.__pad_batch(
-            [item.pop("model_inputs") for item in batch], self.max_length_input_after_trunc if self.padding_to_max_length else None
-        )
+        batch_model_inputs = self.__pad_batch([item.pop("model_inputs") for item in batch], None)
         # import pdb; pdb.set_trace()
         ret: dict = default_collate(batch_model_inputs)
         if self.truncate_pad_label:
-            batch_labels = self.__pad_batch(
-                [{"labels": item.pop("labels")} for item in batch], self.max_length_label_after_trunc if self.padding_to_max_length else None
-            )
+            batch_labels = self.__pad_batch([{"labels": item.pop("labels")} for item in batch], None)
             ret.update(default_collate(batch_labels))
         if self.custom_label:
             batch_labels = [item.pop("labels") for item in batch]
@@ -467,31 +495,59 @@ class TextDataset(Dataset):
         # print(ret["input_ids"].shape)
         return ret
 
-    # def collate_fn(self, batch: list[dict]):
-    #     batch_model_inputs = default_collate(
-    #         self.__pad_batch([item.pop("model_inputs") for item in batch], self.actual_max_length_input if self.padding_to_max_length else None)
-    #     )
-    #     batch_model_inputs.update(default_collate(batch))
-    #     return batch_model_inputs
-
     @classmethod
     def from_file(
         cls,
-        data_file_path: Path | str,
+        *,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
-        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "ANY"],
-        configs: NLPTrainingConfig,
         load_data_fn: Callable[
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
+        data_file_path: Path | str | None = None,
+        task_type: str | None = None,
         use_cache: bool | None = None,
+        model_structure: str | None = None,
+        model_type: str | None = None,
+        padding_side: str | None = None,
+        max_length: int | None = None,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
+        padding_to_max_length: bool | None = None,
+        configs: NLPTrainingConfig | None = None,
         **kwargs_load_data,
     ) -> Self | None:
-        """Load dataset from file with the given `NLPTrainingConfig`."""
+        """
+        Load dataset from file with the given `NLPTrainingConfig`.
+        """
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+
         if not isinstance(split, Split):
             split = Split[split]
-        local_rank = dist.get_rank() if dist.is_initialized() else 0
+
+        if configs is None:
+            configs = NLPTrainingConfig(
+                task_type=task_type,
+                cache_dataset=use_cache,
+                model_structure=model_structure,
+                model_type=model_type,
+                padding_side=padding_side,
+                max_length=max_length,
+                max_length_input=max_length_input,
+                max_length_label=max_length_label,
+                padding_to_max_length=padding_to_max_length,
+            )
+
+        # 如果未指定 data_file_path, 则尝试根据 split 从 configs 中找对应的文件
+        if data_file_path is None:
+            match split:
+                case Split.TRAINING:
+                    data_file_path = configs.train_file_path
+                case Split.VALIDATION:
+                    data_file_path = configs.val_file_path
+                case Split.TEST:
+                    data_file_path = configs.test_file_path
 
         if data_file_path is None:
             if local_rank == 0:
@@ -523,7 +579,6 @@ class TextDataset(Dataset):
                 task_type=configs.task_type,
                 split=split,
                 padding_side=configs.padding_side,
-                padding_to_max_length=configs.padding_to_max_length,
                 **kwargs_load_data,
             )
             if use_cache:
@@ -540,10 +595,18 @@ class TextDataset(Dataset):
         )
         if local_rank == 0:
             toolkit_logger.info(
-                f"✂️  Truncating {split.name} data: cnt={cnt}, input_len={max_length_input_after_trunc}, label_len={max_length_label_after_trunc}"
+                f"✂️  Truncating {split.name} data: cnt={cnt}, input_len={max_length_input_after_trunc}, label_len={max_length_label_after_trunc}."
             )
         dataset.max_length_input_after_trunc = max_length_input_after_trunc
         dataset.max_length_label_after_trunc = max_length_label_after_trunc
+
+        # pad dataset
+        if configs.padding_to_max_length:
+            dataset.batch_model_input = dataset.__pad_batch_return_list(dataset.batch_model_input, max_length_input_after_trunc)
+            if dataset.truncate_pad_label:
+                dataset.tokens_labels = dataset.__pad_batch_return_list(dataset.tokens_labels, max_length_label_after_trunc)
+            if local_rank == 0:
+                toolkit_logger.info(f"🧷 Padding {split.name} to max length of dataset.")
 
         # ? 此段代码只是为了测试固定长度的输入所需的显存(为了项目 memcal), 正常训练无需设置这个参数, 因为除了浪费算力外没有任何意义
         if hasattr(configs, "padding_to_configed_max_length") and configs.padding_to_configed_max_length:
