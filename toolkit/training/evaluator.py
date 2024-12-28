@@ -4,6 +4,7 @@ import torch
 import torch.distributed as dist
 from torch.utils.data import Dataset
 from tqdm.auto import tqdm
+from pathlib import Path
 
 from ..config import TrainConfig
 from ..enums import Split
@@ -165,25 +166,36 @@ class Evaluator:
     def calculate_metric_callback(self, all_labels: list | tuple, all_logits: list | tuple, mean_loss: float) -> MetricDict:
         raise NotImplementedError("Please implement the function of calculate metrics.")
 
-    def calculate_metric_callback_rougel(
-        self, all_labels: list | tuple, all_logits: list | tuple, mean_loss: float, language: Literal["en", "ch"] = "en"
-    ):
-        import pandas as pd
-
-        from ..metric.similarity_metrics import rouge
-
-        if self.save_result:
-            df = pd.DataFrame.from_dict(
-                dict(inputs=[a_sample.tolist() for a_sample in self.dataset.texts_input[: len(all_labels)]], preds=all_logits, labels=all_labels)
-            )
-            generate_result_path = (
+    def save_eval_result(self, all_labels: list | tuple, all_logits: list | tuple, output_path: str | None = None):
+        """
+        Save the evaluation result to the output path. If output_path is None, the result will be saved to the default path.\\
+        Adapt to multi-gpu environment.
+        """
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+        if local_rank != 0:
+            return None
+        if output_path is None:
+            output_path = (
                 self.config.save_dir
                 / "evaluators"
                 / self.__class__.__name__.lower()
                 / self.split.name
                 / f"epoch={self.config.training_runtime['cur_epoch']:03d}_step={self.config.training_runtime['cur_step']}.json"
             )
-            generate_result_path.parent.mkdir(parents=True, exist_ok=True)
-            df.to_json(generate_result_path, force_ascii=False, indent=2, orient="records")
+        output_path = Path(output_path)
+        import pandas as pd
+
+        df = pd.DataFrame.from_dict(
+            dict(inputs=[a_sample.tolist() for a_sample in self.dataset.texts_input[: len(all_labels)]], preds=all_logits, labels=all_labels)
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        df.to_json(output_path, force_ascii=False, indent=2, orient="records")
+
+    def calculate_metric_callback_rougel(
+        self, all_labels: list | tuple, all_logits: list | tuple, mean_loss: float, language: Literal["en", "ch"] = "en"
+    ) -> MetricDict:
+        self.save_eval_result(all_labels, all_logits)
+        from ..metric.similarity_metrics import rouge
+
         metric = (rouge(all_logits, all_labels, language, ("rougeL")) * 100).round(2)
         return metric
