@@ -205,12 +205,12 @@ class NLPTrainingConfig(TrainConfig):
 
     def auto_values(self):
         """自动设置一些值"""
-        if self.padding_side is None:
-            self.padding_side = "left" if self.model_structure == "encoder" else "right"
-            logger.info(f"Auto setting `padding_side='{self.padding_side}'` according to `model_structure={self.modelstructure}`")
-        if self.cut_input_from_output is None:
-            self.cut_input_from_output = True if self.model_structure == "encoder" else False
-            logger.info(f"Auto setting `cut_input_from_output='{self.cut_input_from_output}'` according to `model_structure={self.modelstructure}`")
+        if self.padding_side is None and self.model_structure is not None:
+            self.padding_side = "left" if self.model_structure == "decoder" else "right"
+            logger.info(f"Auto setting `padding_side='{self.padding_side}'` according to `model_structure={self.model_structure}`")
+        if self.cut_input_from_output is None and self.model_structure is not None:
+            self.cut_input_from_output = True if self.model_structure == "decoder" else False
+            logger.info(f"Auto setting `cut_input_from_output='{self.cut_input_from_output}'` according to `model_structure={self.model_structure}`")
 
     @property
     def generate_kwargs(self):

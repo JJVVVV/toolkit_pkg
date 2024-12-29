@@ -198,9 +198,9 @@ class TextDataset(Dataset):
         assert task_type in ("generate", "classify", "regress"), f"`task_type` invalid value: {task_type}"
         # config padding settings
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is invalid, only `left` and `right` are valid values"
-        if padding_side == "right" and task_type == "generate":
+        if padding_side == "right" and model_structure == "decoder":
             logger.warning(
-                f"{'⚠️  '*10}\nDetect the `padding_side=right` and the `task_type=generate`, We strongly recommend that padding_side be set to `left` for generation tasks.\n{'⚠️  '*10}"
+                f"\n{'⚠️   '*10}\nDetect the `padding_side=right` and the `model_structure=decoder`, We strongly recommend that padding_side be set to `left` for decoder-only models.\n{'⚠️   '*10}"
             )
         self.model_structure = model_structure
         self.padding_side = padding_side
