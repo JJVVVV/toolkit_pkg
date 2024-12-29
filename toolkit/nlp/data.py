@@ -15,7 +15,7 @@ from .. import toolkit_logger
 
 # from ..utils.misc import get_data_types
 from ..enums import Split
-from ..logger import _getLogger, getLogger
+from ..logger import _getLogger
 from ..utils.misc import max_len_nest_list
 from .config import NLPTrainingConfig
 
@@ -200,7 +200,7 @@ class TextDataset(Dataset):
         assert padding_side in ("left", "right"), f"`padding_side={padding_side}` is invalid, only `left` and `right` are valid values"
         if padding_side == "right" and task_type == "generate":
             logger.warning(
-                "⚠️  Detect the `padding_side=right` and the `task_type=generate`, We strongly recommend that padding_side be set to `left` for generation tasks."
+                f"{'⚠️  '*10}\nDetect the `padding_side=right` and the `task_type=generate`, We strongly recommend that padding_side be set to `left` for generation tasks.\n{'⚠️  '*10}"
             )
         self.model_structure = model_structure
         self.padding_side = padding_side

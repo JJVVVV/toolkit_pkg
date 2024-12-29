@@ -2,6 +2,9 @@ import json
 from pathlib import Path
 
 from ..config.trainconfig import TrainConfig
+from ..logger import getLogger
+
+logger = getLogger("NLPTrainingConfig")
 
 # VALID_GEN_KWAG=set("max_length", )
 
@@ -61,7 +64,6 @@ class NLPTrainingConfig(TrainConfig):
         shuffle: bool | None = None,
         logging_steps: int = 1,
         torch_dtype: str = "auto",
-        cut_input_from_output: bool = False,
         use_deepspeed_ckpt: bool = False,
         show_lr: bool = False,
         show_step: bool = False,
@@ -84,7 +86,8 @@ class NLPTrainingConfig(TrainConfig):
         length_penalty: float = 1.0,
         generation_config_file: Path | str | None = None,
         # hf_gen_config_file: Path | str | None = None,
-        padding_side: str = "right",
+        padding_side: str | None = None,
+        cut_input_from_output: bool | None = None,
         model_structure: str | None = None,
         task_type: str | None = None,
         activation_checkpointing: bool = False,
@@ -96,7 +99,9 @@ class NLPTrainingConfig(TrainConfig):
         max_length_input: int | None = None, 限制输入的最大长度, 用于truncate.
         max_length_label: int | None = None, 限制标签的最大长度, 用于truncate.
         padding_to_max_length: bool = False, 是否padding到整个数据集的最大长度(*此处数据集指的是truncated后的), 即actual_max_length_input. 设置为True时可以用于测试是否能跑完整个数据集而不会OOV.
-        generation_config_file 中的参数会覆盖传进来的参数
+        generation_config_file: 中的参数会覆盖传进来的参数
+        padding_side: str | None = None, 传入None会根据model_structure自动设置
+        cut_input_from_output: bool | None = None, 传入None会根据model_structure自动设置, 主要用于解码时把encoder模型输出中的输入部分token切掉
         """
         super().__init__(
             seed,
@@ -148,7 +153,6 @@ class NLPTrainingConfig(TrainConfig):
             shuffle,
             logging_steps,
             torch_dtype,
-            cut_input_from_output,
             use_deepspeed_ckpt,
             show_lr,
             show_step,
@@ -156,6 +160,7 @@ class NLPTrainingConfig(TrainConfig):
             **kwargs,
         )
         self.padding_side = padding_side
+        self.cut_input_from_output = cut_input_from_output
         self.max_length = max_length
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
@@ -192,13 +197,20 @@ class NLPTrainingConfig(TrainConfig):
                 raise ValueError(
                     f"The parameter `task_type` was not understood: received `{self.task_type}` " f"but only {self.allowed_task_type} are valid."
                 )
-            assert self.padding_side in (
-                "left",
-                "right",
-            ), f"`padding_side={self.padding_side}` is invalid, only `left` and `right` are valid values"
+            # assert self.padding_side in ("left", "right"), f"`padding_side={self.padding_side}` is invalid, only `left` and `right` are valid values"
 
         if self.is_check:
             check()
+        self.auto_values()
+
+    def auto_values(self):
+        """自动设置一些值"""
+        if self.padding_side is None:
+            self.padding_side = "left" if self.model_structure == "encoder" else "right"
+            logger.info(f"Auto setting `padding_side='{self.padding_side}'` according to `model_structure={self.modelstructure}`")
+        if self.cut_input_from_output is None:
+            self.cut_input_from_output = True if self.model_structure == "encoder" else False
+            logger.info(f"Auto setting `cut_input_from_output='{self.cut_input_from_output}'` according to `model_structure={self.modelstructure}`")
 
     @property
     def generate_kwargs(self):
