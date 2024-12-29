@@ -49,7 +49,7 @@ def getFileHandler(file_path: Path | str, level=logging.INFO):
 
 
 def getLogger(name: str, file_path: Path | str | None = None) -> logging.Logger:
-    logger: logging.Logger = _getLogger(name)
+    logger = _getLogger(name)
     if file_path is not None:
         file_handler = getFileHandler(file_path)
         logger.addHandler(file_handler)
