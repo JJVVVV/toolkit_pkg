@@ -10,7 +10,7 @@ from .logger import _getLogger
 
 
 toolkit_logger = _getLogger("[toolkit]")
-file_logger_path = None
+file_logger_path = None  ## 没用到
 
 
 def set_file_logger(file_path: str):
