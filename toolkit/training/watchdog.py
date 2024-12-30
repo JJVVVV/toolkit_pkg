@@ -188,6 +188,8 @@ class WatchDog:
             if self.local_rank == 0:
                 model.module.save_pretrained(output_dir, is_main_process=(self.local_rank == 0), state_dict=state_dict, max_shard_size="10GB")
                 model.module.config.save_pretrained(output_dir, is_main_process=(self.local_rank == 0))
+                if model.module.generation_config is not None:
+                    model.module.generation_config.save_pretrained(output_dir)
                 # 此行代码解决一个奇怪的bug，该bug导致会多存一个没有用的 "pytorch_model.bin"
                 if (output_dir / "pytorch_model.bin.index.json").exists() and (dummy_fie := (output_dir / "pytorch_model.bin")).exists():
                     dummy_fie.unlink()
@@ -200,6 +202,8 @@ class WatchDog:
             if self.local_rank == 0:
                 model_to_save = model.module if hasattr(model, "module") else model
                 model_to_save.save_pretrained(output_dir, is_main_process=(self.local_rank == 0), max_shard_size="10GB")
+                if model_to_save.generation_config is not None:
+                    model_to_save.generation_config.save_pretrained(output_dir)
 
         # save tokenizer
         if self.local_rank == 0:
