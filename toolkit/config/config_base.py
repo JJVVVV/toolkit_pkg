@@ -42,13 +42,13 @@ class ConfigBase:
             try:
                 setattr(self, key, value)
                 if self.log_custom_param:
-                    logger.info(f"🕸️  Custom attribute: {key}={value}")
+                    logger.info(f"🔧 Custom attribute: {key}={value}")
             except AttributeError as err:
                 logger.error(f"Can't set {key} with value {value} for {self}")
                 raise err
         # # todo 并行时会重复log
         # if self.log_custom_param and kwargs:
-        #     logger.info("👻 Custom attributes:")
+        #     logger.info("🔧 Custom attributes:")
         #     for key, value in kwargs.items():
         #         logger.info(f"   {key}={value}")
 
