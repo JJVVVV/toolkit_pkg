@@ -87,6 +87,7 @@ class Evaluator:
             self.model.cuda()
         self.model.eval()
 
+        # logger.debug(f"local rank {local_rank}: Start evaluating {self.split.name} dataset with {len(self.dataloader)} batches")
         match self.task_type:
             case "generate":
                 for batch in tqdm(self.dataloader, desc=self.split.name.capitalize(), colour="BLUE", unit="batch", smoothing=0.9):
@@ -137,16 +138,23 @@ class Evaluator:
             # logger.debug(
             #     f"local rank {local_rank}: num_labels: {len(all_labels)}, num_logits: {len(all_logits)}, num_batches: {len(self.dataloader)}"
             # )
+            # logger.debug("Gathering all results from all processes...")
             mean_loss = torch.tensor(all_losses, dtype=torch.float32).mean().cuda()
+            # logger.debug(f"local rank {local_rank}: mean_loss={mean_loss}, device={mean_loss.device}")
 
             labels_gather_list = [None for _ in range(world_size)]
             logits_gather_list = [None for _ in range(world_size)]
             loss_gather_list = [torch.zeros(1, dtype=torch.float32).cuda() for _ in range(world_size)]
+            # logger.debug(f"local rank {local_rank}: loss_gather_list={loss_gather_list}, device={[l.device for l in loss_gather_list]}")
 
+            logger.debug("Gathering labels ...")
             dist.all_gather_object(labels_gather_list, all_labels)
+            logger.debug("Gathering logits ...")
             dist.all_gather_object(logits_gather_list, all_logits)
+            logger.debug("Gathering loss ...")
             dist.all_gather(loss_gather_list, mean_loss)
             mean_loss = sum(loss_gather_list)
+            logger.debug("Finish gather all data from all processes.")
 
             # dist.gather_object(all_labels, labels_gather_list if local_rank == 0 else None, dst=0)
             # dist.gather_object(all_logits, logits_gather_list if local_rank == 0 else None, dst=0)
