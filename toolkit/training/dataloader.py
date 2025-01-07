@@ -60,10 +60,12 @@ def get_dataloader(
         dataloader = DataLoader(
             dataset=dataset, batch_size=configs.infer_batch_size // world_size, shuffle=False, pin_memory=True, sampler=sampler, **dataloader_kwargs
         )
+        # logger.debug(f"local rank {local_rank}: {len(dataset)}, {len(dataloader.sampler)}, {len(dataloader)}")
     # logger.debug(f'\n{tokenizer.decode(dataset.tokenized_dict["input_ids"][0][0], skip_special_tokens=False)}\n')
 
     # * If there is a tail in development dataset, concatenate it. (Max length of tail: world_size.)
     if split != Split.TRAINING and len(dataloader.sampler) * world_size < len(dataset):
+        logger.debug(f"local rank {local_rank}: Concatenate tail of dataloader, length: {len(dataset) - len(dataloader.sampler) * world_size}")
         # * if deepspeed is not used, that means infer in DDP or single GPU, only need one GPU to deal with the tail
         # * otherwise, in model parallel(MP, ZERO3), the tail must be passed to all GPU.
         # todo 当前做法是丢弃最后的 tail, 如过不丢弃, 应该为 `if local_rank == 0 or configs.parallel_mode == "deepspeed":`
