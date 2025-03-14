@@ -495,18 +495,19 @@ class Trainer:
             sync()
 
             # * Evaluate after each epoch
-            val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
-            test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
-            watch_dog(
-                val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(loss=accumulate_loss),
-                test_metricdict=test_metricdict,
-                epoch=epoch,
-                step_global=curStepInGlobal,
-                model=self.model,
-                tokenizer=self.tokenizer,
-                configs=self.config,
-            )
-            self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
+            if not self.config.eval_only_after_last_epoch or epoch == self.config.epochs - 1:
+                val_metricdict = self.__evaluate(Split.VALIDATION, epoch, curStepInGlobal)
+                test_metricdict = self.__evaluate(Split.TEST, epoch, curStepInGlobal)
+                watch_dog(
+                    val_metricdict=val_metricdict if val_metricdict is not None else MetricDict(loss=accumulate_loss),
+                    test_metricdict=test_metricdict,
+                    epoch=epoch,
+                    step_global=curStepInGlobal,
+                    model=self.model,
+                    tokenizer=self.tokenizer,
+                    configs=self.config,
+                )
+                self.dashboard_log_metrics(val_metricdict, test_metricdict, accumulate_loss, curStepInGlobal)
 
             # # tensorboard 记录一个epoch中的平均loss
             # writer.add_scalars("loss/epoch", {"training": np.array(lossesInEpoch).mean(), "validation": devLoss}, epoch)

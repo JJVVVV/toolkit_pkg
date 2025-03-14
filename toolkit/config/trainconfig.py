@@ -45,6 +45,7 @@ class TrainConfig(ConfigBase):
         patience: int = -1,
         continue_train_more_patience: bool = False,
         eval_every_half_epoch: bool = False,
+        eval_only_after_last_epoch: bool = False,
         eval_step: int = 0,
         save_ckpts: bool = True,
         save_all_ckpts: bool = False,
@@ -125,6 +126,7 @@ class TrainConfig(ConfigBase):
             self.patience = patience
             self.continue_train_more_patience = continue_train_more_patience
         self.eval_every_half_epoch = eval_every_half_epoch
+        self.eval_only_after_last_epoch = eval_only_after_last_epoch
         self.eval_step = eval_step
         self.save_ckpts = save_ckpts
         self.save_all_ckpts = save_all_ckpts
