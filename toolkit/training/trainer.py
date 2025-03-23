@@ -83,8 +83,6 @@ class Trainer:
         # model: torch.nn.Module | PreTrainedModel | None = None,
         model: torch.nn.Module | None = None,
         model_config: PretrainedConfig | None = None,
-        # model_class: Type[PreTrainedModel] | None = None,
-        model_class: Type | None = None,
         dataset_train: Dataset | None = None,
         dataset_val: Dataset | None = None,
         dataset_test: Dataset | None = None,
@@ -96,8 +94,8 @@ class Trainer:
         project_name: str = "untitled",
         extral_args_training: dict | None = None,
         extral_args_evaluation: dict | None = None,
-        from_pretrained_kwargs: dict | None = None,
         extral_evaluators: list | None = None,
+        callback_load_model: Callable = None,
     ) -> None:
         """
         `task_type`: "generate", "classify", "regress"\n
@@ -113,16 +111,15 @@ class Trainer:
         self.config = config
         self.model = model
         self.model_config = model_config
-        self.model_class = model_class
         self.tokenizer = tokenizer
         self.dataset_train = dataset_train
         self.dataset_val = dataset_val
         self.dataset_test = dataset_test
         self.calculate_metric_callback = calculate_metric_callback
-        self.extral_args_training = extral_args_training if extral_args_training is not None else dict()
-        self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
-        self.from_pretrained_kwargs = from_pretrained_kwargs
-        self.extral_evaluators = extral_evaluators if extral_evaluators is not None else []
+        self.extral_args_training = extral_args_training or dict()
+        self.extral_args_evaluation = extral_args_evaluation or dict()
+        self.extral_evaluators = extral_evaluators or []
+        self.callback_load_model = callback_load_model
 
         if isinstance(optimizer, str):
             assert (
@@ -517,30 +514,28 @@ class Trainer:
                 # TODO 保存最后 n 个ckpt
                 if self.config.parallel_mode == "deepspeed":
                     # * Save current checkpoint
-                    if epoch < self.config.epochs - (not self.config.save_last_ckpt):
-                        if self.local_rank == 0:
-                            logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
-                            self.ckpt_manager.latest_dir.mkdir()
-                            logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
+                    if self.local_rank == 0:
+                        logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
+                        self.ckpt_manager.latest_dir.mkdir()
+                        logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
-                        # * save model
-                        if self.config.use_deepspeed_ckpt:
-                            if self.local_rank == 0:
-                                logger.debug(f"💾 Saving model weights, optimizer and scheduler ...")
-                            self.model.save_checkpoint(self.ckpt_manager.latest_dir)
-                            if self.local_rank == 0 and self.tokenizer is not None:
-                                self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
-                        else:
-                            if self.local_rank == 0:
-                                logger.debug(f"💾 Saving model weights ...")
-                            watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
+                    if self.config.use_deepspeed_ckpt:
                         if self.local_rank == 0:
-                            logger.debug("✔️  Save successfully.")
+                            logger.debug(f"💾 Saving model weights, optimizer and scheduler ...")
+                        self.model.save_checkpoint(self.ckpt_manager.latest_dir)
+                        if self.local_rank == 0 and self.tokenizer is not None:
+                            self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                    else:
+                        if self.local_rank == 0:
+                            logger.debug(f"💾 Saving model weights ...")
+                        watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
+                    if self.local_rank == 0:
+                        logger.debug("✔️  Save successfully.")
 
-                        if self.local_rank == 0:
-                            self.config.save(self.ckpt_manager.latest_dir, silence=False)
-                            watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
-                            logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
+                    if self.local_rank == 0:
+                        self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                        watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
+                        logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
                     # * delete last checkpoint
                     if self.local_rank == 0:
                         if not self.config.save_all_ckpts:
@@ -548,29 +543,28 @@ class Trainer:
                 else:
                     if self.local_rank == 0:
                         # * Save current checkpoint
-                        if epoch < self.config.epochs - (not self.config.save_last_ckpt):
-                            logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
-                            self.ckpt_manager.latest_dir.mkdir()
-                            logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
+                        logger.debug(f"🚩 Saving checkpoint: `{self.ckpt_manager.latest_dir.name}` ...")
+                        self.ckpt_manager.latest_dir.mkdir()
+                        logger.debug(f"❔ The checkpoint will be saved in {self.ckpt_manager.latest_dir}.")
 
-                            logger.debug("💾 Saving model weights ...")
-                            watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
-                            logger.debug("✔️  Save model successfully.")
-                            # model_to_save = self.model.module if hasattr(self.model, "module") else self.model
-                            # model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
-                            # if self.tokenizer is not None:
-                            #     self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
+                        logger.debug("💾 Saving model weights ...")
+                        watch_dog.save_hf_model(self.config, self.ckpt_manager.latest_dir, self.model, self.tokenizer)
+                        logger.debug("✔️  Save model successfully.")
+                        # model_to_save = self.model.module if hasattr(self.model, "module") else self.model
+                        # model_to_save.save_pretrained(self.ckpt_manager.latest_dir)
+                        # if self.tokenizer is not None:
+                        #     self.tokenizer.save_pretrained(self.ckpt_manager.latest_dir)
 
-                            self.config.save(self.ckpt_manager.latest_dir, silence=False)
-                            watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
+                        self.config.save(self.ckpt_manager.latest_dir, silence=False)
+                        watch_dog.save(self.ckpt_manager.latest_dir, silence=False)
 
-                            self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
-                            if self.scheduler is not None:
-                                self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
-                            if self.config.fp16:
-                                self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
+                        self.optimizer.save(self.ckpt_manager.latest_dir, silence=False)
+                        if self.scheduler is not None:
+                            self.scheduler.save(self.ckpt_manager.latest_dir, silence=False)
+                        if self.config.fp16:
+                            self.scaler.save(self.ckpt_manager.latest_dir, silence=False)
 
-                            logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
+                        logger.debug(f"✅ Save {self.ckpt_manager.latest_dir.name} successfully")
                         # * delete last checkpoint
                         if not self.config.save_all_ckpts:
                             self.ckpt_manager.delete_last_checkpoint()
@@ -720,7 +714,7 @@ class Trainer:
                         "⚠️  You loaded a model with `from_pretrained` before setting deepspeed config, "
                         "so the model will be loaded to cpu memory before loaded to GPU."
                         "It is less efficient and when there is little CPU RAM may fail."
-                        "We recommend you just offer the `model_config` and `model_class`."
+                        "We recommend you just offer the `model_config` and `callback_load_model`."
                         "Then we will load the model directly to GPU."
                     )
                 )
@@ -731,11 +725,7 @@ class Trainer:
                 from transformers.integrations import HfDeepSpeedConfig
 
                 dschf = HfDeepSpeedConfig(deepspeed_config.ds_config)
-                model_dir = self.config.model_dir if self.ckpt_manager.latest_id < 0 else self.ckpt_manager.latest_dir
-                if self.from_pretrained_kwargs is None:
-                    self.model = self.model_class.from_pretrained(model_dir, config=self.model_config)
-                else:
-                    self.model = self.model_class.from_pretrained(model_dir, config=self.model_config, **self.from_pretrained_kwargs)
+                self.model = self.callback_load_model(self.tokenizer)
                 # todo: 当前只支持transformers模型
                 if self.config.activation_checkpointing:
                     self.model.gradient_checkpointing_enable()
