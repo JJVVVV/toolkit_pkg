@@ -47,9 +47,8 @@ class TrainConfig(ConfigBase):
         eval_every_half_epoch: bool = False,
         eval_only_after_last_epoch: bool = False,
         eval_step: int = 0,
-        save_ckpts: bool = True,
+        save_ckpts: bool = False,
         save_all_ckpts: bool = False,
-        save_last_ckpt: bool = False,
         max_optimal_ckpt_num: int = 1,
         cache_dataset: bool = False,
         gradient_accumulation_steps: int = 1,
@@ -68,6 +67,11 @@ class TrainConfig(ConfigBase):
         record_cheat: bool = True,
         **kwargs,
     ):
+        """
+        save_ckpts:bool = False, 是否保存checkpoints.
+        save_all_ckpts: bool = False, 当`save_ckpts`为True时, 如果该项设为True则保留全部的checkpoints, 否则只保留最新的checkpoint.
+        logging_steps: per logging_steps logging to consoles and tensorboard or wandb once.
+        """
         super().__init__(**kwargs)
         # initialize
         self.seed = seed
@@ -130,7 +134,6 @@ class TrainConfig(ConfigBase):
         self.eval_step = eval_step
         self.save_ckpts = save_ckpts
         self.save_all_ckpts = save_all_ckpts
-        self.save_last_ckpt = save_last_ckpt if not save_all_ckpts else True
         self.gradient_clipping = gradient_clipping
         self.max_optimal_ckpt_num = max_optimal_ckpt_num
 

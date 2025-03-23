@@ -582,7 +582,10 @@ class TextDataset(Dataset):
                 **kwargs_load_data,
             )
             if use_cache:
-                dataset.cache(data_file_path, repr(tokenizer.__class__)[8:-2], **kwargs_load_data)
+                try:
+                    dataset.cache(data_file_path, repr(tokenizer.__class__)[8:-2], **kwargs_load_data)
+                except:
+                    logger.error(f"❌ Fail to cache dataset!")
 
         end = time.time()
         if local_rank == 0:
