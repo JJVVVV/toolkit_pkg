@@ -51,7 +51,6 @@ class NLPTrainingConfig(TrainConfig):
         eval_step: int = 0,
         save_ckpts: bool = False,
         save_all_ckpts: bool = False,
-        save_last_ckpt: bool = False,
         max_optimal_ckpt_num: int = 1,
         cache_dataset: bool = False,
         gradient_accumulation_steps: int = 1,
@@ -94,7 +93,9 @@ class NLPTrainingConfig(TrainConfig):
         **kwargs,
     ):
         """
-        logging_steps: per logging_steps logging to consoles and tensorboard or wandb once.
+        save_ckpts:bool = False, 是否保存checkpoints.
+        save_all_ckpts: bool = False, 当`save_ckpts`为True时, 如果该项设为True则保留全部的checkpoints, 否则只保留最新的checkpoint.
+        logging_steps: int = 1, per logging_steps logging to consoles and tensorboard or wandb once.
         max_length: int | None = None, 限制整体最大长度, 该参数对于encoder结构的generate任务尤为有用.
         max_length_input: int | None = None, 限制输入的最大长度, 用于truncate.
         max_length_label: int | None = None, 限制标签的最大长度, 用于truncate.
@@ -140,7 +141,6 @@ class NLPTrainingConfig(TrainConfig):
             eval_step,
             save_ckpts,
             save_all_ckpts,
-            save_last_ckpt,
             max_optimal_ckpt_num,
             cache_dataset,
             gradient_accumulation_steps,
@@ -210,7 +210,9 @@ class NLPTrainingConfig(TrainConfig):
             logger.info(f"⚙️  Auto setting `padding_side='{self.padding_side}'` according to `model_structure={self.model_structure}`")
         if self.cut_input_from_output is None and self.model_structure is not None:
             self.cut_input_from_output = True if self.model_structure == "decoder" else False
-            logger.info(f"⚙️  Auto setting `cut_input_from_output='{self.cut_input_from_output}'` according to `model_structure={self.model_structure}`")
+            logger.info(
+                f"⚙️  Auto setting `cut_input_from_output='{self.cut_input_from_output}'` according to `model_structure={self.model_structure}`"
+            )
 
     @property
     def generate_kwargs(self):
