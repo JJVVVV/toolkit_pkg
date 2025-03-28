@@ -191,7 +191,7 @@ class TextDataset(Dataset):
         super().__init__()
         local_rank = dist.get_rank() if dist.is_initialized() else 0
         if local_rank == 0:
-            logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_input_names != INFINITE else 'INFINITE'}")
+            logger.debug(f"Model max length: {tokenizer.model_max_length if tokenizer.model_max_length != INFINITE else 'INFINITE'}")
         if not isinstance(split, Split):
             split = Split[split]
         assert model_structure in ("encoder-decoder", "encoder", "decoder"), f"`model_structure` invalid value: {model_structure}"
