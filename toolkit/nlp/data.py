@@ -448,8 +448,8 @@ class TextDataset(Dataset):
                         padding=False,
                         truncation=False,
                         max_length=None,
-                        # add_special_tokens=not (is_label and self.model_structure == "decoder"),
-                        add_special_tokens=self.model_structure != "decoder",
+                        add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                        # add_special_tokens=self.model_structure != "decoder",
                         return_attention_mask=not is_label,
                     )
                     for k, v in part_a_sample.items():
@@ -464,8 +464,8 @@ class TextDataset(Dataset):
                     padding=False,
                     truncation=False,
                     max_length=None,
-                    # add_special_tokens=not (is_label and self.model_structure == "decoder"),
-                    add_special_tokens=self.model_structure != "decoder",
+                    add_special_tokens=not (is_label and self.model_structure == "decoder"),
+                    # add_special_tokens=self.model_structure != "decoder",
                     return_attention_mask=not is_label,
                 )
             if is_label:
