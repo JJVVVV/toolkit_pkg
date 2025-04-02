@@ -12,7 +12,6 @@ from torch.cuda.amp import GradScaler
 from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import AdamW, RMSprop
 from torch.utils.data import Dataset
-from torch.utils.tensorboard import SummaryWriter
 from tqdm.auto import tqdm
 from transformers import (  # PreTrainedModel,
     PretrainedConfig,
@@ -46,6 +45,12 @@ try:
     WandbWriter = wandb.run.__class__
 except:
     logger.warning("Can not import wandb, so you shoud not set the `dashboard` to 'wandb'")
+    WandbWriter = object
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+except:
+    logger.warning("Can not import tensorboard, so you shoud not set the `dashboard` to 'tensorboard'")
     WandbWriter = object
 
 map_str2optmClass = {"AdamW": AdamW, "RMSprop": RMSprop}
@@ -90,7 +95,8 @@ class Trainer:
         optimizer: Type[OptimizerClass] | str | torch.optim.Optimizer | None = None,
         scheduler: Callable[..., torch.optim.lr_scheduler.LRScheduler] | str | torch.optim.lr_scheduler.LRScheduler | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast | None = None,
-        dashboard_writer: SummaryWriter | WandbWriter | None = None,
+        # dashboard_writer: SummaryWriter | WandbWriter | None = None,
+        dashboard_writer=None,
         project_name: str = "untitled",
         extral_args_training: dict | None = None,
         extral_args_evaluation: dict | None = None,
@@ -149,6 +155,8 @@ class Trainer:
                     assert self.dashboard_writer is wandb.run
             elif self.local_rank == 0:  # 未传入 dashboard 的 writer, 自动定义
                 if config.dashboard == "tensorboard":
+                    from torch.utils.tensorboard import SummaryWriter
+
                     dataset_name = config.dataset_name if config.dataset_name else "unk_dataset"
                     model_type = (
                         (config.model_type[1:] if config.model_type.startswith("/") else config.model_type) if config.model_type else "unk_model_type"

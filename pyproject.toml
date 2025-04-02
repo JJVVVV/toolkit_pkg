@@ -25,6 +25,7 @@ requires-python = ">=3.11"
 dependencies = [
     "transformers",
     "accelerate",
+    "peft",
     "sentencepiece",
     "datasets",
     "huggingface_hub",
