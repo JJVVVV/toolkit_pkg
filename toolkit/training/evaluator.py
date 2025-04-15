@@ -25,7 +25,7 @@ class Evaluator:
 
     def __new__(
         cls,
-        task_type: str,
+        task_type: Literal["generate", "classify", "regress"],
         split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
         config: TrainConfig,
         model,
@@ -42,7 +42,7 @@ class Evaluator:
 
     def __init__(
         self,
-        task_type: str,
+        task_type: Literal["generate", "classify", "regress"],
         split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
         config: TrainConfig,
         model,
@@ -60,7 +60,7 @@ class Evaluator:
         self.dataset = dataset
         self.extral_args_evaluation = extral_args_evaluation if extral_args_evaluation is not None else dict()
 
-    def eval(self, cuda_id=None) -> MetricDict:
+    def eval(self, cuda_id=None, print_head=False) -> MetricDict:
         """
         if specify the `cuda_id`, the model will run in it, ohterwise, default
         """
@@ -120,6 +120,10 @@ class Evaluator:
                             labels = labels.numpy(force=True).tolist()
                         all_labels.extend(labels)
                         all_logits.extend(texts)
+                        if print_head:
+                            for i, o in zip(self.tokenizer.batch_decode(batch["input_ids"], skip_special_tokens=True), texts):
+                                logger.debug(f"\n### Input ###\n{i}\n### Output ###\n{o}\n{'-'*60}")
+                            print_head = False
             case "classify" | "regress":
                 for batch in tqdm(self.dataloader, desc=self.split.name, colour="BLUE", unit="batch", smoothing=0.9):
                     with torch.no_grad():
