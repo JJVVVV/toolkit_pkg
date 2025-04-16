@@ -190,8 +190,8 @@ class Trainer:
                 self.dashboard_writer.close()
 
     @classmethod
-    def initialize(cls, config: TrainConfig, allocate_memory: float | None = None, log_file="report.log"):
-        output_path_logger = Path(config.save_dir) / log_file
+    def initialize(cls, config: TrainConfig, allocate_memory: float | None = None, log_file_path: str | None = None):
+        output_path_logger = log_file_path or Path(config.save_dir) / "report.log"
         set_file_logger(output_path_logger)
 
         setup_seed(config.seed)

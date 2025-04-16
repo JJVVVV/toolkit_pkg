@@ -163,7 +163,8 @@ class TrainConfig(ConfigBase):
         self.record_cheat = record_cheat
         # self.warning_default()
 
-        self.check()
+        if self.is_check:
+            TrainConfig.check(self) # 为什么不用self.check? 由于python是动态方法绑定, 当子类中重写check后, 在子类中初始化父类时, self指向的是子类实例, 这会导致父类无法调用到自己check而是调用子类的check
 
     def save(self, save_directory: Path | str, json_file_name=CONFIG_NAME, silence=True, **kwargs):
         if not silence:

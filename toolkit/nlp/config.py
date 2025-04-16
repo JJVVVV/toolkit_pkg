@@ -193,17 +193,17 @@ class NLPTrainingConfig(TrainConfig):
         self.gen_max_length = self.max_length if self.gen_max_length is None else self.gen_max_length
         # self.pretrained_model_path = pretrained_model_path
 
-        def check():
-            assert self.model_structure in self.allowed_model_structure, f"`model_structure` invalid value: {self.model_structure}"
-            if self.task_type not in self.allowed_task_type:
-                raise ValueError(
-                    f"The parameter `task_type` was not understood: received `{self.task_type}` " f"but only {self.allowed_task_type} are valid."
-                )
-            # assert self.padding_side in ("left", "right"), f"`padding_side={self.padding_side}` is invalid, only `left` and `right` are valid values"
-
         if self.is_check:
-            check()
+            NLPTrainingConfig.check(self)
         self.auto_values()
+
+    def check(self):
+        assert self.model_structure in self.allowed_model_structure, f"`model_structure` invalid value: {self.model_structure}"
+        if self.task_type not in self.allowed_task_type:
+            raise ValueError(
+                f"The parameter `task_type` was not understood: received `{self.task_type}` " f"but only {self.allowed_task_type} are valid."
+            )
+        # assert self.padding_side in ("left", "right"), f"`padding_side={self.padding_side}` is invalid, only `left` and `right` are valid values"
 
     def auto_values(self):
         """自动设置一些值"""
