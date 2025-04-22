@@ -240,49 +240,52 @@ class TextDataset(Dataset):
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
 
         # tokenize label texts
-        self.truncate_pad_label = False  # 用于控制是否对label进行truncate和pad。只有生成任务的训练才需要设为 True
-        self.custom_label = False
         # ! 不再使用 tokenizer 做 padding
         # tokenizer.padding_side = "right"
-        if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
-            self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer_tqdm(
-                tokenizer, self.texts_label, desc=f"Tokenize {split.name} label texts", is_label=True
-            )
-            # self.tokens_labels = self.tokens_labels["input_ids"]
-            self.truncate_pad_label = True
-        elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
-            self.tokens_labels = self.__tokenize(self.texts_label, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} label texts")[
-                "input_ids"
-            ]
-            self.truncate_pad_label = True
-
-        elif isinstance(self.texts_label[0], str):  # if the label type is  `str`
-            self.tokens_labels = self.texts_label
-            self.dataset_max_length_label = -1
-        elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], int)) or isinstance(
-            self.texts_label[0], ClassificationLabel
-        ):  # if the label type is `ClassificationID`, i.e. `List[int]`
-            self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.long)
-            self.dataset_max_length_label = self.tokens_labels.shape[-1]
-        elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], float)) or isinstance(
-            self.texts_label[0], RegressionLabel
-        ):  # if the label type is `RegressionValue`, i.e. `List[float]`
-            self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
-            self.dataset_max_length_label = self.tokens_labels.shape[-1]
-        elif isinstance(self.texts_label[0], dict | list | tuple):
-            logger.debug("Using custom labels ...")
-            self.custom_label = True
-            self.tokens_labels = self.texts_label
-            self.dataset_max_length_label = -1
+        self.truncate_pad_label = False  # 用于控制是否对label进行truncate和pad。只有生成任务的训练才需要设为 True
+        self.custom_label = False
+        if self.texts_label is None:
+            self.tokens_labels = None
         else:
-            raise ValueError(
-                (
-                    "If the label is text, it must be `FinelyControlledText` or `PairedText` or `str`, "
-                    "if the label is classification, it must be `ClassificationID (List[int])`",
-                    "if the label is regression value, ti must be `RegressionValue (List[float])`",
-                    "if the label is custom value, ti must be `dcit|list|tuple`",
+            if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
+                self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer_tqdm(
+                    tokenizer, self.texts_label, desc=f"Tokenize {split.name} label texts", is_label=True
                 )
-            )
+                # self.tokens_labels = self.tokens_labels["input_ids"]
+                self.truncate_pad_label = True
+            elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
+                self.tokens_labels = self.__tokenize(
+                    self.texts_label, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} label texts"
+                )["input_ids"]
+                self.truncate_pad_label = True
+
+            elif isinstance(self.texts_label[0], str):  # if the label type is  `str`
+                self.tokens_labels = self.texts_label
+                self.dataset_max_length_label = -1
+            elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], int)) or isinstance(
+                self.texts_label[0], ClassificationLabel
+            ):  # if the label type is `ClassificationID`, i.e. `List[int]`
+                self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.long)
+                self.dataset_max_length_label = self.tokens_labels.shape[-1]
+            elif (isinstance(self.texts_label[0], list) and isinstance(self.texts_label[0][0], float)) or isinstance(
+                self.texts_label[0], RegressionLabel
+            ):  # if the label type is `RegressionValue`, i.e. `List[float]`
+                self.tokens_labels = torch.tensor(self.texts_label, dtype=torch.float32)
+                self.dataset_max_length_label = self.tokens_labels.shape[-1]
+            elif isinstance(self.texts_label[0], dict | list | tuple):
+                logger.debug("Using custom labels ...")
+                self.custom_label = True
+                self.tokens_labels = self.texts_label
+                self.dataset_max_length_label = -1
+            else:
+                raise ValueError(
+                    (
+                        "If the label is text, it must be `FinelyControlledText` or `PairedText` or `str`, "
+                        "if the label is classification, it must be `ClassificationID (List[int])`",
+                        "if the label is regression value, ti must be `RegressionValue (List[float])`",
+                        "if the label is custom value, ti must be `dcit|list|tuple`",
+                    )
+                )
 
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
