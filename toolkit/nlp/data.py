@@ -7,7 +7,7 @@ from typing import Callable, Dict, Iterable, List, Literal, Self, Tuple
 
 import torch
 import torch.distributed as dist
-from torch.utils.data import Dataset, default_collate
+from torch.utils.data import DataLoader, Dataset, default_collate
 from tqdm.auto import tqdm
 from transformers import PreTrainedTokenizer, PreTrainedTokenizerFast
 
@@ -176,9 +176,8 @@ class TextDataset(Dataset):
     def __init__(
         self,
         data_file_path: Path | str,
-        model_type: str,
-        model_structure: str,
         task_type: str,
+        model_structure: str,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [Path | str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, Split],
@@ -217,7 +216,7 @@ class TextDataset(Dataset):
 
         # get input and label texts
         self.texts_input, self.texts_label, *custom_args = load_data_fn(
-            data_file_path=data_file_path, model_type=model_type, tokenizer=tokenizer, split=split, **kwargs_load_data
+            data_file_path=data_file_path, tokenizer=tokenizer, split=split, **kwargs_load_data
         )
         if len(custom_args) > 0:
             dicts_custom_inputs = custom_args[0]
@@ -502,18 +501,17 @@ class TextDataset(Dataset):
     def from_file(
         cls,
         *,
+        data_file_path: Path | str | None = None,
+        task_type: str | None = None,
+        model_structure: str | None = None,
         tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
         load_data_fn: Callable[
             [str, str, PreTrainedTokenizer | PreTrainedTokenizerFast, bool],
             Tuple[List[FinelyControlledText] | list[PairedText], List[FinelyControlledText] | list[PairedText] | List[ClassificationID]],
         ],
         split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
-        data_file_path: Path | str | None = None,
-        task_type: str | None = None,
-        use_cache: bool | None = None,
-        model_structure: str | None = None,
-        model_type: str | None = None,
         padding_side: str | None = None,
+        use_cache: bool | None = None,
         max_length: int | None = None,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
@@ -534,7 +532,6 @@ class TextDataset(Dataset):
                 task_type=task_type,
                 cache_dataset=use_cache,
                 model_structure=model_structure,
-                model_type=model_type,
                 padding_side=padding_side,
                 max_length=max_length,
                 max_length_input=max_length_input,
@@ -575,11 +572,10 @@ class TextDataset(Dataset):
         if dataset is None:
             dataset = cls(
                 data_file_path=data_file_path,
-                model_type=configs.model_type,
+                task_type=configs.task_type,
+                model_structure=configs.model_structure,
                 tokenizer=tokenizer,
                 load_data_fn=load_data_fn,
-                model_structure=configs.model_structure,
-                task_type=configs.task_type,
                 split=split,
                 padding_side=configs.padding_side,
                 **kwargs_load_data,
@@ -754,3 +750,24 @@ class TextDataset(Dataset):
     #         for key, value in cur_dict.items():
     #             tokenized_dict[key].append(value)
     #     return tokenized_dict
+
+
+def show_model_inputs_case(dataset, tokenizer, is_decode_label=True):
+    BOLD = "\033[1m"
+    RED = "\033[91m"
+    GREEN = "\033[92m"
+    BLUE = "\033[94m"
+    YELLOW = "\033[33m"
+    ORANGE_256 = "\033[38;5;208m"
+    RESET = "\033[0m"  # 重置为默认颜色
+    print(f"{'-'*100}\n{BOLD + YELLOW}### Special tokens map:{RESET} \n{tokenizer.special_tokens_map}\n{'-'*100}")
+    dataloader = DataLoader(dataset, collate_fn=dataset.collate_fn)
+    a_batch = next(iter(dataloader))
+    print(f"{BOLD + RED}### Token ids:{RESET} \n{a_batch}\n{'-'*100}")
+    print(f"{BOLD + GREEN}### Decoded input ids:{RESET} \n{tokenizer.batch_decode(a_batch['input_ids'], skip_special_tokens=False)[0]}\n{'-'*100}")
+    if is_decode_label:
+        a_batch["labels"] = torch.where(a_batch["labels"] != -100, a_batch["labels"], tokenizer.pad_token_id)
+        print(f"{BOLD + BLUE}### Decoded label ids:{RESET} \n{tokenizer.batch_decode(a_batch['labels'], skip_special_tokens=False)[0]}\n{'-'*100}")
+
+
+# show_model_inputs_case(dataset, tokenizer)
