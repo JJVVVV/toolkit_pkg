@@ -311,7 +311,7 @@ class TextDataset(Dataset):
             return l[:max_length]
         return [self.__truncate_one(item, max_length) for item in l]
 
-    def __truncate(
+    def _truncate(
         self,
         tokens_inputs: List[ModelInput],
         tokens_labels: List[Tokens | ClassificationLabel | RegressionLabel | str],
@@ -606,7 +606,7 @@ class TextDataset(Dataset):
             cls.report(dataset)
 
         # truncate dataset
-        _, _, cnt, max_length_input_after_trunc, max_length_label_after_trunc = dataset.__truncate(
+        _, _, cnt, max_length_input_after_trunc, max_length_label_after_trunc = dataset._truncate(
             dataset.batch_model_input,
             dataset.tokens_labels,
             tokenizer.model_max_length,
@@ -776,7 +776,7 @@ class TextDataset(Dataset):
     #     return tokenized_dict
 
 
-# todo 还差 truncate 和 encoder-only 模型的 label特殊处理问题
+# todo 添加控制是否启用 offsets cache 的参数
 class LazyTextDataset(TextDataset):
     def __init__(
         self,
@@ -791,7 +791,7 @@ class LazyTextDataset(TextDataset):
         max_length: int | None = None,
         max_length_input: int | None = None,
         max_length_label: int | None = None,
-        **kwargs_load_data,
+        **kwargs_parse_item,
     ):
         """
         parse_item_fn: 用于解析 item, 例如从中解析出 input 和 label.
@@ -805,6 +805,14 @@ class LazyTextDataset(TextDataset):
         self.max_length = max_length
         self.max_length_input = max_length_input
         self.max_length_label = max_length_label
+        self.kwargs_parse_item = kwargs_parse_item
+        self.inputkey2padid = {
+            "input_ids": tokenizer.pad_token_id,
+            "token_type_ids": tokenizer.pad_token_type_id,
+            "attention_mask": 0,
+            "special_tokens_mask": 1,
+            "labels": -100,
+        }
 
         self.file_path = data_file_path
         self.file = open(data_file_path, "rb")
@@ -842,7 +850,7 @@ class LazyTextDataset(TextDataset):
         ret_dict = dict()
         self.mm.seek(self.offsets[idx])
         item = self.mm.readline().decode("utf-8").strip()
-        ori_input, ori_label, *custom_args = self.parse_item_fn(item)
+        ori_input, ori_label, *custom_args = self.parse_item_fn(item, self.tokenizer, self.split, **self.kwargs_parse_item)
 
         # custom inputs
         if len(custom_args) > 0:
@@ -888,13 +896,23 @@ class LazyTextDataset(TextDataset):
                 )
             )
 
+        # model_inputs_truncated, labels_truncated, _, _, _ = self._truncate(
+        #     [ret_dict["model_inputs"]],
+        #     [ret_dict["labels"]],
+        #     self.tokenizer.model_max_length,
+        #     self.max_length,
+        #     self.max_length_input,
+        #     self.max_length_label,
+        # )
+        # ret_dict["model_inputs"], ret_dict["labels"] = model_inputs_truncated[0], labels_truncated[0]
+
         return ret_dict
 
     def __len__(self):
         return len(self.offsets)
 
     def collate_fn(self, batch):
-        list_model_inputs, list_labels_tokens, _, _, _ = self.__truncate(
+        list_model_inputs, list_labels_tokens, _, _, _ = self._truncate(
             [item["model_inputs"] for item in batch],
             [item["labels"] for item in batch],
             self.tokenizer.model_max_length,
@@ -925,7 +943,7 @@ class LazyTextDataset(TextDataset):
         max_length_label: int | None = None,
         padding_to_max_length: bool | None = None,
         configs: NLPTrainingConfig | None = None,
-        **kwargs_load_data,
+        **kwargs_parse_item,
     ) -> Self | None:
         """
         Load dataset from file with the given `NLPTrainingConfig`.
@@ -984,7 +1002,7 @@ class LazyTextDataset(TextDataset):
             max_length=configs.max_length,
             max_length_input=configs.max_length_input,
             max_length_label=configs.max_length_label,
-            **kwargs_load_data,
+            **kwargs_parse_item,
         )
         end = time.time()
         if local_rank == 0:
