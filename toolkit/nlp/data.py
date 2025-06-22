@@ -1,10 +1,12 @@
 import fcntl
+import mmap
 import pickle
 import time
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Dict, Iterable, List, Literal, Self, Tuple
 
+import numpy as np
 import torch
 import torch.distributed as dist
 from torch.utils.data import DataLoader, Dataset, default_collate
@@ -228,13 +230,14 @@ class TextDataset(Dataset):
 
         # tokenize input texts
         if isinstance(self.texts_input[0], PairedText):  # if the input type is `PairedText`
-            self.batch_model_input, self.dataset_max_length_input = self.transformers_tokenizer_tqdm(
+            self.batch_model_input, self.dataset_max_length_input = self.transformers_tokenizer(
                 tokenizer, self.texts_input, desc=f"Tokenize {split.name} input texts", is_label=False
             )
-        elif isinstance(self.texts_input[0], FinelyControlledText):  # if the input type is `FinelyControlledText`
-            self.batch_model_input = self.__tokenize(
-                self.texts_input, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} input texts"
-            )
+        # todo 关于 FinelyControlledText 代码未更新
+        # elif isinstance(self.texts_input[0], FinelyControlledText):  # if the input type is `FinelyControlledText`
+        #     self.batch_model_input = self.__tokenize(
+        #         self.texts_input, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} input texts"
+        #     )
         else:
             raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
 
@@ -247,17 +250,17 @@ class TextDataset(Dataset):
             self.tokens_labels = None
         else:
             if isinstance(self.texts_label[0], PairedText):  # if the label type is `PairedText`
-                self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer_tqdm(
+                self.tokens_labels, self.dataset_max_length_label = self.transformers_tokenizer(
                     tokenizer, self.texts_label, desc=f"Tokenize {split.name} label texts", is_label=True
                 )
                 # self.tokens_labels = self.tokens_labels["input_ids"]
                 self.truncate_pad_label = True
-            elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
-                self.tokens_labels = self.__tokenize(
-                    self.texts_label, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} label texts"
-                )["input_ids"]
-                self.truncate_pad_label = True
-
+            # todo 关于 FinelyControlledText 代码未更新
+            # elif isinstance(self.texts_label[0], FinelyControlledText):  # if the label type is `FinelyControlledText`
+            #     self.tokens_labels = self.__tokenize(
+            #         self.texts_label, tokenizer, tokenizer.model_max_length, desc=f"Tokenize {split.name} label texts"
+            #     )["input_ids"]
+            #     self.truncate_pad_label = True
             elif isinstance(self.texts_label[0], str):  # if the label type is  `str`
                 self.tokens_labels = self.texts_label
                 self.dataset_max_length_label = -1
@@ -289,8 +292,7 @@ class TextDataset(Dataset):
     def __getitem__(self, item: int) -> dict:
         ret_dict = dict()
         ret_dict["model_inputs"] = self.batch_model_input[item]
-        if self.tokens_labels is not None:
-            ret_dict["labels"] = self.tokens_labels[item]
+        ret_dict["labels"] = self.tokens_labels[item]
         if hasattr(self, "dicts_custom_inputs"):
             ret_dict["custom_inputs"] = self.dicts_custom_inputs[item]
         return ret_dict
@@ -299,10 +301,10 @@ class TextDataset(Dataset):
         return len(self.batch_model_input)
 
     def report(self):
-        "Log some information of dataset."
+        "Log some information of dataset (before being truncated)."
         toolkit_logger.info(f"Total {self.split.name} data: {len(self)}")
-        toolkit_logger.info(f"Max length of input: {self.dataset_max_length_input}")
-        toolkit_logger.info(f"Max length of label: {self.dataset_max_length_label}")
+        toolkit_logger.info(f"Max length of input tokens: {self.dataset_max_length_input}")
+        toolkit_logger.info(f"Max length of label tokens: {self.dataset_max_length_label}")
 
     def __truncate_one(self, l: list[int] | list[list], max_length: int):
         if not isinstance(l[0], list):
@@ -310,8 +312,14 @@ class TextDataset(Dataset):
         return [self.__truncate_one(item, max_length) for item in l]
 
     def __truncate(
-        self, model_max_length: int, max_length: int | None = None, max_length_input: int | None = None, max_length_label: int | None = None
-    ) -> int:
+        self,
+        tokens_inputs: List[ModelInput],
+        tokens_labels: List[Tokens | ClassificationLabel | RegressionLabel | str],
+        model_max_length: int,
+        max_length: int | None = None,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
+    ) -> Tuple[List | int]:
         "返回的`max_length_input_after_trunc`是经过裁切后的<数据集>的最大长度, 不是<设置>的最大长度 !!!"
         "bug!!! 当decoder的generate任务时, 训练集中的inputs['input_ids']: list[list[int]]时无法裁切"
         cnt = 0
@@ -326,17 +334,17 @@ class TextDataset(Dataset):
             max_length = max_length or model_max_length
             # 对于"decoder"的"generate"任务, 训练时需要对input和label进一步处理
             if self.split == Split.TRAINING:
-                for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
+                for idx, (inputs, labels) in enumerate(zip(tokens_inputs, tokens_labels)):
                     inputs_len = len(inputs["input_ids"])
                     inputs["input_ids"] = inputs["input_ids"] + labels
                     if len(inputs["input_ids"]) > max_length:
                         cnt += 1
                     inputs["input_ids"] = inputs["input_ids"][:max_length]
                     inputs["attention_mask"] = (inputs["attention_mask"] + [1] * len(labels))[:max_length]
-                    self.tokens_labels[idx] = ([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length]
+                    tokens_labels[idx] = ([self.inputkey2padid["labels"]] * inputs_len + labels)[:max_length]
                     max_length_input_after_trunc = max_length_label_after_trunc = max(max_length_input_after_trunc, len(inputs["input_ids"]))
             else:
-                for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
+                for idx, (inputs, labels) in enumerate(zip(tokens_inputs, tokens_labels)):
                     if max_len_nest_list(inputs["input_ids"]) > max_length:
                         cnt += 1
                     for key in inputs.keys():
@@ -345,14 +353,14 @@ class TextDataset(Dataset):
                     if self.truncate_pad_label:
                         # labels = labels[:max_length]
                         labels = self.__truncate_one(labels, max_length)
-                        self.tokens_labels[idx] = labels
+                        tokens_labels[idx] = labels
                     max_length_input_after_trunc = max(max_length_input_after_trunc, max_len_nest_list(inputs["input_ids"]))
                     if self.truncate_pad_label:
                         max_length_label_after_trunc = max(max_length_label_after_trunc, max_len_nest_list(labels))
         else:
             max_length_input = max_length_input or model_max_length
             max_length_label = max_length_label or model_max_length
-            for idx, (inputs, labels) in enumerate(zip(self.batch_model_input, self.tokens_labels)):
+            for idx, (inputs, labels) in enumerate(zip(tokens_inputs, tokens_labels)):
                 if max_len_nest_list(inputs["input_ids"]) > max_length_input:
                     cnt += 1
                 for key in inputs.keys():
@@ -361,11 +369,11 @@ class TextDataset(Dataset):
                 if self.truncate_pad_label:
                     # labels = labels[:max_length_label]
                     labels = self.__truncate_one(labels, max_length_label)
-                    self.tokens_labels[idx] = labels
+                    tokens_labels[idx] = labels
                 max_length_input_after_trunc = max(max_length_input_after_trunc, max_len_nest_list(inputs["input_ids"]))
                 if self.truncate_pad_label:
                     max_length_label_after_trunc = max(max_length_label_after_trunc, max_len_nest_list(labels))
-        return cnt, max_length_input_after_trunc, max_length_label_after_trunc or self.dataset_max_length_label
+        return tokens_inputs, tokens_labels, cnt, max_length_input_after_trunc, max_length_label_after_trunc or self.dataset_max_length_label
 
     def __pad_one(self, model_input: ModelInput, max_length: int):
         def helper(l: List, inputkey: str):
@@ -429,14 +437,20 @@ class TextDataset(Dataset):
         return [self.__pad_one_return_list(model_input, max_length) for model_input in batch]
 
     # @staticmethod
-    def transformers_tokenizer_tqdm(
-        self, tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast, text_pairs: List[PairedText], desc: str, is_label: bool
-    ) -> Tuple[List[ModelInput], int]:
+    def transformers_tokenizer(
+        self,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+        text_pairs: List[PairedText],
+        desc: str,
+        is_label: bool,
+        progress_bar: bool = True,
+    ) -> Tuple[List[ModelInput | Tokens], int]:
         # // """此函数同时完成truncation操作"""
         # print(text_pairs)
         batch_model_input = []
         longest = 0
-        for text1, text2 in tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99):
+        iterator = tqdm(text_pairs, desc=desc, colour="RED", smoothing=0.99) if progress_bar else text_pairs
+        for text1, text2 in iterator:
             # # 为 decoder-only 模型的 label 加上 eos
             # if is_label and self.model_structure == "decoder":
             #     text1 += tokenizer.eos_token
@@ -592,8 +606,13 @@ class TextDataset(Dataset):
             cls.report(dataset)
 
         # truncate dataset
-        cnt, max_length_input_after_trunc, max_length_label_after_trunc = dataset.__truncate(
-            tokenizer.model_max_length, configs.max_length, configs.max_length_input, configs.max_length_label
+        _, _, cnt, max_length_input_after_trunc, max_length_label_after_trunc = dataset.__truncate(
+            dataset.batch_model_input,
+            dataset.tokens_labels,
+            tokenizer.model_max_length,
+            configs.max_length,
+            configs.max_length_input,
+            configs.max_length_label,
         )
         if local_rank == 0:
             toolkit_logger.info(
@@ -604,9 +623,9 @@ class TextDataset(Dataset):
 
         # pad dataset
         if configs.padding_to_max_length:
-            dataset.batch_model_input = dataset.__pad_batch_return_list(dataset.batch_model_input, max_length_input_after_trunc)
+            dataset.batch_model_input = dataset.__pad_batch_return_list(dataset.batch_model_input, dataset.max_length_input_after_trunc)
             if dataset.truncate_pad_label:
-                dataset.tokens_labels = dataset.__pad_batch_return_list(dataset.tokens_labels, max_length_label_after_trunc)
+                dataset.tokens_labels = dataset.__pad_batch_return_list(dataset.tokens_labels, dataset.max_length_label_after_trunc)
             if local_rank == 0:
                 toolkit_logger.info(f"🧷 Padding {split.name} to max length of dataset.")
 
@@ -616,6 +635,11 @@ class TextDataset(Dataset):
             dataset.max_length_label_after_trunc = configs.max_length_label or configs.max_length
             print(dataset.max_length_input_after_trunc)
             print(dataset.max_length_label_after_trunc)
+            dataset.batch_model_input = dataset.__pad_batch_return_list(dataset.batch_model_input, dataset.max_length_input_after_trunc)
+            if dataset.truncate_pad_label:
+                dataset.tokens_labels = dataset.__pad_batch_return_list(dataset.tokens_labels, dataset.max_length_label_after_trunc)
+            if local_rank == 0:
+                toolkit_logger.info(f"🧷 Padding {split.name} to the config length.")
 
         return dataset
 
@@ -750,6 +774,224 @@ class TextDataset(Dataset):
     #         for key, value in cur_dict.items():
     #             tokenized_dict[key].append(value)
     #     return tokenized_dict
+
+
+# todo 还差 truncate 和 encoder-only 模型的 label特殊处理问题
+class LazyTextDataset(TextDataset):
+    def __init__(
+        self,
+        data_file_path,
+        task_type,
+        model_structure,
+        tokenizer,
+        parse_item_fn,
+        build_offsets_fn=None,
+        split=Split.UNK,
+        padding_side="right",
+        max_length: int | None = None,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
+        **kwargs_load_data,
+    ):
+        """
+        parse_item_fn: 用于解析 item, 例如从中解析出 input 和 label.
+        build_offsets_fn: 用于划分 item, 默认情况下按行划分.
+        """
+        self.model_structure = model_structure
+        self.padding_side = padding_side
+        self.task_type = task_type
+        self.split = split
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+        self.max_length_input = max_length_input
+        self.max_length_label = max_length_label
+
+        self.file_path = data_file_path
+        self.file = open(data_file_path, "rb")
+        self.mm = mmap.mmap(self.file.fileno(), 0, access=mmap.ACCESS_READ)
+
+        # 尝试加载预存的偏移量，否则重新计算
+        self._build_offsets = build_offsets_fn or self._build_offsets
+        offsets_path = Path(data_file_path).with_suffix(".offsets.npy")
+        if offsets_path.exists():
+            self.offsets = np.load(offsets_path).tolist()
+        else:
+            self.offsets = self._build_offsets()
+            np.save(offsets_path, np.array(self.offsets))
+        self.parse_item_fn = parse_item_fn
+        self.dataset_max_length_input = -1  # 由于不直接读取全部数据，该值无法统计
+        self.dataset_max_length_label = -1  # 由于不直接读取全部数据，该值无法统计
+
+    def __del__(self):
+        self.mm.close()
+        self.file.close()
+
+    def _build_offsets(self):
+        offsets = []
+        self.mm.seek(0)
+        while True:
+            pos = self.mm.tell()
+            line = self.mm.readline()
+            if not line:  # 遇到EOF时退出循环
+                break
+            # if line.strip():  # 可选：忽略纯空白行（如只有\n）
+            offsets.append(pos)
+        return offsets
+
+    def __getitem__(self, idx):
+        ret_dict = dict()
+        self.mm.seek(self.offsets[idx])
+        item = self.mm.readline().decode("utf-8").strip()
+        ori_input, ori_label, *custom_args = self.parse_item_fn(item)
+
+        # custom inputs
+        if len(custom_args) > 0:
+            dicts_custom_inputs: Dict = custom_args[0]
+            assert isinstance(dicts_custom_inputs, dict), "Custom inputs of a sample must be a `Dict`."
+            ret_dict["custom_inputs"] = dicts_custom_inputs
+
+        # tokenize input texts
+        if isinstance(ori_input, PairedText):  # if the input type is `PairedText`
+            batch_model_input, num_tokens = self.transformers_tokenizer(self.tokenizer, (ori_input,), desc=None, is_label=False, progress_bar=False)
+            ret_dict["model_inputs"] = batch_model_input[0]
+        else:
+            raise ValueError("The input type must be `PairedText` or `FinelyControlledText`")
+
+        # tokenize label texts
+        self.truncate_pad_label = False  # 用于控制是否对label进行truncate和pad。只有生成任务的训练才需要设为 True
+        self.custom_label = False
+        if isinstance(ori_label, PairedText):  # if the label type is `PairedText`
+            batch_input_ids, num_tokens = self.transformers_tokenizer(self.tokenizer, (ori_label,), desc=None, is_label=True, progress_bar=False)
+            ret_dict["labels"] = batch_input_ids[0]
+            self.truncate_pad_label = True
+        elif isinstance(ori_label, str):  # if the label type is  `str`
+            ret_dict["labels"] = ori_label
+        elif (isinstance(ori_label, list) and isinstance(ori_label[0], int)) or isinstance(
+            ori_label, ClassificationLabel
+        ):  # if the label type is `ClassificationID`, i.e. `List[int]`
+            ret_dict["labels"] = torch.tensor(ori_label, dtype=torch.long)
+        elif (isinstance(ori_label, list) and isinstance(ori_label[0], float)) or isinstance(
+            ori_label, RegressionLabel
+        ):  # if the label type is `RegressionValue`, i.e. `List[float]`
+            ret_dict["labels"] = torch.tensor(ori_label, dtype=torch.float32)
+        elif isinstance(ori_label, dict | list | tuple):
+            logger.debug("Using custom labels ...")
+            self.custom_label = True
+            ret_dict["labels"] = ori_label
+        else:
+            raise ValueError(
+                (
+                    "If the label is text, it must be `FinelyControlledText` or `PairedText` or `str`, "
+                    "if the label is classification, it must be `ClassificationID (List[int])`",
+                    "if the label is regression value, ti must be `RegressionValue (List[float])`",
+                    "if the label is custom value, ti must be `dcit|list|tuple`",
+                )
+            )
+
+        return ret_dict
+
+    def __len__(self):
+        return len(self.offsets)
+
+    def collate_fn(self, batch):
+        list_model_inputs, list_labels_tokens, _, _, _ = self.__truncate(
+            [item["model_inputs"] for item in batch],
+            [item["labels"] for item in batch],
+            self.tokenizer.model_max_length,
+            self.max_length,
+            self.max_length_input,
+            self.max_length_label,
+        )
+        for item, model_input, label in zip(batch, list_model_inputs, list_labels_tokens):
+            item["model_inputs"] = model_input
+            item["labels"] = label
+        return super().collate_fn(batch)
+
+    @classmethod
+    def from_file(
+        cls,
+        *,
+        data_file_path: Path | str | None = None,
+        task_type: str | None = None,
+        model_structure: str | None = None,
+        tokenizer: PreTrainedTokenizer | PreTrainedTokenizerFast,
+        parse_item_fn,
+        build_offsets_fn=None,
+        split: Split | Literal["TRAINING", "VALIDATION", "TEST", "UNK"],
+        padding_side: str | None = None,
+        use_cache: bool | None = None,
+        max_length: int | None = None,
+        max_length_input: int | None = None,
+        max_length_label: int | None = None,
+        padding_to_max_length: bool | None = None,
+        configs: NLPTrainingConfig | None = None,
+        **kwargs_load_data,
+    ) -> Self | None:
+        """
+        Load dataset from file with the given `NLPTrainingConfig`.
+        """
+        local_rank = dist.get_rank() if dist.is_initialized() else 0
+
+        if not isinstance(split, Split):
+            split = Split[split]
+
+        if configs is None:
+            configs = NLPTrainingConfig(
+                task_type=task_type,
+                cache_dataset=use_cache,
+                model_structure=model_structure,
+                padding_side=padding_side,
+                max_length=max_length,
+                max_length_input=max_length_input,
+                max_length_label=max_length_label,
+                padding_to_max_length=padding_to_max_length,
+            )
+
+        # 如果未指定 data_file_path, 则尝试根据 split 从 configs 中找对应的文件
+        if data_file_path is None:
+            match split:
+                case Split.TRAINING:
+                    data_file_path = configs.train_file_path
+                case Split.VALIDATION:
+                    data_file_path = configs.val_file_path
+                case Split.TEST:
+                    data_file_path = configs.test_file_path
+
+        if data_file_path is None:
+            if local_rank == 0:
+                logger.warning(f"⚠️  Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
+            return None
+            # raise TypeError(f"❌ Fail to load {split.name} data. The data file path is not specified (received `NoneType`).")
+        if isinstance(data_file_path, str):
+            data_file_path = Path(data_file_path)
+        if isinstance(data_file_path, Path) and not data_file_path.exists():
+            if local_rank == 0:
+                raise FileNotFoundError(f"❌ Fail to load test data. {data_file_path} does not exists.")
+
+        start = time.time()
+        if local_rank == 0:
+            logger.debug(f"⏳ Loading {split.name} dataset ...")
+
+        dataset = cls(
+            data_file_path=data_file_path,
+            task_type=configs.task_type,
+            model_structure=configs.model_structure,
+            tokenizer=tokenizer,
+            parse_item_fn=parse_item_fn,
+            build_offsets_fn=build_offsets_fn,
+            split=split,
+            padding_side=configs.padding_side,
+            max_length=configs.max_length,
+            max_length_input=configs.max_length_input,
+            max_length_label=configs.max_length_label,
+            **kwargs_load_data,
+        )
+        end = time.time()
+        if local_rank == 0:
+            logger.debug(f"⌛ Loading {split.name} data takes {end - start:.2f} sec.")
+            cls.report(dataset)
+
+        return dataset
 
 
 def show_model_inputs_case(dataset, tokenizer, is_decode_label=True):
