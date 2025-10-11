@@ -40,6 +40,7 @@ class LineChart(ChartBase):
         title: str | List[List[str]] = "",
         colors: List[str] | None = None,
         dot: bool = False,
+        markersize=3,
         color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
         bottom: int = None,
         top: int = None,
@@ -92,6 +93,7 @@ class LineChart(ChartBase):
                         list(LINE_STYLE.keys())[k] if not dot else DOT_LINE_STYLE[k],
                         color=colors[k],
                         label=line_label[i][j][k].item(),
+                        markersize=markersize,
                     )
                     # ax.axhline(y=81.875, linestyle="--", color="red", label="ChatGPT Zeroshot")
 
