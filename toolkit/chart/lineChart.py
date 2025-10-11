@@ -11,7 +11,14 @@ Data = Tuple[float]
 
 class LineChart(ChartBase):
     def __init__(
-        self, nrows: int = 1, ncols: int = 1, figsize: Tuple = (8, 4.5), dpi: int = 100, is_ch=False, usetex=False, font_size: int = 8
+        self,
+        nrows: int = 1,
+        ncols: int = 1,
+        figsize: Tuple = (8, 4.5),
+        dpi: int = 100,
+        is_ch=False,
+        usetex=False,
+        font_size: int = 8,
     ) -> None:
         super().__init__(nrows, ncols, figsize, dpi, is_ch, usetex)
         plt.rcParams["font.size"] = font_size
@@ -30,6 +37,7 @@ class LineChart(ChartBase):
         line_label: List[str] | List[List[List[str]]],
         xlabel: str = "x",
         ylabel: str = "y",
+        title: str | List[List[str]] = "",
         colors: List[str] | None = None,
         dot: bool = False,
         color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
@@ -39,6 +47,11 @@ class LineChart(ChartBase):
         x = np.array(x)
         y = np.array(y)
         line_label = np.array(line_label)
+        if isinstance(title, str):
+            title = np.array([[title]])
+        else:
+            title = np.array(title)
+
         # only one plot
         if self.nrows == self.ncols == 1 and len(x.shape) == 2:
             x = x[None, None, :, :]
@@ -82,6 +95,8 @@ class LineChart(ChartBase):
                     )
                     # ax.axhline(y=81.875, linestyle="--", color="red", label="ChatGPT Zeroshot")
 
+                ax.set_title(title[i][j].item(), fontsize=self.fontsize)
+                # plt.title(title[i][j], fontsize=self.fontsize)
                 ax.set_xlabel(xlabel, fontsize=self.fontsize)
                 ax.set_ylabel(ylabel, fontsize=self.fontsize)
                 ax.grid(axis="y", linestyle="-", alpha=0.8, linewidth=0.5)
