@@ -97,7 +97,7 @@ class LineChart(ChartBase):
                     )
                     # ax.axhline(y=81.875, linestyle="--", color="red", label="ChatGPT Zeroshot")
 
-                ax.set_title(title[i][j].item(), fontsize=self.fontsize)
+                ax.set_title(title[i][j].item() if hasattr(title[i][j], 'item') else title[i][j], fontsize=self.fontsize)
                 # plt.title(title[i][j], fontsize=self.fontsize)
                 ax.set_xlabel(xlabel, fontsize=self.fontsize)
                 ax.set_ylabel(ylabel, fontsize=self.fontsize)

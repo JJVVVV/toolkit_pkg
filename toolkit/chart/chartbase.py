@@ -50,6 +50,8 @@ class ChartBase:
             self.axes = np.array([[self.axes]])
         elif nrows==1:
             self.axes = self.axes[None, :]
+        elif ncols==1:
+            self.axes = self.axes[:, None]
 
     def __getattr__(self, name):
         return getattr(self.fig, name)
