@@ -41,7 +41,7 @@ class LineChart(ChartBase):
         colors: List[str] | None = None,
         dot: bool = False,
         markersize=3,
-        color_palette: Literal["husl", "Greens", "Spectral"] = "husl",
+        color_palette: Literal["Set1", "husl", "Greens", "Spectral"] = "Set1",
         bottom: int = None,
         top: int = None,
     ) -> None:
